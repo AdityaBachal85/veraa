@@ -17,6 +17,7 @@
 #include "polyops.h"
 
 class QMouseEvent;
+class QPainter;
 
 namespace veraa {
 
@@ -206,6 +207,9 @@ class PolyEditTool : public ViewportTool {
 void abandonPolyLive();
 // Cancels an open operation settings caddy; returns true if one was open (polypanel.cpp).
 bool cancelPolyCaddy();
+
+// Draws a transform gizmo with QPainter (on top of everything in the viewport).
+void drawGizmoOverlay(QPainter& p, const ViewCamera& cam, const Gizmo& gizmo, GizmoHandle hot);
 
 // Finds the sub-object tool currently installed for this target (or null).
 std::shared_ptr<PolyEditTool> activePolyTool(EditorState* state);

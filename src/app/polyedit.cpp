@@ -407,6 +407,38 @@ void abandonPolyLive() {
   live.mesh = PolyMesh();
 }
 
+void drawGizmoOverlay(QPainter& p, const ViewCamera& cam, const Gizmo& gizmo, GizmoHandle hot) {
+  LineBatch g;
+  gizmo.draw(g, cam, hot);
+  auto toPx = [&](const LineVertex& lv, QPointF& out) {
+    float x, y;
+    if (!cam.project(Vec3(lv.x, lv.y, lv.z), x, y)) return false;
+    out = QPointF(x, y);
+    return true;
+  };
+  p.save();
+  p.setRenderHint(QPainter::Antialiasing, true);
+  for (size_t i = 0; i + 2 < g.tris.size(); i += 3) {
+    QPointF a, b, c;
+    if (!toPx(g.tris[i], a) || !toPx(g.tris[i + 1], b) || !toPx(g.tris[i + 2], c)) continue;
+    const LineVertex& lv = g.tris[i];
+    QPainterPath path;
+    path.moveTo(a);
+    path.lineTo(b);
+    path.lineTo(c);
+    path.closeSubpath();
+    p.fillPath(path, QColor::fromRgbF(lv.r, lv.g, lv.b, lv.a));
+  }
+  for (size_t i = 0; i + 1 < g.lines.size(); i += 2) {
+    QPointF a, b;
+    if (!toPx(g.lines[i], a) || !toPx(g.lines[i + 1], b)) continue;
+    const LineVertex& lv = g.lines[i];
+    p.setPen(QPen(QColor::fromRgbF(lv.r, lv.g, lv.b, lv.a), 1.6));
+    p.drawLine(a, b);
+  }
+  p.restore();
+}
+
 std::shared_ptr<PolyEditTool> activePolyTool(EditorState* state) {
   return state ? std::dynamic_pointer_cast<PolyEditTool>(state->viewportToolShared()) : nullptr;
 }
@@ -1345,34 +1377,7 @@ void PolyEditTool::drawOverlay(Viewport& vp, QPainter& p) {
   // Gizmo (drawn on top so the mesh never hides it).
   if (gizmoShown(vp)) {
     setupGizmo(vp);
-    LineBatch g;
-    gizmo_.draw(g, vp.camera(), transforming_ ? gizmoDrag_.handle() : hot_);
-    const ViewCamera& cam = vp.camera();
-    auto toPx = [&](const LineVertex& lv, QPointF& out) {
-      float x, y;
-      if (!cam.project(Vec3(lv.x, lv.y, lv.z), x, y)) return false;
-      out = QPointF(x, y);
-      return true;
-    };
-    for (size_t i = 0; i + 2 < g.tris.size(); i += 3) {
-      QPointF a, b, c;
-      if (!toPx(g.tris[i], a) || !toPx(g.tris[i + 1], b) || !toPx(g.tris[i + 2], c)) continue;
-      const LineVertex& lv = g.tris[i];
-      QColor col = QColor::fromRgbF(lv.r, lv.g, lv.b, lv.a);
-      QPainterPath path;
-      path.moveTo(a);
-      path.lineTo(b);
-      path.lineTo(c);
-      path.closeSubpath();
-      p.fillPath(path, col);
-    }
-    for (size_t i = 0; i + 1 < g.lines.size(); i += 2) {
-      QPointF a, b;
-      if (!toPx(g.lines[i], a) || !toPx(g.lines[i + 1], b)) continue;
-      const LineVertex& lv = g.lines[i];
-      p.setPen(QPen(QColor::fromRgbF(lv.r, lv.g, lv.b, lv.a), 1.6));
-      p.drawLine(a, b);
-    }
+    drawGizmoOverlay(p, vp.camera(), gizmo_, transforming_ ? gizmoDrag_.handle() : hot_);
   }
 
   // Region rectangle.
