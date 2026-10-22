@@ -446,7 +446,8 @@ void MainWindow::createMenus() {
   connect(convert, &QAction::triggered, this, [this] {
     QVector<uint32_t> ids;
     for (Node* n : doc_->selectedNodes())
-      if (n->kind() == ObjectKind::Geometry) ids.push_back(n->id);
+      if (n->kind() == ObjectKind::Geometry || (n->kind() == ObjectKind::Shape && !n->mesh().empty()))
+        ids.push_back(n->id);
     if (ids.isEmpty()) return;
     doc_->beginEdit(tr("Convert to Editable Poly"));
     for (uint32_t id : ids) {
@@ -843,7 +844,8 @@ void MainWindow::showContextMenu(Viewport* vp, const QPoint& pos) {
   for (QAction* a : menuBar()->actions())
     if (a->menu() && a->text() == tr("&Tools"))
       for (QAction* t : a->menu()->actions())
-        if (t->text() == tr("Convert to Editable Poly")) menu.addAction(t);
+        if (t->text() == tr("Convert to Editable Poly") || t->text() == tr("Convert to Editable Spline"))
+          menu.addAction(t);
   menu.addAction(materialEditorAct_);
   bool hasSel = !doc_->selection().isEmpty();
   cloneAct_->setEnabled(hasSel);

@@ -432,7 +432,7 @@ void CommandPanel::rebuildModify() {
   if (!nodes.isEmpty()) color_->setColor(nodes[0]->wireColor);
 
   bool anyGeometry = false;
-  for (Node* s : nodes) anyGeometry |= s->kind() == ObjectKind::Geometry;
+  for (Node* s : nodes) anyGeometry |= s->kind() == ObjectKind::Geometry || s->kind() == ObjectKind::Shape;
   modList_->setEnabled(anyGeometry);
 
   if (!n) {
