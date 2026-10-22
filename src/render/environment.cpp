@@ -183,7 +183,7 @@ void Environment::buildConstant(const Vec3& radiance) {
   map_ = nullptr;
   baked_.reset();
   constant_ = vmax(radiance, Vec3(0.0f));
-  black_ = isBlack(constant_);
+  black_ = veraa::isBlack(constant_);
 }
 
 void Environment::buildFromMap(const Texture* map, float rotationRad, float intensity) {

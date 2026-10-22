@@ -1,0 +1,581 @@
+{
+ "format": "veraa-scene",
+ "version": 1,
+ "renderSettings": {
+  "width": 1280,
+  "height": 720,
+  "samples": 512,
+  "maxDepth": 12,
+  "envMode": 2,
+  "hdriPath": "../assets/hdri/royal_esplanade_1k.hdr",
+  "hdriIntensity": 0.8,
+  "hdriRotation": 0.0,
+  "envVisible": false,
+  "backgroundColor": [
+   0.04,
+   0.042,
+   0.048
+  ],
+  "exposure": 0.0,
+  "camera": "Camera"
+ },
+ "materials": [
+  {
+   "id": 1,
+   "name": "Studio floor",
+   "type": "VeraaMtl",
+   "params": {
+    "diffuse": [
+     0.08,
+     0.08,
+     0.09
+    ],
+    "reflect": [
+     1,
+     1,
+     1
+    ],
+    "reflectGlossiness": 0.82,
+    "fresnelIor": 1.5
+   }
+  },
+  {
+   "id": 2,
+   "name": "White plastic",
+   "type": "VeraaMtl",
+   "params": {
+    "diffuse": [
+     0.85,
+     0.85,
+     0.85
+    ],
+    "reflect": [
+     1,
+     1,
+     1
+    ],
+    "reflectGlossiness": 0.88,
+    "fresnelIor": 1.5
+   }
+  },
+  {
+   "id": 3,
+   "name": "Glass",
+   "type": "VeraaMtl",
+   "params": {
+    "diffuse": [
+     0,
+     0,
+     0
+    ],
+    "reflect": [
+     1,
+     1,
+     1
+    ],
+    "refract": [
+     1,
+     1,
+     1
+    ],
+    "ior": 1.5,
+    "fresnelIor": 1.5,
+    "fogColor": [
+     0.82,
+     0.92,
+     1.0
+    ],
+    "fogMultiplier": 0.6
+   }
+  },
+  {
+   "id": 4,
+   "name": "Gold",
+   "type": "VeraaMtl",
+   "params": {
+    "diffuse": [
+     1.0,
+     0.77,
+     0.34
+    ],
+    "reflect": [
+     1,
+     1,
+     1
+    ],
+    "metalness": 1.0,
+    "reflectGlossiness": 0.93
+   }
+  },
+  {
+   "id": 5,
+   "name": "Chrome",
+   "type": "VeraaMtl",
+   "params": {
+    "diffuse": [
+     0.96,
+     0.96,
+     0.96
+    ],
+    "reflect": [
+     1,
+     1,
+     1
+    ],
+    "metalness": 1.0,
+    "reflectGlossiness": 1.0
+   }
+  },
+  {
+   "id": 6,
+   "name": "Red lacquer",
+   "type": "VeraaMtl",
+   "params": {
+    "diffuse": [
+     0.65,
+     0.03,
+     0.03
+    ],
+    "reflect": [
+     1,
+     1,
+     1
+    ],
+    "reflectGlossiness": 0.9,
+    "fresnelIor": 1.5
+   }
+  },
+  {
+   "id": 7,
+   "name": "Frosted glass",
+   "type": "VeraaMtl",
+   "params": {
+    "diffuse": [
+     0,
+     0,
+     0
+    ],
+    "reflect": [
+     1,
+     1,
+     1
+    ],
+    "refract": [
+     0.95,
+     0.97,
+     1.0
+    ],
+    "ior": 1.5,
+    "fresnelIor": 1.5,
+    "refractGlossiness": 0.75,
+    "reflectGlossiness": 0.75
+   }
+  }
+ ],
+ "nodes": [
+  {
+   "id": 1,
+   "name": "Floor",
+   "transform": {
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 1,
+   "object": {
+    "type": "Plane",
+    "params": {
+     "length": 4000,
+     "width": 4000,
+     "lengthSegs": 1,
+     "widthSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 2,
+   "name": "Pedestal",
+   "transform": {
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 2,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 75,
+     "height": 28,
+     "heightSegs": 1,
+     "sides": 96,
+     "capSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 3,
+   "name": "GlassSphere",
+   "transform": {
+    "position": [
+     -36,
+     -8,
+     28
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 3,
+   "object": {
+    "type": "Sphere",
+    "params": {
+     "radius": 22,
+     "segments": 96,
+     "basePivot": true
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 4,
+   "name": "GoldRing",
+   "transform": {
+    "position": [
+     28,
+     18,
+     55
+    ],
+    "rotation": [
+     72,
+     0,
+     -20
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 4,
+   "object": {
+    "type": "Torus",
+    "params": {
+     "radius1": 21,
+     "radius2": 6,
+     "segments": 96,
+     "sides": 48
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 5,
+   "name": "ChromeBall",
+   "transform": {
+    "position": [
+     14,
+     -40,
+     37
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 5,
+   "object": {
+    "type": "GeoSphere",
+    "params": {
+     "radius": 9,
+     "segments": 16
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 6,
+   "name": "RedCube",
+   "transform": {
+    "position": [
+     52,
+     -22,
+     28
+    ],
+    "rotation": [
+     0,
+     0,
+     28
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 6,
+   "object": {
+    "type": "ChamferBox",
+    "params": {
+     "length": 26,
+     "width": 26,
+     "height": 26,
+     "fillet": 3,
+     "filletSegs": 5
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 7,
+   "name": "FrostedVase",
+   "transform": {
+    "position": [
+     -12,
+     38,
+     28
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 7,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 10,
+     "height": 44,
+     "heightSegs": 12,
+     "sides": 64
+    }
+   },
+   "modifiers": [
+    {
+     "type": "Taper",
+     "enabled": true,
+     "params": {
+      "amount": -0.4,
+      "curve": 1.2
+     }
+    },
+    {
+     "type": "Twist",
+     "enabled": true,
+     "params": {
+      "angle": 0.0
+     }
+    }
+   ]
+  },
+  {
+   "id": 8,
+   "name": "KeyLight",
+   "transform": {
+    "position": [
+     -170,
+     -140,
+     190
+    ],
+    "rotation": [
+     55.740638990281376,
+     -0.0,
+     -50.52754015165618
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.95,
+    0.85,
+    0.2
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 0,
+   "object": {
+    "type": "RectLight",
+    "params": {
+     "width": 120,
+     "length": 80,
+     "intensity": 7,
+     "invisible": true
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 9,
+   "name": "RimLight",
+   "transform": {
+    "position": [
+     150,
+     170,
+     130
+    ],
+    "rotation": [
+     68.34825962347271,
+     -0.0,
+     138.57633437499737
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.95,
+    0.85,
+    0.2
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 0,
+   "object": {
+    "type": "RectLight",
+    "params": {
+     "width": 60,
+     "length": 140,
+     "intensity": 6,
+     "invisible": true
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 10,
+   "name": "Camera",
+   "transform": {
+    "position": [
+     10,
+     -245,
+     115
+    ],
+    "rotation": [
+     74.27552829542542,
+     0.0,
+     1.4028815326514683
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.3,
+    0.6,
+    1.0
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 0,
+   "object": {
+    "type": "Camera",
+    "params": {
+     "fov": 40
+    }
+   },
+   "modifiers": []
+  }
+ ],
+ "nextNodeId": 11,
+ "nextMaterialId": 8
+}

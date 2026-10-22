@@ -68,7 +68,9 @@ MaterialData MaterialData::fromMaterial(const Material& mat, const Scene* scene,
   auto tex = [&](const char* key) -> const Texture* {
     const std::string& path = p.getString(key);
     if (path.empty()) return nullptr;
-    return cache.get(scene ? scene->resolvePath(path) : path, warnings);
+    // ":name" are built-in procedural textures (e.g. ":checker").
+    bool builtin = path[0] == ':';
+    return cache.get(scene && !builtin ? scene->resolvePath(path) : path, warnings);
   };
   MaterialData m;
   m.diffuse = p.getColor("diffuse");
