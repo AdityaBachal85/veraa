@@ -625,8 +625,8 @@ void convertToEditableSpline(SceneDocument* doc) {
     n->object = es;
     n->modifiers.clear();
   }
+  doc->notifyStructureChanged();  // first: panels drop references to the replaced objects
   doc->notifyNodesChanged(ids, ChangeGeometry);
-  doc->notifyStructureChanged();
   doc->endEdit();
 }
 

@@ -1,6 +1,8 @@
 // Command panel on the right: Create tab (object types) and Modify tab (modifier stack).
 #pragma once
 
+#include <vector>
+
 #include <QHash>
 #include <QTabWidget>
 
@@ -70,6 +72,11 @@ class CommandPanel : public QTabWidget {
   QWidget* modExtra_ = nullptr;
   ParamForm* modForm_ = nullptr;
   uint32_t modNode_ = 0;
+  // The object and modifiers the Modify tab was built for. Tools that replace them (Convert
+  // To, Collapse, ...) leave the forms pointing at freed parameters, so a change makes the
+  // tab rebuild instead of refresh.
+  std::vector<const void*> modBuiltFor_;
+  const void* createFormObject_ = nullptr;  // object whose parameters createForm_ shows
   QHash<uint32_t, int> stackChoice_;  // node -> chosen stack index
   bool rebuilding_ = false;
 };

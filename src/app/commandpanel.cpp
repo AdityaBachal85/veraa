@@ -60,7 +60,17 @@ CommandPanel::CommandPanel(SceneDocument* doc, EditorState* state, QWidget* pare
   });
   connect(doc_, &SceneDocument::nodesChanged, this, [this](const QVector<uint32_t>& ids, int flags) {
     if (ids.contains(createFormNode_)) {
-      createForm_->refresh();
+      Node* cn = doc_->scene().findNode(createFormNode_);
+      if (!cn || !cn->object || cn->object.get() != createFormObject_) {
+        // The object was replaced (Convert To, ...): its parameters are gone.
+        createForm_->setBlock(nullptr);
+        createFormNode_ = 0;
+        createFormObject_ = nullptr;
+      } else {
+        createForm_->refresh();
+      }
+    }
+    if (ids.contains(createFormNode_)) {
       if (Node* n = doc_->scene().findNode(createFormNode_)) {
         QSignalBlocker b(createName_);
         createName_->setText(QString::fromStdString(n->name));
@@ -255,6 +265,7 @@ void CommandPanel::syncCreate() {
     createFormNode_ = n->id;
     wireForm(createForm_, n->id, -1);
     createForm_->setBlock(&n->object->params);
+    createFormObject_ = n->object.get();
   }
 }
 
@@ -415,11 +426,22 @@ void CommandPanel::wireForm(ParamForm* form, uint32_t nodeId, int stackIndex) {
   form->browseDir = file.isEmpty() ? QString() : QFileInfo(file).absolutePath();
 }
 
+namespace {
+std::vector<const void*> stackIdentity(const Node* n) {
+  std::vector<const void*> ids;
+  if (!n) return ids;
+  ids.push_back(n->object.get());
+  for (const auto& m : n->modifiers) ids.push_back(m.get());
+  return ids;
+}
+}  // namespace
+
 void CommandPanel::rebuildModify() {
   rebuilding_ = true;
   auto nodes = doc_->selectedNodes();
   Node* n = nodes.size() == 1 ? nodes[0] : nullptr;
   modNode_ = n ? n->id : 0;
+  modBuiltFor_ = stackIdentity(n);
   stack_->clear();
   name_->setEnabled(!nodes.isEmpty());
   color_->setEnabled(!nodes.isEmpty());
@@ -500,7 +522,8 @@ void CommandPanel::selectStackRow(int row) {
 void CommandPanel::refreshModifyValues() {
   Node* n = doc_->scene().findNode(modNode_);
   if (!n) return;
-  if (static_cast<int>(stack_->count()) != static_cast<int>(n->modifiers.size()) + 1) {
+  if (static_cast<int>(stack_->count()) != static_cast<int>(n->modifiers.size()) + 1 ||
+      stackIdentity(n) != modBuiltFor_) {
     rebuildModify();
     return;
   }
