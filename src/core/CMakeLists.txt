@@ -10,6 +10,14 @@ add_library(veraa_core STATIC
   obj_import.cpp
   shape.cpp
   registry.cpp
+  expression.cpp
+  animation_track.cpp
+  animation.cpp
+  ik.cpp
+  rigging.cpp
+  particles.cpp
+  dynamics.cpp
+  avi.cpp
 )
 target_include_directories(veraa_core
   PUBLIC

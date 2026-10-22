@@ -8,6 +8,8 @@
 #include <sstream>
 #include <stdexcept>
 
+#include "registry.h"
+
 namespace veraa {
 
 // ---------------------------------------------------------------------------------------------
@@ -143,8 +145,10 @@ void Node::evaluate() const {
   if (!dirty_ && rev == evaluatedRevision_) return;
   GeomState st;
   st.time = scene_ ? scene_->time.currentFrame : 0.0;
+  st.scene = scene_;
+  st.nodeId = id;
   if (auto* g = geometry()) {
-    st.mesh = g->build();
+    st.mesh = g->buildAt(st);
   } else if (auto* s = shapeObject()) {
     st.shape = s->buildShape();
     st.isShape = true;
@@ -365,9 +369,44 @@ Layer defaultLayer() {
 
 }  // namespace
 
+namespace {
+
+std::vector<std::pair<std::string, SceneModuleFactory>>& sceneModuleRegistry() {
+  static std::vector<std::pair<std::string, SceneModuleFactory>> list;
+  return list;
+}
+
+void ensureSceneModules() {
+  static bool done = false;
+  if (done) return;
+  done = true;
+  registerBuiltinSceneModules();
+}
+
+}  // namespace
+
+void registerSceneModule(const std::string& name, SceneModuleFactory factory) {
+  auto& reg = sceneModuleRegistry();
+  for (auto& e : reg)
+    if (e.first == name) {
+      e.second = std::move(factory);
+      return;
+    }
+  reg.emplace_back(name, std::move(factory));
+}
+
+SceneModule* Scene::module(const std::string& name) const {
+  for (const auto& m : modules_)
+    if (m.first == name) return m.second.get();
+  return nullptr;
+}
+
 Scene::Scene() {
   defineRenderSettings(renderSettings);
   layers.push_back(defaultLayer());
+  ensureSceneModules();
+  for (const auto& e : sceneModuleRegistry())
+    if (e.second) modules_.emplace_back(e.first, e.second());
 }
 
 Node* Scene::createNode(const std::string& objectType) {
@@ -623,6 +662,7 @@ void Scene::clear() {
   defineRenderSettings(renderSettings);
   time = TimeConfig();
   extensions = json::object();
+  for (auto& m : modules_) m.second->fromJson(json());
   filePath.clear();
   nextNodeId_ = 1;
   nextMaterialId_ = 1;
@@ -679,7 +719,13 @@ json Scene::toJson() const {
   j["materials"] = std::move(mats);
   j["nodes"] = std::move(ns);
   j["time"] = time.toJson();
-  if (!extensions.empty()) j["extensions"] = extensions;
+  json ext = extensions;
+  for (const auto& m : modules_) {
+    json mj = m.second->toJson();
+    if (mj.is_null()) ext.erase(m.first);
+    else ext[m.first] = std::move(mj);
+  }
+  if (!ext.empty()) j["extensions"] = std::move(ext);
   j["nextNodeId"] = nextNodeId_;
   j["nextMaterialId"] = nextMaterialId_;
   j["nextLayerId"] = nextLayerId_;
@@ -769,6 +815,12 @@ bool Scene::fromJson(const json& j, std::string* error) {
     nextMaterialId_ = std::max(j.value("nextMaterialId", 1u), maxMat + 1);
     nextLayerId_ = std::max(j.value("nextLayerId", 1u), maxLayer + 1);
     colorCounter_ = static_cast<uint32_t>(nodes.size());
+    // Module data (live) is loaded from its extensions section, which it then owns.
+    for (auto& m : modules_) {
+      auto it = extensions.find(m.first);
+      m.second->fromJson(it != extensions.end() ? *it : json());
+      if (it != extensions.end()) extensions.erase(it);
+    }
     return true;
   } catch (const std::exception& e) {
     if (error) *error = e.what();

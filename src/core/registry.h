@@ -7,10 +7,17 @@ namespace veraa {
 
 void registerBuiltinObjectTypes();    // called once, on first registry access
 void registerBuiltinModifierTypes();  // called once, on first registry access
+void registerBuiltinSceneModules();   // called once, when the first Scene is created
 
 // Module register functions.
 void registerPrimitiveTypes();      // primitives.cpp: Standard Primitives, Chamfer Box
 void registerCoreObjectTypes();     // object.cpp: Editable Poly/Spline, lights, camera
 void registerCoreModifierTypes();   // modifier.cpp: Bend, Taper, Twist, Noise, Smooth, ...
+void registerAnimationModule();     // animation.cpp: keyframe tracks, controllers, constraints
+void registerRiggingTypes();        // rigging.cpp: Bones, IK chains, Skin, Morpher, Path Deform
+void registerParticleTypes();       // particles.cpp: Spray, Snow, Super Spray, space warps
+void registerRiggingModifiers();    // rigging.cpp: Skin, Morpher, Path Deform
+void registerParticleModifiers();   // particles.cpp: Space Warp Binding
+void registerDynamicsModifiers();   // dynamics.cpp: Rigid Body
 
 }  // namespace veraa
