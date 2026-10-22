@@ -100,6 +100,8 @@ class GraphView : public QWidget {
 
  private:
   bool curveMode() const;
+  // A tree row's rectangle in this widget's coordinates (dope sheet rows line up with the tree).
+  QRect rowRect(QTreeWidgetItem* item) const;
   bool hitKey(const QPointF& p, KeyRef& out) const;
   int hitHandle(const QPointF& p, KeyRef& out) const;  // 0 none, 1 in, 2 out
   QPointF handlePos(const Track& t, size_t i, bool out) const;
@@ -486,6 +488,14 @@ GraphView::GraphView(TrackViewWindow* w, AnimController* c) : QWidget(w), w_(w),
 }
 
 bool GraphView::curveMode() const { return w_->mode() == 0; }
+
+QRect GraphView::rowRect(QTreeWidgetItem* item) const {
+  QTreeWidget* tree = w_->tree();
+  QRect ir = tree->visualItemRect(item);
+  if (!ir.isValid() || ir.height() == 0) return QRect();
+  QPoint topLeft = mapFromGlobal(tree->viewport()->mapToGlobal(ir.topLeft()));
+  return QRect(0, topLeft.y(), width(), ir.height());
+}
 double GraphView::left() const { return curveMode() ? kValueGutter : 0.0; }
 
 void GraphView::frameAll() {
@@ -649,11 +659,10 @@ void GraphView::paintEvent(QPaintEvent*) {
     }
   } else {
     // Dope sheet rows aligned with the tree.
-    QTreeWidget* tree = w_->tree();
     for (const Row& r : w_->rows()) {
-      QRect ir = tree->visualItemRect(r.item);
-      if (!ir.isValid() || ir.height() == 0) continue;
-      double y = kRuler + ir.top(), h = ir.height();
+      QRect ir = rowRect(r.item);
+      if (ir.isNull()) continue;
+      double y = ir.top(), h = ir.height();
       if (y + h < kRuler || y > height()) continue;
       QColor rowBg = r.kind == Row::NodeSummary ? QColor(0x3a, 0x3a, 0x40) : r.kind == Row::Group ? QColor(0x35, 0x35, 0x38) : kBg;
       p.fillRect(QRectF(0, y, width(), h), rowBg);
@@ -713,11 +722,10 @@ bool GraphView::hitKey(const QPointF& pos, KeyRef& out) const {
     }
     return found;
   }
-  QTreeWidget* tree = w_->tree();
   for (const Row& r : w_->rows()) {
-    QRect ir = tree->visualItemRect(r.item);
-    if (!ir.isValid() || ir.height() == 0) continue;
-    double y = kRuler + ir.top();
+    QRect ir = rowRect(r.item);
+    if (ir.isNull()) continue;
+    double y = ir.top();
     if (pos.y() < y || pos.y() > y + ir.height()) continue;
     for (const auto& k : rowKeys(r)) {
       double d = std::fabs(xOf(k.second) - pos.x());
@@ -758,12 +766,11 @@ void GraphView::selectInRect(const QRectF& r, bool add) {
       for (const auto& k : w_->trackFor(path)->keys)
         if (r.contains(xOf(k.time), yOf(k.value))) sel.insert({path, k.time});
   } else {
-    QTreeWidget* tree = w_->tree();
     for (const Row& row : w_->rows()) {
       if (row.kind != Row::TrackRow && row.kind != Row::RotQ) continue;
-      QRect ir = tree->visualItemRect(row.item);
-      if (!ir.isValid() || ir.height() == 0) continue;
-      double y = kRuler + ir.center().y();
+      QRect ir = rowRect(row.item);
+      if (ir.isNull()) continue;
+      double y = ir.center().y();
       for (const auto& k : rowKeys(row))
         if (r.contains(xOf(k.second), y)) sel.insert(k);
     }
@@ -833,8 +840,8 @@ void GraphView::mousePressEvent(QMouseEvent* e) {
       }
     } else {
       for (const Row& r : w_->rows()) {
-        QRect ir = w_->tree()->visualItemRect(r.item);
-        if (r.kind == Row::TrackRow && ir.isValid() && pos.y() >= kRuler + ir.top() && pos.y() <= kRuler + ir.bottom()) path = r.path;
+        QRect ir = rowRect(r.item);
+        if (r.kind == Row::TrackRow && !ir.isNull() && pos.y() >= ir.top() && pos.y() <= ir.bottom()) path = r.path;
       }
     }
     if (path.empty()) return;

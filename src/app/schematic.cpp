@@ -95,7 +95,7 @@ class SchematicCanvas : public QWidget {
     for (const auto& kv : pos_) b |= QRectF(kv.second, QSizeF(kBoxW, kBoxH + modExtra(kv.first)));
     b.adjust(-20, -20, 20, 20);
     zoom_ = std::min(width() / b.width(), height() / b.height());
-    zoom_ = std::clamp(zoom_, 0.15, 2.0);
+    zoom_ = std::clamp(zoom_, 0.15, 1.0);
     pan_ = QPointF(width() / 2.0, height() / 2.0) - b.center() * zoom_;
     update();
   }

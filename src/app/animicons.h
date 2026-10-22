@@ -24,5 +24,6 @@ QIcon addKey();
 QIcon moveKeys();
 QIcon tangent(int type);  // TangentType order: Auto, Smooth, Linear, Step, Fast, Slow, Custom
 QIcon outOfRange(int type);
+QIcon bindSpaceWarp();
 
 }  // namespace veraa::animicons

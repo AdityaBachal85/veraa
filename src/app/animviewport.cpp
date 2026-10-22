@@ -1,5 +1,7 @@
 // Viewport display for animation: red border while Auto Key is on, trajectories, ghosting, and
 // icons for particle emitters, space warps and IK chains.
+#include <QAction>
+#include <QMenu>
 #include <QPainter>
 
 #include <cmath>
@@ -262,6 +264,23 @@ void installAnimViewport(MainWindow& w) {
   auto redraw = [&w] { w.editorState()->requestRedraw(); };
   QObject::connect(c, &AnimController::autoKeyChanged, &w, redraw);
   QObject::connect(c, &AnimController::animationChanged, &w, redraw);
+
+  QMenu* views = w.menuAt("Views");
+  views->addSeparator();
+  QAction* ghost = views->addAction(QObject::tr("Show Ghosting"));
+  ghost->setCheckable(true);
+  w.registerCommand("views.ghosting", ghost);
+  QObject::connect(ghost, &QAction::toggled, &w, [c, &w](bool on) {
+    c->ghosting = on;
+    w.editorState()->requestRedraw();
+  });
+  QAction* traj = views->addAction(QObject::tr("Show Trajectories of Selection"));
+  traj->setCheckable(true);
+  w.registerCommand("views.trajectories", traj);
+  QObject::connect(traj, &QAction::toggled, &w, [&w](bool on) {
+    AnimDecorator::showTrajectoriesForSelection = on;
+    w.editorState()->requestRedraw();
+  });
 }
 
 }  // namespace

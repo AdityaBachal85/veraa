@@ -43,6 +43,7 @@ QDoubleSpinBox* spin(QWidget* parent, double lo, double hi, int decimals = 2, do
   s->setDecimals(decimals);
   s->setSingleStep(step);
   s->setKeyboardTracking(false);
+  s->setMinimumWidth(40);
   return s;
 }
 
@@ -52,6 +53,7 @@ class MotionPanel : public QScrollArea {
     setObjectName("motionPanel");
     setWidgetResizable(true);
     setFrameShape(QFrame::NoFrame);
+    setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     auto* content = new QWidget;
     setWidget(content);
     auto* v = new QVBoxLayout(content);
@@ -63,6 +65,8 @@ class MotionPanel : public QScrollArea {
     trajBtn_ = new QPushButton(tr("Trajectories"), content);
     paramsBtn_->setCheckable(true);
     trajBtn_->setCheckable(true);
+    paramsBtn_->setMinimumWidth(10);
+    trajBtn_->setMinimumWidth(10);
     paramsBtn_->setChecked(true);
     auto* grp = new QButtonGroup(content);
     grp->addButton(paramsBtn_, 0);
@@ -107,9 +111,12 @@ class MotionPanel : public QScrollArea {
     tree_->setHeaderHidden(true);
     tree_->setMinimumHeight(170);
     tree_->setRootIsDecorated(true);
+    tree_->setMinimumWidth(10);
     auto* btnRow = new QHBoxLayout;
     auto* assignBtn = new QPushButton(tr("Assign Controller..."), assign->body());
     auto* propsBtn = new QPushButton(tr("Properties..."), assign->body());
+    assignBtn->setMinimumWidth(10);
+    propsBtn->setMinimumWidth(10);
     btnRow->addWidget(assignBtn);
     btnRow->addWidget(propsBtn);
     av->addWidget(tree_);
@@ -129,15 +136,17 @@ class MotionPanel : public QScrollArea {
 
     auto* prs = new Rollout(tr("PRS Parameters"), page);
     auto* grid = new QGridLayout;
-    grid->addWidget(new QLabel(tr("Create Key"), prs->body()), 0, 0, 1, 3, Qt::AlignHCenter);
-    grid->addWidget(new QLabel(tr("Delete Key"), prs->body()), 0, 3, 1, 3, Qt::AlignHCenter);
+    grid->setHorizontalSpacing(2);
+    grid->addWidget(new QLabel(tr("Create Key:"), prs->body()), 0, 0, 1, 3);
+    grid->addWidget(new QLabel(tr("Delete Key:"), prs->body()), 2, 0, 1, 3);
     const char* names[] = {"Position", "Rotation", "Scale"};
     for (int i = 0; i < 3; ++i) {
       auto* cb = new QPushButton(tr(names[i]), prs->body());
       auto* db = new QPushButton(tr(names[i]), prs->body());
       cb->setObjectName(QStringLiteral("prsCreate%1").arg(names[i]));
+      for (QPushButton* b : {cb, db}) b->setMinimumWidth(10);
       grid->addWidget(cb, 1, i);
-      grid->addWidget(db, 1, 3 + i);
+      grid->addWidget(db, 3, i);
       connect(cb, &QPushButton::clicked, this, [this, i] { prsKey(i, true); });
       connect(db, &QPushButton::clicked, this, [this, i] { prsKey(i, false); });
     }
@@ -147,6 +156,7 @@ class MotionPanel : public QScrollArea {
     auto* info = new Rollout(tr("Key Info (Basic)"), page);
     trackLabel_ = new QLabel(info->body());
     trackLabel_->setWordWrap(true);
+    trackLabel_->setMinimumWidth(40);
     info->form()->addRow(trackLabel_);
     auto* keyRow = new QHBoxLayout;
     auto* prevK = new QToolButton(info->body());
@@ -162,6 +172,8 @@ class MotionPanel : public QScrollArea {
     value_ = spin(info->body(), -1e9, 1e9, 3, 0.1);
     inType_ = new QComboBox(info->body());
     outType_ = new QComboBox(info->body());
+    inType_->setMinimumWidth(40);
+    outType_->setMinimumWidth(40);
     for (const char* n : kTangentNames) {
       inType_->addItem(animicons::tangent(inType_->count()), tr(n));
       outType_->addItem(animicons::tangent(outType_->count()), tr(n));
@@ -237,10 +249,12 @@ class MotionPanel : public QScrollArea {
     auto* convRow = new QHBoxLayout;
     convRow->addWidget(toSpline);
     convRow->addWidget(fromSpline);
-    r->form()->addRow(tr("Spline Conversion:"), convRow);
-    auto* collapse = new QPushButton(tr("Collapse"), r->body());
+    r->form()->addRow(new QLabel(tr("Spline Conversion:"), r->body()));
+    r->form()->addRow(convRow);
+    auto* collapse = new QPushButton(tr("Collapse Transform"), r->body());
     collapse->setToolTip(tr("Bakes constraints and IK into position, rotation and scale keys"));
-    r->form()->addRow(tr("Collapse Transform:"), collapse);
+    r->form()->addRow(collapse);
+    for (QPushButton* b : {toSpline, fromSpline, collapse, deleteKey, addKey}) b->setMinimumWidth(10);
     v->addWidget(r);
 
     connect(showTraj_, &QCheckBox::toggled, this, [this](bool on) {
@@ -622,6 +636,9 @@ class MotionPanel : public QScrollArea {
     auto* row = new QHBoxLayout;
     auto* add = new QPushButton(con.type == ConstraintType::Link ? tr("Add Link") : tr("Add Target"), r->body());
     auto* del = new QPushButton(con.type == ConstraintType::Link ? tr("Delete Link") : tr("Delete Target"), r->body());
+    add->setMinimumWidth(10);
+    del->setMinimumWidth(10);
+    targets->setMinimumWidth(10);
     row->addWidget(add);
     row->addWidget(del);
     r->form()->addRow(row);

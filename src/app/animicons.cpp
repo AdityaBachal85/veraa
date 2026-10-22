@@ -318,4 +318,21 @@ QIcon outOfRange(int type) {
   });
 }
 
+QIcon bindSpaceWarp() {
+  return make([](QPainter& p) {
+    p.setPen(pen(kInk, 1.5));
+    p.setBrush(Qt::NoBrush);
+    // A link between an object (square) and a warp (wave).
+    p.drawRect(QRectF(3, 13, 7, 7));
+    QPainterPath wave;
+    wave.moveTo(13, 7);
+    wave.cubicTo(15, 3, 17, 11, 19, 7);
+    wave.cubicTo(20, 5, 21, 6, 22, 7);
+    p.setPen(pen(kBlue, 1.6));
+    p.drawPath(wave);
+    p.setPen(pen(kInk, 1.3));
+    p.drawLine(QPointF(10, 13), QPointF(15, 9));
+  });
+}
+
 }  // namespace veraa::animicons
