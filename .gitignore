@@ -1,0 +1,10 @@
+build*/
+out/
+.vs/
+.vscode/
+*.user
+CMakeUserPresets.json
+/renders/
+__pycache__/
+*.pyc
+.claude/worktrees/
