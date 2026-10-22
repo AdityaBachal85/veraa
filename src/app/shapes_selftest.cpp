@@ -332,13 +332,14 @@ void testShapes(MainWindow& w) {
   ground->object->params.setNumber("width", 80);
   ground->transform.position = Vec3(-150, 0, 0);
   uint32_t groundId = ground->id;
+  uint32_t srcId = src->id;  // src itself is deleted when Scatter absorbs it
   doc->notifyStructureChanged();
   doc->endEdit();
-  doc->setSelection({src->id});
+  doc->setSelection({srcId});
   st->setCreateType("Scatter");
   pump(100);
   Node* scatter = lastNodeOfType(s, "Scatter");
-  check(scatter != nullptr && s.findNode(src->id) == nullptr, "Scatter replaces the selected source object");
+  check(scatter != nullptr && s.findNode(srcId) == nullptr, "Scatter replaces the selected source object");
   if (scatter) {
     w.commandPanel()->showModify();
     pump(100);
