@@ -62,6 +62,8 @@ class MainWindow : public QMainWindow {
   bool exportPath(const QString& path, bool selectedOnly, QString* error);
   // Merges objects (all, or only `names`) from a .veraa file; as XRefs they come in frozen.
   QVector<uint32_t> mergeScene(const QString& path, const QStringList& names, bool asXRef, QString* error);
+  // Re-merges every XRef scene from its file (File > Reference > Update XRefs).
+  void reloadXRefs();
   // Clones the selection in place; asks for Clone Options when interactive.
   void cloneSelection(bool askOptions);
   void render();
@@ -163,7 +165,6 @@ class MainWindow : public QMainWindow {
   void importFile();
   void exportFile(bool selectedOnly);
   void xrefScene();
-  void reloadXRefs();
   void viewImageFile();
   void showSummaryInfo();
   void showFileProperties();

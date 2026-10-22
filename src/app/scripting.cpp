@@ -901,7 +901,8 @@ bool ScriptEngine::ensureInitialized() {
   if (failed_) return false;
   PyImport_AppendInittab("_veraa", &initVeraaModule);
   PyConfig config;
-  PyConfig_InitPythonConfig(&config);
+  // Isolated: environment variables (PYTHONHOME, PYTHONPATH) of other Python installs are ignored.
+  PyConfig_InitIsolatedConfig(&config);
   config.install_signal_handlers = 0;
   config.parse_argv = 0;
   config.user_site_directory = 0;

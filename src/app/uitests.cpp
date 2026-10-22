@@ -399,6 +399,80 @@ void testInterface(MainWindow& w) {
   check(prompt.contains(QObject::tr("Distance")) && prompt.contains("100"), "Measure Distance reports 100 cm");
   st->setViewportTool(nullptr);
 
+  // ---- Select and Place: drop box B onto the top of box A (Front view) ----
+  {
+    Viewport* front = vps->viewport(1);
+    vps->zoomExtentsAll(false);
+    pump(50);
+    Node* na = s.findNode(aId);
+    Node* nb = s.findNode(bId);
+    float topZ = tightBounds(*na).hi.z;
+    st->setViewportTool(makePlacementTool(doc, st));
+    QPointF from = projectPoint(front, nb->worldPosition() + Vec3(0, 0, 20));
+    QPointF onto = projectPoint(front, na->worldPosition() + Vec3(0, 0, 60));
+    // In the Front view the ray from above the box goes down onto its top face.
+    Viewport* tv = top;
+    QPointF fromTop = projectPoint(tv, nb->worldPosition() + Vec3(0, 0, 20));
+    QPointF ontoTop = projectPoint(tv, na->worldPosition() + Vec3(0, 0, 40));
+    drag(tv, {fromTop, (fromTop + ontoTop) * 0.5, ontoTop});
+    nb = s.findNode(bId);
+    check(std::fabs(tightBounds(*nb).lo.z - topZ) < 0.5f, "Select and Place sets box B on top of box A");
+    Q_UNUSED(from);
+    Q_UNUSED(onto);
+    st->setViewportTool(nullptr);
+    doc->undoStack()->undo();
+  }
+
+  // ---- Select and Manipulate: drag the width handle ----
+  {
+    doc->setSelection({bId});
+    st->setTool(TransformTool::Select);
+    st->setViewportTool(makeManipulateTool(doc, st));
+    Node* nb = s.findNode(bId);
+    float w0 = nb->object->params.getFloat("width");
+    Mat4 m = nb->objectWorldMatrix();
+    QPointF h = projectPoint(top, m.transformPoint(Vec3(w0 * 0.5f, 0, 0)));
+    drag(top, {h, h + QPointF(10, 0), h + QPointF(30, 0)});
+    float w1 = s.findNode(bId)->object->params.getFloat("width");
+    check(w1 > w0 + 5.0f, "Select and Manipulate drags the width handle");
+    st->setViewportTool(nullptr);
+    doc->undoStack()->undo();
+  }
+
+  // ---- Keyboard Shortcut Override ----
+  ui.setShortcutOverride(true);
+  st->setViewportTool(makeMeasureTool(doc, st));
+  pump(20);
+  check(w.command("edit.move")->shortcut().isEmpty(), "shortcut override frees single-key shortcuts for the active tool");
+  st->setViewportTool(nullptr);
+  pump(20);
+  check(w.command("edit.move")->shortcut() == QKeySequence("W"), "shortcuts return when the tool ends");
+  ui.setShortcutOverride(false);
+
+  // ---- Merge and XRef ----
+  {
+    QString path = QDir::temp().filePath("veraa_ui_merge.veraa");
+    Scene other;
+    Node* m = other.createNode("Sphere");
+    m->name = "MergedBall";
+    m->transform.position = Vec3(0, -300, 0);
+    std::string serr;
+    other.save(path.toStdString(), &serr);
+    QString merr;
+    QVector<uint32_t> ids = w.mergeScene(path, {}, false, &merr);
+    Node* merged = s.findNodeByName("MergedBall");
+    check(ids.size() == 1 && merged && length(merged->worldPosition() - Vec3(0, -300, 0)) < 1e-4f,
+          "File > Merge brings in objects at their place");
+    doc->setSelection(ids);
+    doc->deleteSelected();
+    ids = w.mergeScene(path, {}, true, &merr);
+    Node* xref = ids.isEmpty() ? nullptr : s.findNode(ids[0]);
+    check(xref && xref->frozen && xrefScenes(s).size() == 1, "XRef Scene adds frozen, tracked objects");
+    w.reloadXRefs();
+    check(xrefScenes(s).size() == 1 && s.findNodeByName("MergedBall"), "Update XRefs reloads the referenced file");
+    QFile::remove(path);
+  }
+
   // ---- Explorer linking ----
   w.sceneExplorer()->linkNodes({bId}, aId);
   check(s.findNode(bId)->parentId == aId, "Scene Explorer drag-to-link links objects");

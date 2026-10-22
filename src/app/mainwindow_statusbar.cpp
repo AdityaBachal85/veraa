@@ -106,7 +106,7 @@ void MainWindow::createStatusBar() {
     typeIn_[i]->setRange(-1e9, 1e9);
     typeIn_[i]->setDecimals(3);
     typeIn_[i]->setKeyboardTracking(false);
-    typeIn_[i]->setMinimumWidth(92);
+    typeIn_[i]->setFixedWidth(118);
     typeIn_[i]->setButtonSymbols(QAbstractSpinBox::UpDownArrows);
     installSpinnerScrub(typeIn_[i]);
     connect(typeIn_[i], QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this, i](double v) {
@@ -121,13 +121,13 @@ void MainWindow::createStatusBar() {
   prompt_ = new QLabel(tr("Click or click-and-drag to select objects"), status);
   prompt_->setMinimumWidth(200);
   g->addWidget(prompt_, 1, 0, 1, 3);
+  g->setColumnStretch(4, 1);
   QAction* adaptive = cmd("views.adaptiveDegradation", tr("Adaptive Degradation"), QKeySequence("O"), icons::adaptive());
   adaptive->setCheckable(true);
   adaptive->setToolTip(tr("Adaptive Degradation (O): heavy objects draw as boxes while navigating"));
   connect(adaptive, &QAction::toggled, this, [](bool on) { UiState::instance().setAdaptiveDegradation(on); });
   auto* adaptiveBtn = toolButton(status, adaptive);
   g->addWidget(adaptiveBtn, 1, 3, Qt::AlignLeft);
-  g->setColumnStretch(2, 1);
   h->addWidget(status, 1);
 
   // 3. Animation controls (time controls, key mode, playback) from the animation module.

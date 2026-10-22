@@ -21,6 +21,7 @@
 #include <QSettings>
 #include <QSignalBlocker>
 #include <QStatusBar>
+#include <QTabBar>
 #include <QTimer>
 #include <QToolBar>
 #include <QUrl>
@@ -160,6 +161,19 @@ MainWindow::MainWindow() {
   resolveProxyCommands();
   ScriptEngine::instance().attach(this);
   QTimer::singleShot(0, this, [] { ScriptEngine::instance().runStartupScripts(); });
+  auto updateEnabled = [this] {
+    bool has = !doc_->selection().isEmpty();
+    for (const char* id : {"edit.clone", "edit.delete", "edit.selectSimilar", "edit.selectInstances",
+                           "edit.objectProperties", "edit.hideSelection", "file.saveSelected", "file.exportSelected"})
+      if (QAction* a = command(id)) a->setEnabled(has);
+  };
+  connect(doc_, &SceneDocument::selectionChanged, this, updateEnabled);
+  updateEnabled();
+  undoAct_->setEnabled(false);
+  redoAct_->setEnabled(false);
+  connect(doc_->undoStack(), &QUndoStack::canUndoChanged, undoAct_, &QAction::setEnabled);
+  connect(doc_->undoStack(), &QUndoStack::canRedoChanged, redoAct_, &QAction::setEnabled);
+  command("edit.fetch")->setEnabled(QFileInfo::exists(QDir(projectSubfolder("autoback")).filePath("veraa_hold.veraa")));
   connect(viewports_, &ViewportPanel::configureRequested, this, [this](int tab) {
     ViewportConfigDialog dlg(viewports_, this, tab);
     dlg.exec();
@@ -431,8 +445,12 @@ void MainWindow::createActions() {
   moveToolAct_ = toolAct("edit.move", tr("Select and Move"), "W", icons::move(), TransformTool::Move);
   rotateToolAct_ = toolAct("edit.rotate", tr("Select and Rotate"), "E", icons::rotate(), TransformTool::Rotate);
   scaleToolAct_ = toolAct("edit.scale", tr("Select and Uniform Scale"), "R", icons::scale(), TransformTool::Scale);
+  moveToolAct_->setText(tr("Move"));
+  rotateToolAct_->setText(tr("Rotate"));
+  scaleToolAct_->setText(tr("Scale"));
   connect(scaleToolAct_, &QAction::triggered, this, [] { UiState::instance().setScaleMode(ScaleMode::Uniform); });
-  placeToolAct_ = cmd("edit.placement", tr("Select and Place"), QKeySequence(), icons::place());
+  placeToolAct_ = cmd("edit.placement", tr("Placement"), QKeySequence(), icons::place());
+  placeToolAct_->setToolTip(tr("Select and Place"));
   placeToolAct_->setCheckable(true);
   toolGroup_->addAction(placeToolAct_);
   connect(placeToolAct_, &QAction::triggered, this, [this] {
@@ -642,10 +660,7 @@ void MainWindow::createMenus() {
   edit->addSeparator();
   edit->addAction(moveToolAct_);
   edit->addAction(rotateToolAct_);
-  QMenu* scaleMenu = edit->addMenu(icons::scale(), tr("Scale"));
-  scaleMenu->addAction(scaleToolAct_);
-  scaleMenu->addAction(command("edit.scaleNonUniform"));
-  scaleMenu->addAction(command("edit.scaleSquash"));
+  edit->addAction(scaleToolAct_);
   edit->addAction(placeToolAct_);
   edit->addAction(command("edit.transformTypeIn"));
   edit->addAction(command("edit.transformToolbox"));
@@ -1074,6 +1089,9 @@ void MainWindow::createDocks() {
   commandPanel_->setTabIcon(1, icons::modify());
   commandPanel_->setTabText(0, QString());
   commandPanel_->setTabText(1, QString());
+  commandPanel_->setUsesScrollButtons(false);
+  commandPanel_->tabBar()->setExpanding(true);
+  commandPanel_->tabBar()->setStyleSheet("QTabBar::tab { min-width: 0px; padding: 5px 4px; }");
   commandDock_ = new QDockWidget(tr("Command Panel"), this);
   commandDock_->setObjectName("CommandPanelDock");
   commandDock_->setWidget(commandPanel_);
@@ -1206,6 +1224,7 @@ void MainWindow::hold() {
   QDir().mkpath(dir);
   QFile f(QDir(dir).filePath("veraa_hold.veraa"));
   if (f.open(QIODevice::WriteOnly)) f.write(QByteArray::fromStdString(held_.dump()));
+  command("edit.fetch")->setEnabled(true);
   setPrompt(tr("Scene held (Edit > Fetch restores it)"));
 }
 
@@ -1471,15 +1490,7 @@ void MainWindow::showContextMenu(Viewport* vp, const QPoint& pos) {
   convert->addAction(command("tools.convertToPoly"));
   menu.addAction(materialEditorAct_);
   menu.addAction(deleteAct_);
-  cloneAct_->setEnabled(hasSel);
-  hideAct_->setEnabled(hasSel);
-  deleteAct_->setEnabled(hasSel);
-  propertiesAct_->setEnabled(hasSel);
   menu.exec(pos);
-  cloneAct_->setEnabled(true);
-  hideAct_->setEnabled(true);
-  deleteAct_->setEnabled(true);
-  propertiesAct_->setEnabled(true);
 }
 
 // ---------------------------------------------------------------------------------------------

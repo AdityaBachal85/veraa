@@ -1,5 +1,8 @@
 #include "dialogs.h"
 
+#include <algorithm>
+
+#include <QAction>
 #include <QButtonGroup>
 #include <QCheckBox>
 #include <QComboBox>
@@ -21,6 +24,7 @@
 #include <QVBoxLayout>
 
 #include "icons.h"
+#include "mainwindow.h"
 
 namespace veraa {
 
@@ -304,16 +308,46 @@ void showShortcutsDialog(QWidget* parent) {
       {"Right-click (while creating)", "Stop creating objects"},
       {"Ctrl+N / Ctrl+O / Ctrl+S", "New / Open / Save"},
   };
-  auto* table = new QTableWidget(static_cast<int>(sizeof(rows) / sizeof(rows[0])), 2, &dlg);
+  QList<QPair<QString, QString>> list;
+  // Every command with a hotkey (current assignments, including Hotkey Editor changes).
+  if (auto* w = qobject_cast<MainWindow*>(parent)) {
+    QHash<QString, QString> keys = w->hotkeys();
+    for (auto it = keys.begin(); it != keys.end(); ++it) {
+      QAction* a = w->command(it.key());
+      if (it.value().isEmpty() || !a) continue;
+      QString key = QKeySequence(it.value(), QKeySequence::PortableText).toString(QKeySequence::NativeText);
+      list.push_back({key, a->text().remove('&').section('\t', 0, 0)});
+    }
+    std::sort(list.begin(), list.end(), [](const auto& x, const auto& y) { return x.second.toLower() < y.second.toLower(); });
+    // Mouse and modifier gestures are not commands; keep them from the fixed list.
+    for (const auto& r : rows) {
+      QString k = QString::fromUtf8(r[0]);
+      if (k.contains("mouse", Qt::CaseInsensitive) || k.contains("click", Qt::CaseInsensitive) ||
+          k.contains("drag", Qt::CaseInsensitive) || k.contains("wheel", Qt::CaseInsensitive))
+        list.push_back({k, QObject::tr(r[1])});
+    }
+  } else {
+    for (const auto& r : rows) list.push_back({QString::fromUtf8(r[0]), QObject::tr(r[1])});
+  }
+  auto* filter = new QLineEdit(&dlg);
+  filter->setPlaceholderText(QObject::tr("Find..."));
+  filter->setClearButtonEnabled(true);
+  v->addWidget(filter);
+  auto* table = new QTableWidget(list.size(), 2, &dlg);
   table->setHorizontalHeaderLabels({QObject::tr("Shortcut"), QObject::tr("Action")});
   table->verticalHeader()->hide();
   table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
   table->horizontalHeader()->setStretchLastSection(true);
   table->setEditTriggers(QAbstractItemView::NoEditTriggers);
   for (int i = 0; i < table->rowCount(); ++i) {
-    table->setItem(i, 0, new QTableWidgetItem(QString::fromUtf8(rows[i][0])));
-    table->setItem(i, 1, new QTableWidgetItem(QObject::tr(rows[i][1])));
+    table->setItem(i, 0, new QTableWidgetItem(list[i].first));
+    table->setItem(i, 1, new QTableWidgetItem(list[i].second));
   }
+  QObject::connect(filter, &QLineEdit::textChanged, table, [table](const QString& f) {
+    for (int i = 0; i < table->rowCount(); ++i)
+      table->setRowHidden(i, !f.isEmpty() && !table->item(i, 0)->text().contains(f, Qt::CaseInsensitive) &&
+                                 !table->item(i, 1)->text().contains(f, Qt::CaseInsensitive));
+  });
   v->addWidget(table);
   auto* box = new QDialogButtonBox(QDialogButtonBox::Close, &dlg);
   QObject::connect(box, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
