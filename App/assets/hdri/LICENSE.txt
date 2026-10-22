@@ -1,0 +1,6 @@
+royal_esplanade_1k.hdr
+----------------------
+"Royal Esplanade" by Greg Zaal, Poly Haven (https://polyhaven.com/a/royal_esplanade).
+License: CC0 1.0 Universal (public domain dedication), https://creativecommons.org/publicdomain/zero/1.0/
+Downloaded from the copy distributed with three.js:
+https://raw.githubusercontent.com/mrdoob/three.js/r160/examples/textures/equirectangular/royal_esplanade_1k.hdr

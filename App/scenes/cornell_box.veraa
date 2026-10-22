@@ -1,0 +1,405 @@
+{
+ "format": "veraa-scene",
+ "version": 1,
+ "renderSettings": {
+  "width": 800,
+  "height": 800,
+  "samples": 256,
+  "maxDepth": 12,
+  "envMode": 0,
+  "envColor": [
+   0,
+   0,
+   0
+  ],
+  "camera": "Camera",
+  "exposure": 0.6
+ },
+ "materials": [
+  {
+   "id": 1,
+   "name": "White",
+   "type": "VeraaMtl",
+   "params": {
+    "diffuse": [
+     0.73,
+     0.73,
+     0.73
+    ]
+   }
+  },
+  {
+   "id": 2,
+   "name": "Red",
+   "type": "VeraaMtl",
+   "params": {
+    "diffuse": [
+     0.63,
+     0.065,
+     0.05
+    ]
+   }
+  },
+  {
+   "id": 3,
+   "name": "Green",
+   "type": "VeraaMtl",
+   "params": {
+    "diffuse": [
+     0.14,
+     0.45,
+     0.091
+    ]
+   }
+  }
+ ],
+ "nodes": [
+  {
+   "id": 1,
+   "name": "Floor",
+   "transform": {
+    "position": [
+     100,
+     100,
+     -2
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 1,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 204,
+     "length": 204,
+     "height": 2
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 2,
+   "name": "Ceiling",
+   "transform": {
+    "position": [
+     100,
+     100,
+     200
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 1,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 204,
+     "length": 204,
+     "height": 2
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 3,
+   "name": "BackWall",
+   "transform": {
+    "position": [
+     100,
+     201,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 1,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 204,
+     "length": 2,
+     "height": 200
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 4,
+   "name": "LeftWall",
+   "transform": {
+    "position": [
+     -1,
+     100,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 2,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 2,
+     "length": 204,
+     "height": 200
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 5,
+   "name": "RightWall",
+   "transform": {
+    "position": [
+     201,
+     100,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 3,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 2,
+     "length": 204,
+     "height": 200
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 6,
+   "name": "TallBox",
+   "transform": {
+    "position": [
+     68,
+     125,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     17
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 1,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 60,
+     "length": 60,
+     "height": 120
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 7,
+   "name": "ShortBox",
+   "transform": {
+    "position": [
+     135,
+     68,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     -17
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 1,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 60,
+     "length": 60,
+     "height": 60
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 8,
+   "name": "CeilingLight",
+   "transform": {
+    "position": [
+     100,
+     100,
+     199.5
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.95,
+    0.85,
+    0.2
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 0,
+   "object": {
+    "type": "RectLight",
+    "params": {
+     "width": 50,
+     "length": 50,
+     "intensity": 15,
+     "color": [
+      1.0,
+      0.85,
+      0.65
+     ]
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 9,
+   "name": "Camera",
+   "transform": {
+    "position": [
+     100,
+     -262,
+     100
+    ],
+    "rotation": [
+     90.0,
+     -0.0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.3,
+    0.6,
+    1.0
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 0,
+   "object": {
+    "type": "Camera",
+    "params": {
+     "fov": 42
+    }
+   },
+   "modifiers": []
+  }
+ ],
+ "nextNodeId": 10,
+ "nextMaterialId": 4
+}
