@@ -73,12 +73,14 @@ std::vector<float> softSelectionWeights(const PolyMesh& m, const PolySelection& 
 //   insetFaces {amount, byPolygon}, outlineFaces {amount}, bevelFaces {height, outline, mode},
 //   bridgeFaces {segments}, flipFaces, hingeFaces {angle, segments, a, b}, triangulateFaces,
 //   setMaterialId {id}, setSmoothing {group, on}, clearSmoothing, autoSmooth {angle},
-//   collapse, tessellate, msmooth {iterations}, makePlanar {axis: -1 best fit, 0..2},
+//   collapse, tessellate, msmooth {iterations}, makePlanar {axis: -1 best fit, 0..2; or normal[3] and optional point[3]},
 //   relax {amount, iterations, keepBoundary}, slice {point[3], normal[3], selectedOnly, split},
 //   cut {face, a, b} (a and b are vertex indices of the face), insertLoop {a, b, t},
 //   transform {matrix[16] (row-major object-space), soft {enabled, falloff, pinch, bubble}},
 //   moveVerts {verts[], deltas[] (xyz triplets)}, turnEdge {a, b}, weldPairs {pairs: [[from, to], ...]},
-//   detachElement, createFace {verts[]}, insertVertexInFace {face, point[3]}, hideUnselected
+//   detachElement, createFace {verts[]}, insertVertexInFace {face, point[3]}, hideUnselected,
+//   cutSegment {from, to} (each {v} or {a, b, t}; a new end vertex is added last),
+//   attach {mesh} (a mesh in this object's space, as saved by polyMeshToJson)
 bool runPolyOp(PolyMesh& m, PolySelection& sel, const json& op, std::string* msg = nullptr);
 
 // Building blocks (also used directly by modifiers and tools).

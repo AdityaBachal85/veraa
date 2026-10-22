@@ -51,6 +51,8 @@ class ViewportTool {
   virtual bool cancel() { return false; }
   // Whether the move/rotate/scale gizmo should still be shown and usable.
   virtual bool allowsGizmo() const { return false; }
+  // Edit > Delete while the tool is active (e.g. delete sub-objects). Return true if handled.
+  virtual bool deleteSelection() { return false; }
   virtual QString prompt() const { return QString(); }
 };
 

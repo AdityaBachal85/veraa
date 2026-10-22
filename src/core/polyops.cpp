@@ -9,6 +9,7 @@
 #include <set>
 
 #include "modifier.h"
+#include "object.h"
 
 namespace veraa {
 
@@ -1723,15 +1724,18 @@ bool opTessellate(PolyMesh& m, PolySelection& sel, std::string* msg) {
   return true;
 }
 
-bool opMakePlanar(PolyMesh& m, PolySelection& sel, int axis, std::string* msg) {
+bool opMakePlanar(PolyMesh& m, PolySelection& sel, int axis, const json& op, std::string* msg) {
   std::vector<int> verts = selectedVertsAtLevel(m, sel);
-  if (verts.size() < 3 && axis < 0) return fail(msg, "Select at least three vertices");
+  if (verts.size() < 3 && axis < 0 && !op.contains("normal")) return fail(msg, "Select at least three vertices");
   if (verts.empty()) return fail(msg, "Nothing selected");
   Vec3 c;
   for (int v : verts) c += m.positions[v];
   c /= static_cast<float>(verts.size());
+  if (op.contains("point")) c = jsonVec3(op, "point", c);
   Vec3 n;
-  if (axis >= 0) {
+  if (op.contains("normal")) {
+    n = normalize(jsonVec3(op, "normal", Vec3(0, 0, 1)));
+  } else if (axis >= 0) {
     n[axis] = 1.0f;
   } else {
     for (int f : facesFromSelection(m, sel)) n += m.faceNormal(m.faces[f]);
@@ -1968,6 +1972,43 @@ bool opInsertVertexInFace(PolyMesh& m, PolySelection& sel, int face, const Vec3&
   return true;
 }
 
+// Resolves a cut point: {"v": vertex} or {"a", "b", "t"} on an edge (inserting a vertex).
+int resolveCutPoint(PolyMesh& m, const json& p) {
+  int n = static_cast<int>(m.positions.size());
+  if (p.contains("v")) {
+    int v = p["v"].get<int>();
+    return v >= 0 && v < n ? v : -1;
+  }
+  int a = p.value("a", -1), b = p.value("b", -1);
+  float t = p.value("t", 0.5f);
+  if (a < 0 || b < 0 || a >= n || b >= n) return -1;
+  if (t <= 1e-3f) return a;
+  if (t >= 1.0f - 1e-3f) return b;
+  return insertVertexOnEdge(m, a, b, t);
+}
+
+bool opCutSegment(PolyMesh& m, PolySelection& sel, const json& from, const json& to, std::string* msg) {
+  int va = resolveCutPoint(m, from);
+  int vb = resolveCutPoint(m, to);
+  if (va < 0 || vb < 0) return fail(msg, "Cut points must be on edges or vertices");
+  if (va == vb) return fail(msg, "Pick a different point");
+  for (size_t f = 0; f < m.faces.size(); ++f) {
+    const auto& face = m.faces[f];
+    int ca = cornerOf(face, va), cb = cornerOf(face, vb);
+    if (ca < 0 || cb < 0) continue;
+    int n = static_cast<int>(face.v.size());
+    if ((ca + 1) % n == cb || (cb + 1) % n == ca) {
+      sel.edges.push_back(edgeKey(va, vb));
+      return true;  // already connected
+    }
+    if (splitFace(m, static_cast<int>(f), va, vb)) {
+      sel.edges.push_back(edgeKey(va, vb));
+      return true;
+    }
+  }
+  return fail(msg, "Both cut points must be on the same polygon");
+}
+
 bool opDeleteSelected(PolyMesh& m, PolySelection& sel, std::string* msg) {
   std::vector<int> faces;
   if (sel.level == PolyFace || sel.level == PolyElement) {
@@ -2070,6 +2111,23 @@ bool runPolyOp(PolyMesh& m, PolySelection& sel, const json& op, std::string* msg
     ensureFaceUvs(m);
     sel.verts = apexes;
     sel.normalize();
+    ok = true;
+  } else if (name == "cutSegment") {
+    ok = opCutSegment(m, sel, op.value("from", json::object()), op.value("to", json::object()), msg);
+  } else if (name == "attach") {
+    PolyMesh other = polyMeshFromJson(op.value("mesh", json::object()));
+    if (other.faces.empty()) return fail(msg, "Nothing to attach");
+    int base = static_cast<int>(m.faces.size());
+    if (meshHasUvs(m) || meshHasUvs(other)) {
+      ensureFaceUvs(m);
+      ensureFaceUvs(other);
+    }
+    m.append(other);
+    if (sel.level == PolyFace || sel.level == PolyElement) {
+      sel.faces.clear();
+      for (int f = base; f < static_cast<int>(m.faces.size()); ++f) sel.faces.push_back(f);
+    }
+    ensureFaceUvs(m);
     ok = true;
   } else if (name == "turnEdge") {
     ok = opTurnEdge(m, sel, i("a", -1), i("b", -1), msg);
@@ -2195,7 +2253,7 @@ bool runPolyOp(PolyMesh& m, PolySelection& sel, const json& op, std::string* msg
     sel.level = level;
     ok = true;
   } else if (name == "makePlanar") {
-    ok = opMakePlanar(m, sel, i("axis", -1), msg);
+    ok = opMakePlanar(m, sel, i("axis", -1), op, msg);
   } else if (name == "relax") {
     ok = opRelax(m, sel, f("amount", 0.5f), i("iterations", 1), b("keepBoundary", true), msg);
   } else if (name == "slice") {

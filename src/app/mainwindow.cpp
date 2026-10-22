@@ -159,7 +159,10 @@ void MainWindow::createActions() {
           [this](const QString& t) { redoAct_->setToolTip(t.isEmpty() ? tr("Redo") : tr("Redo %1").arg(t)); });
 
   deleteAct_ = act(tr("&Delete"), QKeySequence::Delete, icons::trash());
-  connect(deleteAct_, &QAction::triggered, this, [this] { doc_->deleteSelected(); });
+  connect(deleteAct_, &QAction::triggered, this, [this] {
+    if (auto tool = state_->viewportToolShared(); tool && tool->deleteSelection()) return;
+    doc_->deleteSelected();
+  });
   cloneAct_ = act(tr("&Clone"), QKeySequence("Ctrl+V"));
   connect(cloneAct_, &QAction::triggered, this, [this] { cloneSelection(true); });
   selectAllAct_ = act(tr("Select &All"), QKeySequence("Ctrl+A"));
@@ -844,6 +847,9 @@ void MainWindow::showContextMenu(Viewport* vp, const QPoint& pos) {
     if (a->menu() && a->text() == tr("&Tools"))
       for (QAction* t : a->menu()->actions())
         if (t->text() == tr("Convert to Editable Poly")) menu.addAction(t);
+  // Feature modules mark actions for this menu with the "quadMenu" property.
+  for (QAction* t : findChildren<QAction*>())
+    if (t->property("quadMenu").toBool() && t->isVisible()) menu.addAction(t);
   menu.addAction(materialEditorAct_);
   bool hasSel = !doc_->selection().isEmpty();
   cloneAct_->setEnabled(hasSel);
