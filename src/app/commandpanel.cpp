@@ -437,6 +437,11 @@ void CommandPanel::rebuildModify() {
 
   if (!n) {
     modForm_->setBlock(nullptr);
+    if (modExtra_) {  // type-specific rollouts belong to the previous selection
+      modExtra_->hide();
+      modExtra_->deleteLater();
+      modExtra_ = nullptr;
+    }
     modInfo_->setText(nodes.isEmpty() ? tr("Select an object to modify it.")
                                       : tr("Multiple objects selected. Modifiers chosen from the list are added to each "
                                            "selected object."));

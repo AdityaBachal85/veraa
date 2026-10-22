@@ -261,7 +261,7 @@ class TrimPickTool : public ViewportTool {
       : ctx_(ctx), extend_(std::move(extend)), changed_(std::move(changed)) {}
   bool mousePress(Viewport& vp, QMouseEvent* e) override {
     if (e->button() == Qt::RightButton) {
-      vp.editorState()->setViewportTool(nullptr);
+      ending_ = true;  // ends on release, so the release doesn't open the quad menu
       return true;
     }
     if (e->button() != Qt::LeftButton) return false;
@@ -279,12 +279,20 @@ class TrimPickTool : public ViewportTool {
     changed_();
     return true;
   }
-  bool mouseRelease(Viewport&, QMouseEvent* e) override { return e->button() == Qt::LeftButton; }
+  bool mouseRelease(Viewport& vp, QMouseEvent* e) override {
+    if (e->button() == Qt::RightButton && ending_) {
+      ending_ = false;
+      vp.editorState()->setViewportTool(nullptr);
+      return true;
+    }
+    return e->button() == Qt::LeftButton;
+  }
   QString prompt() const override {
     return tr("Click spline pieces to trim them (or open ends to extend them); right-click to stop");
   }
 
  private:
+  bool ending_ = false;
   ModifyPanelContext ctx_;
   std::function<bool()> extend_;
   std::function<void()> changed_;

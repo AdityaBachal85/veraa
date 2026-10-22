@@ -78,7 +78,7 @@ class PickTool : public ViewportTool {
       : prompt_(std::move(prompt)), accept_(std::move(accept)), picked_(std::move(picked)), multiple_(multiple) {}
   bool mousePress(Viewport& vp, QMouseEvent* e) override {
     if (e->button() == Qt::RightButton) {
-      vp.editorState()->setViewportTool(nullptr);
+      ending_ = true;  // ends on release, so the release doesn't open the quad menu
       return true;
     }
     if (e->button() != Qt::LeftButton) return false;
@@ -91,10 +91,18 @@ class PickTool : public ViewportTool {
     }
     return true;
   }
-  bool mouseRelease(Viewport&, QMouseEvent* e) override { return e->button() == Qt::LeftButton; }
+  bool mouseRelease(Viewport& vp, QMouseEvent* e) override {
+    if (e->button() == Qt::RightButton && ending_) {
+      ending_ = false;
+      vp.editorState()->setViewportTool(nullptr);
+      return true;
+    }
+    return e->button() == Qt::LeftButton;
+  }
   QString prompt() const override { return prompt_; }
 
  private:
+  bool ending_ = false;
   QString prompt_;
   std::function<bool(const Node&)> accept_;
   std::function<void(Node&)> picked_;

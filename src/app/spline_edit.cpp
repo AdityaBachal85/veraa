@@ -299,6 +299,9 @@ class SplineEditTool : public ViewportTool {
   int handleWhich_ = 0;
   int connectFrom_ = -1;  // Connect: first end knot (spline index); knot in connectKnot_
   KnotRef connectKnot_;
+  bool swallowRightRelease_ = false;
+  bool editOpen_ = false;
+  QString dragLabel_;
 };
 
 void SplineEditTool::selectAt(const BezierShape& s, const Viewport& vp, float px, float py, Qt::KeyboardModifiers mods,
@@ -384,6 +387,7 @@ bool SplineEditTool::mousePress(Viewport& vp, QMouseEvent* e) {
   if (e->button() == Qt::RightButton) {
     if (mode_ != Mode::Select) {
       setMode(mode_);  // toggles back to Select
+      swallowRightRelease_ = true;
       return true;
     }
     return false;  // quad menu
@@ -410,10 +414,10 @@ bool SplineEditTool::mousePress(Viewport& vp, QMouseEvent* e) {
       if (ok && mode_ == Mode::Insert) {
         // The inserted vertex follows the mouse until the button is released.
         knots = {added};
-        doc_->beginEdit(tr("Move Vertex"));
         Node* nn = node();
-        BezierShape* w = nn ? writable(*nn) : nullptr;
-        if (w) dragOrig_ = *w;
+        if (!nn) return true;
+        dragLabel_ = tr("Move Vertex");
+        dragOrig_ = currentShape();
         dragZ_ = dragOrig_.splines[added.spline].knots[added.knot].p.z;
         hitNodePlane(vp, *nn, px, py, dragZ_, dragStartLocal_);
         drag_ = Drag::Move;
@@ -504,10 +508,10 @@ bool SplineEditTool::mousePress(Viewport& vp, QMouseEvent* e) {
       break;
   }
   // Bezier handles of selected knots come first.
+  // The undo step opens once the drag really moves (a plain click changes nothing).
   if (level_ == 1 && pickHandle(vp, s, px, py, handleKnot_, handleWhich_)) {
-    doc_->beginEdit(tr("Move Handle"));
-    BezierShape* w = writable(*n);
-    dragOrig_ = w ? *w : s;
+    dragLabel_ = tr("Move Handle");
+    dragOrig_ = s;
     dragZ_ = dragOrig_.splines[handleKnot_.spline].knots[handleKnot_.knot].p.z;
     hitNodePlane(vp, *n, px, py, dragZ_, dragStartLocal_);
     drag_ = Drag::Handle;
@@ -518,9 +522,8 @@ bool SplineEditTool::mousePress(Viewport& vp, QMouseEvent* e) {
   selectAt(s, vp, px, py, e->modifiers(), hit);
   changed();
   if (hit && !(e->modifiers() & (Qt::ControlModifier | Qt::AltModifier))) {
-    doc_->beginEdit(level_ == 1 ? tr("Move Vertex") : level_ == 2 ? tr("Move Segment") : tr("Move Spline"));
-    BezierShape* w = writable(*n);
-    dragOrig_ = w ? *w : s;
+    dragLabel_ = level_ == 1 ? tr("Move Vertex") : level_ == 2 ? tr("Move Segment") : tr("Move Spline");
+    dragOrig_ = s;
     dragZ_ = 0;
     if (level_ == 1 && !knots.empty()) {
       KnotRef k = *knots.begin();
@@ -595,11 +598,19 @@ bool SplineEditTool::mouseMove(Viewport& vp, QMouseEvent* e) {
     st_->requestRedraw();
     return true;
   }
+  if (dragMoved_ && !editOpen_) {
+    doc_->beginEdit(dragLabel_);
+    editOpen_ = true;
+  }
   if (dragMoved_) applyDrag(vp, static_cast<float>(curPos_.x()), static_cast<float>(curPos_.y()));
   return true;
 }
 
 bool SplineEditTool::mouseRelease(Viewport& vp, QMouseEvent* e) {
+  if (e->button() == Qt::RightButton && swallowRightRelease_) {
+    swallowRightRelease_ = false;
+    return true;
+  }
   if (e->button() != Qt::LeftButton || drag_ == Drag::None) return drag_ != Drag::None;
   if (drag_ == Drag::Region) {
     if ((e->position() - pressPos_).manhattanLength() > 3)
@@ -611,8 +622,8 @@ bool SplineEditTool::mouseRelease(Viewport& vp, QMouseEvent* e) {
     return true;
   }
   drag_ = Drag::None;
-  if (dragMoved_) doc_->endEdit();
-  else doc_->cancelEdit();
+  if (editOpen_) doc_->endEdit();
+  editOpen_ = false;
   changed();
   return true;
 }
@@ -651,7 +662,8 @@ bool SplineEditTool::keyPress(Viewport&, QKeyEvent* e) {
 bool SplineEditTool::cancel() {
   if (drag_ == Drag::Move || drag_ == Drag::Handle) {
     drag_ = Drag::None;
-    doc_->cancelEdit();
+    if (editOpen_) doc_->cancelEdit();
+    editOpen_ = false;
     return true;
   }
   if (drag_ == Drag::Region) {
