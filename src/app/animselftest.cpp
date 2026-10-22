@@ -1,6 +1,9 @@
 // UI self test for the animation module ("Veraa --script animation", also part of "selftest").
 // Screenshots go to $VERAA_SHOT_DIR (or a temp folder).
 #include <QAction>
+#include <QMenu>
+#include <QMenuBar>
+#include <QTimer>
 #include <QApplication>
 #include <QDir>
 #include <QFileInfo>
@@ -329,6 +332,26 @@ void testAnimation(MainWindow& w) {
   QString preview = QDir(shotDir()).filePath("render_seq/preview.avi");
   check(createViewportPreview(w, {0, 5, 10}, preview, 50, {}) == 3 && QFileInfo(preview).size() > 1000,
         "Preview - Grab Viewport writes an AVI");
+
+  // Dialogs and the Animation menu (screenshots; modal dialogs are grabbed and closed).
+  auto grabModal = [](const QString& name) {
+    QTimer::singleShot(400, [name] {
+      if (QWidget* d = QApplication::activeModalWidget()) {
+        shot(d, name);
+        d->close();
+      }
+    });
+  };
+  grabModal("anim_render_dialog.png");
+  w.command("render.animation")->trigger();
+  grabModal("anim_time_config.png");
+  w.command("anim.timeConfig")->trigger();
+  if (QMenu* m = w.menuAt("Animation")) {
+    m->popup(w.mapToGlobal(QPoint(430, 22)));
+    pump(200);
+    shot(m, "anim_menu.png");
+    m->hide();
+  }
 
   // Animation is part of the saved file.
   QString file = QDir(shotDir()).filePath("anim_test.veraa");
