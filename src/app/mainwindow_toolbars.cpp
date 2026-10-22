@@ -9,6 +9,7 @@
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDockWidget>
+#include <QDoubleSpinBox>
 #include <QInputDialog>
 #include <QLabel>
 #include <QLineEdit>
@@ -28,6 +29,7 @@
 #include "edittools.h"
 #include "icons.h"
 #include "icons_ui.h"
+#include "interfacedata.h"
 #include "mainwindow.h"
 #include "tooldialogs.h"
 #include "uistate.h"

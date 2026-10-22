@@ -34,12 +34,16 @@
 #include "extension.h"
 #include "framebuffer.h"
 #include "icons.h"
+#include "icons_ui.h"
+#include "interfacedata.h"
 #include "layerexplorer.h"
 #include "materialeditor.h"
 #include "navtools.h"
 #include "paramform.h"
+#include "project.h"
 #include "rendersetup.h"
 #include "sceneexplorer.h"
+#include "scripting.h"
 #include "scriptui.h"
 #include "tooldialogs.h"
 #include "uistate.h"
@@ -154,6 +158,17 @@ MainWindow::MainWindow() {
   // Feature modules add their menus, toolbars and panels (see extension.h).
   runAppExtensions(*this);
   resolveProxyCommands();
+  ScriptEngine::instance().attach(this);
+  QTimer::singleShot(0, this, [] { ScriptEngine::instance().runStartupScripts(); });
+  connect(viewports_, &ViewportPanel::configureRequested, this, [this](int tab) {
+    ViewportConfigDialog dlg(viewports_, this, tab);
+    dlg.exec();
+  });
+  if (QAction* adaptive = command("views.adaptiveDegradation"))
+    connect(&UiState::instance(), &UiState::changed, adaptive, [adaptive] {
+      QSignalBlocker b(adaptive);
+      adaptive->setChecked(UiState::instance().adaptiveDegradation());
+    });
 
   // Remember the shipped shortcuts, then apply the user's hotkeys.
   for (auto it = commands_.begin(); it != commands_.end(); ++it)
@@ -1294,6 +1309,24 @@ void MainWindow::openTransformTypeIn() {
 // Files
 
 bool MainWindow::openFile(const QString& path) {
+  QString ext = QFileInfo(path).suffix().toLower();
+  if (ext == "py") {
+    QString out;
+    bool ok = ScriptEngine::instance().runFile(path, &out);
+    setPrompt(ok ? tr("Ran %1").arg(QFileInfo(path).fileName()) : tr("Script %1 failed").arg(QFileInfo(path).fileName()));
+    if (!ok) QMessageBox::warning(this, tr("Run Script"), out.right(4000));
+    return ok;
+  }
+  if (ext != "veraa" && !ext.isEmpty()) {
+    QString err;
+    QVector<uint32_t> ids;
+    if (!importPath(path, &ids, &err)) {
+      QMessageBox::warning(this, tr("Import"), tr("Could not import %1:\n%2").arg(path, err));
+      return false;
+    }
+    viewports_->zoomExtentsAll(false);
+    return true;
+  }
   QString err;
   if (!doc_->load(path, &err)) {
     QMessageBox::warning(this, tr("Open Scene"), tr("Could not open %1:\n%2").arg(path, err));
@@ -1350,6 +1383,10 @@ void MainWindow::importObjFile() {
                                            tr("Wavefront OBJ (*.obj);;All files (*)"));
   if (f.isEmpty()) return;
   s.setValue("lastImportDir", QFileInfo(f).absolutePath());
+  importObjFileFrom(f);
+}
+
+void MainWindow::importObjFileFrom(const QString& f) {
   ObjImportDialog opts(this);
   if (opts.exec() != QDialog::Accepted) return;
   QApplication::setOverrideCursor(Qt::WaitCursor);
@@ -1425,7 +1462,7 @@ void MainWindow::showContextMenu(Viewport* vp, const QPoint& pos) {
   menu.addAction(scaleToolAct_);
   menu.addAction(placeToolAct_);
   menu.addAction(selectToolAct_);
-  menu.addAction(selectSimilarAction());
+  menu.addAction(command("edit.selectSimilar"));
   menu.addAction(cloneAct_);
   menu.addAction(propertiesAct_);
   menu.addAction(tr("Zoom Extents Selected"), this, [vp] { vp->zoomExtents(true); });

@@ -29,6 +29,7 @@ class QVBoxLayout;
 
 namespace veraa {
 
+struct ImportOptions;
 class CommandPanel;
 class FrameBufferWindow;
 class LayerExplorer;
@@ -53,7 +54,14 @@ class MainWindow : public QMainWindow {
   SceneExplorer* sceneExplorer() { return explorer_; }
   LayerExplorer* layerExplorer() { return layerExplorer_; }
 
+  // Opens a .veraa scene; other formats are imported and .py files are run.
   bool openFile(const QString& path);
+  // Non-interactive import/export by file extension (see io_formats.h); one undo step.
+  bool importPath(const QString& path, QVector<uint32_t>* ids, QString* error);
+  bool importPathWith(const QString& path, const ImportOptions& options, QVector<uint32_t>* ids, QString* error);
+  bool exportPath(const QString& path, bool selectedOnly, QString* error);
+  // Merges objects (all, or only `names`) from a .veraa file; as XRefs they come in frozen.
+  QVector<uint32_t> mergeScene(const QString& path, const QStringList& names, bool asXRef, QString* error);
   // Clones the selection in place; asks for Clone Options when interactive.
   void cloneSelection(bool askOptions);
   void render();
@@ -140,6 +148,7 @@ class MainWindow : public QMainWindow {
   bool save();
   bool saveAs();
   void importObjFile();
+  void importObjFileFrom(const QString& path);
   void showContextMenu(Viewport* vp, const QPoint& pos);
   void updateShortcutOverride();
   void applyGridLabel();
@@ -218,6 +227,7 @@ class MainWindow : public QMainWindow {
   QByteArray startupState_;
   QTimer* autoBackupTimer_ = nullptr;
   QHash<QString, QKeySequence> overriddenKeys_;
+  QStringList lastImportWarnings_;
 };
 
 }  // namespace veraa

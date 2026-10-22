@@ -1258,7 +1258,12 @@ void Viewport::beginTransformDrag(GizmoHandle h, float px, float py, bool cloneF
   QString label = tool == TransformTool::Move ? tr("Move") : tool == TransformTool::Rotate ? tr("Rotate") : tr("Scale");
   doc_->beginEdit(cloneFirst ? tr("Clone") : label);
   cloneDrag_ = cloneFirst;
-  if (cloneFirst) doc_->cloneSelected(true);
+  cloneSources_.clear();
+  if (cloneFirst) {
+    QVector<uint32_t> originals = doc_->selection();
+    QVector<uint32_t> clones = doc_->cloneSelected(true);
+    for (int i = 0; i < clones.size() && i < originals.size(); ++i) cloneSources_.push_back({clones[i], originals[i]});
+  }
   drag_ = Drag::None;
   setupGizmo();
   dragCenter_ = gizmo_.origin;
@@ -1351,6 +1356,22 @@ void Viewport::endTransformDrag() {
       return;
     }
     if (first && dragStart_.size() == 1 && !dlg.name().isEmpty()) first->name = dlg.name().toStdString();
+    int mode = dlg.mode();
+    if (mode != 0)
+      for (const auto& [cloneId, srcId] : cloneSources_) {
+        Node* c = scene.findNode(cloneId);
+        Node* src = scene.findNode(srcId);
+        if (!c || !src) continue;
+        // Instance: share object and modifiers. Reference: share the object only.
+        c->object = src->object;
+        c->modifiers = src->modifiers;
+        if (mode == 2) {
+          c->modifiers.clear();
+          for (const auto& m : src->modifiers)
+            if (m) c->modifiers.push_back(m->clone());
+        }
+        c->invalidate();
+      }
     QVector<uint32_t> created;
     for (const auto& s : dragStart_) created.push_back(s.id);
     for (int k = 2; k <= dlg.copies(); ++k)
@@ -1358,7 +1379,12 @@ void Viewport::endTransformDrag() {
         Node* src = scene.findNode(s.id);
         if (!src) continue;
         Vec3 delta = src->transform.position - s.xf.position;
-        auto copy = src->clone();
+        auto copy = mode == 0 ? src->clone() : src->instance();
+        if (mode == 2) {
+          copy->modifiers.clear();
+          for (const auto& m : src->modifiers)
+            if (m) copy->modifiers.push_back(m->clone());
+        }
         copy->transform.position = s.xf.position + delta * static_cast<float>(k);
         created.push_back(scene.addNode(std::move(copy))->id);
       }

@@ -201,6 +201,8 @@ QVector<XRefEntry> xrefScenes(const Scene& s) {
     e.enabled = j.value("enabled", true);
     if (j.contains("nodes"))
       for (const auto& id : j["nodes"]) e.nodeIds.push_back(id.get<uint32_t>());
+    if (j.contains("objects"))
+      for (const auto& o : j["objects"]) e.objects << QString::fromStdString(o.get<std::string>());
     out.push_back(e);
   }
   return out;
@@ -211,7 +213,9 @@ void setXRefScenes(Scene& s, const QVector<XRefEntry>& list) {
   for (const auto& e : list) {
     json ids = json::array();
     for (uint32_t id : e.nodeIds) ids.push_back(id);
-    arr.push_back({{"path", e.path.toStdString()}, {"enabled", e.enabled}, {"nodes", ids}});
+    json objects = json::array();
+    for (const QString& o : e.objects) objects.push_back(o.toStdString());
+    arr.push_back({{"path", e.path.toStdString()}, {"enabled", e.enabled}, {"nodes", ids}, {"objects", objects}});
   }
   section(s, "xrefScenes", json::array()) = arr;
 }

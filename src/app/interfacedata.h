@@ -48,6 +48,7 @@ struct XRefEntry {
   QString path;
   bool enabled = true;
   QVector<uint32_t> nodeIds;  // nodes merged from the file (read-only, frozen)
+  QStringList objects;        // XRef Objects: only these names; empty = the whole scene
 };
 QVector<XRefEntry> xrefScenes(const Scene& s);
 void setXRefScenes(Scene& s, const QVector<XRefEntry>& list);
