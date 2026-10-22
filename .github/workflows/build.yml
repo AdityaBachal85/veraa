@@ -59,8 +59,10 @@ jobs:
         run: |
           $bin = "build/bin/Release"
           Copy-Item "$env:EMBREE_ROOT/bin/embree4.dll", "$env:EMBREE_ROOT/bin/tbbmalloc.dll" $bin
-          # CPU denoiser only; the GPU device modules are large and optional.
-          foreach ($dll in "OpenImageDenoise.dll", "OpenImageDenoise_core.dll", "OpenImageDenoise_device_cpu.dll", "tbb12.dll") {
+          # Denoiser: CPU device plus the CUDA and HIP GPU devices (used when a matching GPU
+          # driver is present; otherwise the CPU device is used). The SYCL device is left out.
+          foreach ($dll in "OpenImageDenoise.dll", "OpenImageDenoise_core.dll", "OpenImageDenoise_device_cpu.dll",
+                           "OpenImageDenoise_device_cuda.dll", "OpenImageDenoise_device_hip.dll", "tbb12.dll") {
             Copy-Item "$env:OIDN_ROOT/bin/$dll" $bin
           }
 
