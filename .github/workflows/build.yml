@@ -4,11 +4,16 @@ on:
   push:
     branches: ["**"]
     tags: ["v*"]
-  pull_request:
   workflow_dispatch:
 
 permissions:
-  contents: write  # publishing a release when a v* tag is pushed
+  contents: write  # publish Veraa-windows-x64.zip on the Releases page
+  actions: write   # delete old build artifacts (they use the account's Actions storage)
+
+# A newer push to the same branch cancels the build still running for the previous one.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   EMBREE_VERSION: "4.3.3"
@@ -101,22 +106,37 @@ jobs:
             if (-not (Test-Path smoke.png)) { throw "veraa-render did not write an image" }
           }
 
-      - name: Upload Veraa for Windows
-        uses: actions/upload-artifact@v4
-        with:
-          name: Veraa-windows-x64
-          path: dist/
-          if-no-files-found: error
-
-      - name: Zip for release
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Zip
         run: Compress-Archive -Path dist/Veraa -DestinationPath Veraa-windows-x64.zip
 
-      - name: Publish release
+      # The download lives on the Releases page ("Veraa latest build"), not as an Actions
+      # artifact: release files don't count against the Actions storage quota.
+      - name: Publish the latest build on the Releases page
+        if: github.ref_type == 'branch'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest-build --cleanup-tag --yes || true
+          gh release create latest-build Veraa-windows-x64.zip \
+            --target "$GITHUB_SHA" --prerelease \
+            --title "Veraa latest build" \
+            --notes "Latest Windows build of Veraa (branch $GITHUB_REF_NAME, commit ${GITHUB_SHA:0:7}). Download Veraa-windows-x64.zip, unzip it anywhere and run Veraa.exe. No installation needed."
+
+      - name: Publish the version release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: Veraa-windows-x64.zip
+
+      - name: Delete old build artifacts
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for id in $(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?per_page=100" --jq '.artifacts[].id'); do
+            gh api -X DELETE "repos/$GITHUB_REPOSITORY/actions/artifacts/$id" || true
+          done
 
   linux:
     name: Linux (build + tests)

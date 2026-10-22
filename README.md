@@ -12,15 +12,14 @@ affiliated with Autodesk or Chaos.
 
 ## Download (Windows)
 
-Every push builds a ready-to-run Windows package. No installation is needed.
+The newest Windows build is always on the [Releases page](../../releases) as
+**Veraa latest build**. No installation is needed.
 
-1. Open the [Actions page](../../actions), click the newest green **Build** run.
-2. Under **Artifacts** at the bottom, download **Veraa-windows-x64** (you need to be signed
-   in to GitHub).
+1. Open the [Releases page](../../releases/tag/latest-build).
+2. Under **Assets**, download **Veraa-windows-x64.zip**.
 3. Unzip it anywhere and double-click `Veraa.exe`.
 
-Tagged releases (`v*`) also appear on the [Releases page](../../releases) as
-`Veraa-windows-x64.zip`.
+Numbered versions (tags `v*`) also appear on the Releases page.
 
 Requirements: 64-bit Windows 10 or 11, a graphics driver with OpenGL 3.3, and a CPU with
 SSE4.2 or newer (any PC from the last decade). Rendering runs on all CPU cores; no GPU is
