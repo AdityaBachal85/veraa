@@ -188,6 +188,7 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
   bool active_ = false;
   std::unique_ptr<GlScene> gl_;
   QString glError_;
+  bool glReady_ = false;  // OpenGL 3.3 functions resolved for this context
   QOpenGLContext* hookedContext_ = nullptr;
 
   Drag drag_ = Drag::None;

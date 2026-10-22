@@ -398,7 +398,17 @@ uint32_t Viewport::createCameraFromView() {
 // Rendering
 
 void Viewport::initializeGL() {
-  initializeOpenGLFunctions();
+  glReady_ = initializeOpenGLFunctions();
+  if (!glReady_) {
+    // No OpenGL 3.3 (old driver, remote desktop, ...): keep the app usable and say why the
+    // viewport is empty instead of calling missing GL functions.
+    gl_.reset();
+    glError_ = tr("The viewports need OpenGL 3.3 or newer, which this graphics driver doesn't provide.\n"
+                  "Update the graphics driver, or start Veraa with the environment variable "
+                  "QT_OPENGL=software.");
+    qWarning("%s", qPrintable(glError_));
+    return;
+  }
   gl_ = std::make_unique<GlScene>(static_cast<QOpenGLFunctions_3_3_Core*>(this));
   if (!gl_->init(&glError_)) qWarning("Viewport shader error: %s", qPrintable(glError_));
   // Moving the viewport to another splitter (layout change) can recreate the context.
@@ -439,6 +449,13 @@ void Viewport::drawBackgroundImage(QPainter& p) {
 }
 
 void Viewport::paintGL() {
+  if (!glReady_) {
+    QPainter p(this);
+    p.fillRect(rect(), theme::viewportBg());
+    p.setPen(QColor(255, 120, 120));
+    p.drawText(rect().adjusted(10, 30, -10, -10), Qt::TextWordWrap, glError_);
+    return;
+  }
   updateCamera();
   const Mat4& vp = cam_.viewProj();
   const UiState& ui = UiState::instance();
