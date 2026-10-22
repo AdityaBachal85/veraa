@@ -1,5 +1,7 @@
 // Sub-object selection: topology, level conversion, grow/shrink, loop/ring, soft selection.
+#include <array>
 #include <cmath>
+#include <cstdint>
 #include <map>
 #include <queue>
 #include <set>
@@ -42,6 +44,8 @@ json PolySelection::toJson() const {
   json j{{"level", level}, {"verts", verts}, {"edges", std::move(e)}, {"faces", faces}};
   if (!hiddenFaces.empty()) j["hiddenFaces"] = hiddenFaces;
   if (!hiddenVerts.empty()) j["hiddenVerts"] = hiddenVerts;
+  if (!(soft == SoftSelection()))
+    j["soft"] = {{"enabled", soft.enabled}, {"falloff", soft.falloff}, {"pinch", soft.pinch}, {"bubble", soft.bubble}};
   return j;
 }
 
@@ -56,6 +60,13 @@ void PolySelection::fromJson(const json& j) {
   if (j.contains("edges"))
     for (const auto& e : j["edges"])
       if (e.is_array() && e.size() == 2) edges.push_back(edgeKey(e[0].get<int>(), e[1].get<int>()));
+  if (j.contains("soft") && j["soft"].is_object()) {
+    const json& s = j["soft"];
+    soft.enabled = s.value("enabled", false);
+    soft.falloff = s.value("falloff", 20.0f);
+    soft.pinch = s.value("pinch", 0.0f);
+    soft.bubble = s.value("bubble", 0.0f);
+  }
   normalize();
 }
 
@@ -446,15 +457,30 @@ std::vector<int> facesWithSmoothingGroup(const PolyMesh& m, int group) {
 std::vector<float> softSelectionWeights(const PolyMesh& m, const PolySelection& sel, const SoftSelection& soft) {
   std::vector<float> w(m.positions.size(), 0.0f);
   std::vector<int> verts = selectedVertsAtLevel(m, sel);
-  for (int v : verts) w[v] = 1.0f;
+  for (int v : verts)
+    if (v >= 0 && v < static_cast<int>(w.size())) w[v] = 1.0f;
   if (!soft.enabled || soft.falloff <= 0.0f || verts.empty()) return w;
-  // Distance to the nearest selected vertex (brute force; selections are usually small).
+  // Distance to the nearest selected vertex, using a hash grid with falloff-sized cells.
+  float cell = soft.falloff;
+  auto key = [cell](const Vec3& p) {
+    auto q = [cell](float x) { return static_cast<int64_t>(std::floor(x / cell)); };
+    return std::array<int64_t, 3>{q(p.x), q(p.y), q(p.z)};
+  };
+  std::map<std::array<int64_t, 3>, std::vector<int>> grid;
+  for (int v : verts) grid[key(m.positions[v])].push_back(v);
   for (size_t i = 0; i < m.positions.size(); ++i) {
     if (w[i] >= 1.0f) continue;
     float best = kInfinity;
-    for (int v : verts) best = std::min(best, length(m.positions[i] - m.positions[v]));
+    auto c = key(m.positions[i]);
+    for (int64_t dx = -1; dx <= 1; ++dx)
+      for (int64_t dy = -1; dy <= 1; ++dy)
+        for (int64_t dz = -1; dz <= 1; ++dz) {
+          auto it = grid.find({c[0] + dx, c[1] + dy, c[2] + dz});
+          if (it == grid.end()) continue;
+          for (int v : it->second) best = std::min(best, length(m.positions[i] - m.positions[v]));
+        }
     if (best >= soft.falloff) continue;
-    float t = best / soft.falloff;              // 0 at the selection, 1 at the falloff radius
+    float t = best / soft.falloff;                   // 0 at the selection, 1 at the falloff radius
     float base = 0.5f * (1.0f + std::cos(kPi * t));  // smooth bell
     // Pinch sharpens the peak; bubble swells the shoulder.
     float y = std::pow(base, 1.0f + std::max(0.0f, soft.pinch) * 2.0f);
@@ -463,6 +489,11 @@ std::vector<float> softSelectionWeights(const PolyMesh& m, const PolySelection& 
     w[i] = clampf(y, 0.0f, 1.0f);
   }
   return w;
+}
+
+std::vector<float> stackSelectionWeights(const PolyMesh& m, const PolySelection& sel) {
+  if (sel.level == PolyObject) return {};
+  return softSelectionWeights(m, sel, sel.soft);
 }
 
 }  // namespace veraa

@@ -56,12 +56,6 @@ std::vector<int> facesWithMaterial(const PolyMesh& m, int id);
 std::vector<int> facesWithSmoothingGroup(const PolyMesh& m, int group);  // group 1..32
 
 // Soft selection weights per vertex (1 for selected, falling off to 0 at `falloff`).
-struct SoftSelection {
-  bool enabled = false;
-  float falloff = 20.0f;
-  float pinch = 0.0f;
-  float bubble = 0.0f;
-};
 std::vector<float> softSelectionWeights(const PolyMesh& m, const PolySelection& sel, const SoftSelection& soft);
 
 // ---- Editing operations ----
@@ -109,6 +103,9 @@ std::vector<std::vector<Vec3>> edgeChains(const PolyMesh& m, const std::vector<u
 void autoSmooth(PolyMesh& m, const std::vector<int>* faces, float angleDeg);
 // Signed volume (for closed meshes) via triangulation.
 double meshVolume(const PolyMesh& m);
+// Per-vertex weights a sub-object selection passes up the modifier stack: empty at object
+// level (everything is affected), otherwise the (soft) selection weights.
+std::vector<float> stackSelectionWeights(const PolyMesh& m, const PolySelection& sel);
 bool isClosedManifold(const PolyMesh& m);
 
 }  // namespace veraa

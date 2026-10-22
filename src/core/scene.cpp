@@ -1,5 +1,7 @@
 #include "scene.h"
 
+#include "polyops.h"
+
 #include <atomic>
 #include <cstdio>
 #include <filesystem>
@@ -145,6 +147,8 @@ void Node::evaluate() const {
   st.time = scene_ ? scene_->time.currentFrame : 0.0;
   if (auto* g = geometry()) {
     st.mesh = g->build();
+    // An Editable Poly at a sub-object level passes its selection to the modifiers above.
+    if (auto* ep = dynamic_cast<const EditablePolyObject*>(g)) st.selWeights = stackSelectionWeights(ep->mesh, ep->sel);
   } else if (auto* s = shapeObject()) {
     st.shape = s->buildShape();
     st.isShape = true;

@@ -2061,7 +2061,7 @@ bool runPolyOp(PolyMesh& m, PolySelection& sel, const json& op, std::string* msg
     if (op.contains("matrix") && op["matrix"].size() == 16)
       for (int r = 0; r < 4; ++r)
         for (int c = 0; c < 4; ++c) mat.m[r][c] = op["matrix"][r * 4 + c].get<float>();
-    SoftSelection soft;
+    SoftSelection soft = sel.soft;
     if (op.contains("soft")) {
       soft.enabled = op["soft"].value("enabled", false);
       soft.falloff = op["soft"].value("falloff", 20.0f);

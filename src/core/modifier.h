@@ -21,6 +21,10 @@ struct GeomState {
   BezierShape shape;
   bool isShape = false;
   double time = 0.0;  // scene time in frames (for animated modifiers)
+  // Sub-object selection passed up the stack (per mesh vertex, 0..1). Empty = whole mesh.
+  // Set by Editable Poly sub-object levels and the selection modifiers; deformers only move
+  // selected vertices (weighted for soft selections).
+  std::vector<float> selWeights;
 };
 
 class Modifier {
@@ -33,8 +37,11 @@ class Modifier {
   // Override for modifiers that work on splines or need the full state. The default applies
   // apply(mesh) when the state is a mesh.
   virtual void applyState(GeomState& state) const {
-    if (!state.isShape) apply(state.mesh);
+    if (!state.isShape) applyWithSelection(state);
   }
+  // Runs apply(mesh) and, when a sub-object selection comes from below, keeps unselected
+  // vertices in place (blending by weight). Topology changes drop the selection.
+  void applyWithSelection(GeomState& state) const;
 
   virtual json toJson() const;
   virtual void fromJson(const json& j);

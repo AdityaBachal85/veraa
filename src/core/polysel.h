@@ -19,6 +19,17 @@ inline uint64_t edgeKey(int a, int b) {
 inline int edgeKeyA(uint64_t k) { return static_cast<int>(k >> 32); }
 inline int edgeKeyB(uint64_t k) { return static_cast<int>(k & 0xffffffffu); }
 
+// Soft selection: vertices near the selection follow a transform partially.
+struct SoftSelection {
+  bool enabled = false;
+  float falloff = 20.0f;
+  float pinch = 0.0f;
+  float bubble = 0.0f;
+  bool operator==(const SoftSelection& o) const {
+    return enabled == o.enabled && falloff == o.falloff && pinch == o.pinch && bubble == o.bubble;
+  }
+};
+
 struct PolySelection {
   int level = PolyObject;
   std::vector<int> verts;        // sorted, unique
@@ -26,6 +37,7 @@ struct PolySelection {
   std::vector<int> faces;        // sorted, unique (Polygon and Element levels)
   std::vector<int> hiddenFaces;  // sorted, unique
   std::vector<int> hiddenVerts;  // sorted, unique
+  SoftSelection soft;            // soft selection settings used for transforms and the stack
 
   bool hasVert(int v) const { return std::binary_search(verts.begin(), verts.end(), v); }
   bool hasEdge(uint64_t k) const { return std::binary_search(edges.begin(), edges.end(), k); }
