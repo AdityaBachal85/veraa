@@ -1,5 +1,7 @@
 #include "bsdf.h"
 
+#include <vector>
+
 namespace veraa {
 namespace render {
 
@@ -69,6 +71,43 @@ Vec3 sampleGgxVndf(const Vec3& wo, float ax, float ay, float u1, float u2) {
   return normalize(Vec3(ax * nh.x, ay * nh.y, std::max(1e-6f, nh.z)));
 }
 
+float sheenAlbedo(float cosO, float alpha) {
+  // 32 x 32 table over (cos theta_o, alpha), integrated numerically once.
+  static const std::vector<float> table = [] {
+    std::vector<float> t(32 * 32);
+    for (int ia = 0; ia < 32; ++ia) {
+      float a = 0.07f + (1.0f - 0.07f) * ia / 31.0f;
+      for (int ic = 0; ic < 32; ++ic) {
+        float c = std::max((ic + 0.5f) / 32.0f, 0.02f);
+        Vec3 wo(std::sqrt(1.0f - c * c), 0.0f, c);
+        double sum = 0.0;
+        const int nT = 48, nP = 48;
+        for (int i = 0; i < nT; ++i) {
+          float th = (i + 0.5f) / nT * (kPi * 0.5f);
+          for (int j = 0; j < nP; ++j) {
+            float ph = (j + 0.5f) / nP * kTwoPi;
+            Vec3 wi(std::sin(th) * std::cos(ph), std::sin(th) * std::sin(ph), std::cos(th));
+            Vec3 h = normalize(wo + wi);
+            float D = charlieD(h.z, a);
+            float V = 1.0f / (4.0f * (wi.z + wo.z - wi.z * wo.z));
+            sum += D * V * wi.z * std::sin(th) * (kPi * 0.5f / nT) * (kTwoPi / nP);
+          }
+        }
+        t[ia * 32 + ic] = static_cast<float>(std::min(sum, 1.0));
+      }
+    }
+    return t;
+  }();
+  float fa = clampf((alpha - 0.07f) / (1.0f - 0.07f), 0.0f, 1.0f) * 31.0f;
+  float fc = clampf(cosO * 32.0f - 0.5f, 0.0f, 31.0f);
+  int a0 = std::min(static_cast<int>(fa), 30), c0 = std::min(static_cast<int>(fc), 30);
+  float ta = fa - a0, tc = fc - c0;
+  auto at = [&](int a, int c) { return table[a * 32 + c]; };
+  float v0 = at(a0, c0) + (at(a0, c0 + 1) - at(a0, c0)) * tc;
+  float v1 = at(a0 + 1, c0) + (at(a0 + 1, c0 + 1) - at(a0 + 1, c0)) * tc;
+  return v0 + (v1 - v0) * ta;
+}
+
 float glossToAlpha(float gloss, bool isRoughness) {
   float r = isRoughness ? clampf(gloss, 0.0f, 1.0f) : 1.0f - clampf(gloss, 0.0f, 1.0f);
   return std::max(r * r, kMinAlpha);
@@ -132,7 +171,7 @@ void Bsdf::finalize(const Vec3& wo) {
     l.woL = woL;
     Vec3 a = l.weight;
     switch (l.kind) {
-      case LobeKind::Sheen: a *= 0.25f; break;
+      case LobeKind::Sheen: a *= sheenAlbedo(woL.z, l.ax); break;
       case LobeKind::GgxReflect:
       case LobeKind::SpecularReflect: a *= l.fresnelAt(woL.z); break;
       case LobeKind::GgxRefract: a *= vmax(Vec3(1.0f) - l.fresnelAt(woL.z), Vec3(0.0f)); break;

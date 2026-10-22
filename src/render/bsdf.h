@@ -117,6 +117,8 @@ float ggxD(const Vec3& h, float ax, float ay);
 float ggxLambda(const Vec3& w, float ax, float ay);
 Vec3 sampleGgxVndf(const Vec3& wo, float ax, float ay, float u1, float u2);
 float glossToAlpha(float glossiness, bool isRoughness = false);
+// Directional albedo of the sheen lobe (for energy-conserving layering).
+float sheenAlbedo(float cosO, float alpha);
 
 }  // namespace render
 }  // namespace veraa

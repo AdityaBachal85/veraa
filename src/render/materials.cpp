@@ -241,7 +241,12 @@ class VeraaMtl : public ShadeMaterial {
       below = lerp(one(), clampColor(coatColor_.eval(sc), 0.0f, 1.0f), coat) * (1.0f - coat * coatF);
     }
     Vec3 sheen = sheen_.mapped() || maxComponent(sheen_.value) > 0.0f ? clampColor(sheen_.eval(sc), 0.0f, 1.0f) : Vec3(0.0f);
-    if (!isBlack(sheen)) below *= 1.0f - 0.25f * maxComponent(sheen);
+    float sheenAlpha = 0.3f;
+    if (!isBlack(sheen)) {
+      float r = 1.0f - clampf(sheenGloss_.eval(sc), 0.0f, 1.0f);
+      sheenAlpha = clampf(r, 0.07f, 1.0f);
+      below *= 1.0f - maxComponent(sheen) * sheenAlbedo(cosO, sheenAlpha);
+    }
 
     // ---- Diffuse / translucency ----
     float rough = clampf(roughness_.eval(sc), 0.0f, 1.0f);
@@ -352,8 +357,7 @@ class VeraaMtl : public ShadeMaterial {
       sh.kind = LobeKind::Sheen;
       sh.category = LobeCategory::Specular;
       sh.frame = Frame(nf);
-      float r = 1.0f - clampf(sheenGloss_.eval(sc), 0.0f, 1.0f);
-      sh.ax = sh.ay = std::max(r * r, 0.02f);
+      sh.ax = sh.ay = sheenAlpha;
       sh.weight = sheen * (coat > 0.0f ? (1.0f - coat * coatF) : 1.0f);
       out.bsdf.add(sh);
     }
@@ -598,13 +602,8 @@ class TwoSidedMtl : public ShadeMaterial {
   float opacity(const ShadeContext& sc) const override { return front_->resolve(sc)->opacity(sc); }
   bool hasOpacity() const override { return front_->hasOpacity(); }
   bool emits() const override { return front_->emits(); }
-  Vec3 shadowTransmission(const ShadeContext& sc, float cosAbs) const override {
-    // Thin translucent sheets let some light through to shadows, like their translucency.
-    Vec3 t = clampColor(transl_.eval(sc), 0.0f, 1.0f);
-    float a = opacity(sc);
-    return Vec3(1.0f - a) + t * (a * 0.5f);
-  }
-  bool shadowTransparent() const override { return true; }
+  // Light through the sheet is traced as diffuse transmission, so shadows only see cut-outs.
+  bool shadowTransparent() const override { return front_->hasOpacity(); }
   void shade(ShadeContext& sc, SurfaceShade& out) const override {
     Vec3 t = clampColor(transl_.eval(sc), 0.0f, 1.0f);
     ShadeContext sf = sc;

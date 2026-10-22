@@ -65,6 +65,7 @@ void Renderer::Impl::prepare() {
     for (auto& g : groupBuf) g.reset(np * 3);
   }
   converged.assign(np, 0);
+  idSet.assign(wantIds ? np : 0, 0);
   version = 0;
   {
     std::lock_guard<std::mutex> lock(denoiseMutex);
@@ -177,7 +178,8 @@ void Renderer::Impl::samplePixel(int x, int y, int sampleIndex, Rng& rng) {
       if (isFiniteColor(v)) groupBuf[g].add3(pi, v);
     }
   if (!zbuf.empty()) zbuf.add(pi, out.hit ? out.depth : 0.0f);
-  if (!objId.empty() && sampleIndex == 0) {
+  if (!objId.empty() && out.hit && !idSet[pi]) {
+    idSet[pi] = 1;
     auto idColor = [](uint32_t id) {
       if (id == 0) return Vec3(0.0f);
       uint32_t hsh = hashU32(id * 2654435761u + 17u);
@@ -608,6 +610,13 @@ void Renderer::resolve(const DisplaySettings& display, std::vector<uint8_t>& rgb
   }
   postProcess(color, w, h, display);
   tonemapToRgba(color.data(), w, h, display, rgba);
+}
+
+void toneMapImage(const std::vector<float>& rgb, int width, int height, const DisplaySettings& display,
+                  std::vector<uint8_t>& rgba) {
+  std::vector<float> copy = rgb;
+  postProcess(copy, width, height, display);
+  tonemapToRgba(copy.data(), width, height, display, rgba);
 }
 
 bool Renderer::denoiserAvailable() {

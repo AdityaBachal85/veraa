@@ -171,6 +171,10 @@ std::vector<uint8_t> renderMaterialPreview(const Material& material, const Scene
 // Flat swatch of a texture map (material editor map previews). Returns size*size RGBA8.
 std::vector<uint8_t> renderMapPreview(const TexMap& map, const Scene* sceneForPaths, int size);
 
+// Applies lens effects, color corrections and the tone curve of `display` to a linear image.
+void toneMapImage(const std::vector<float>& rgb, int width, int height, const DisplaySettings& display,
+                  std::vector<uint8_t>& rgba);
+
 bool writePng(const std::string& path, int width, int height, const std::vector<uint8_t>& rgba);
 bool writeHdr(const std::string& path, int width, int height, const std::vector<float>& rgb);
 // Saves by extension: .png .jpg/.jpeg .bmp .tga .tif/.tiff (8-bit) or .hdr .exr (float).

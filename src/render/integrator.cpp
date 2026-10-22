@@ -274,38 +274,62 @@ ShadeContext Renderer::Impl::makeContext(const SurfaceHit& s, const Vec3& wo, Ra
 // ---------------------------------------------------------------------------------------------
 // Shadows and fog
 
+// Clips the ray segment [0, t] to the fog volume. Returns false when it misses.
+static bool clipToBox(const Aabb& box, const Vec3& o, const Vec3& d, float t, float& t0, float& t1) {
+  t0 = 0.0f;
+  t1 = t;
+  for (int a = 0; a < 3; ++a) {
+    float inv = 1.0f / d[a];
+    float n = (box.lo[a] - o[a]) * inv, f = (box.hi[a] - o[a]) * inv;
+    if (n > f) std::swap(n, f);
+    if (!std::isfinite(n) || !std::isfinite(f)) {
+      if (o[a] < box.lo[a] || o[a] > box.hi[a]) return false;
+      continue;
+    }
+    t0 = std::max(t0, n);
+    t1 = std::min(t1, f);
+    if (t0 > t1) return false;
+  }
+  return true;
+}
+
+// Optical depth of the fog between distances a and b along the ray (a < b, both finite).
 float Renderer::Impl::fogTransmittanceTau(const Vec3& o, const Vec3& d, float t) const {
   if (!fogOn) return 0.0f;
-  if (fogType == 0) return std::isfinite(t) ? fogDensity * t : kInfinity;
+  float a, b;
+  if (!clipToBox(fogBox, o, d, t, a, b)) return 0.0f;
+  if (fogType == 0) return fogDensity * (b - a);
   // Exponential height fog: density(z) = exp(-(z - base) * falloff / height).
   float k = fogFalloff / fogHeight;
-  float z0 = o.z - fogBase;
   float dz = d.z;
-  float e0 = std::exp(-z0 * k);
-  if (std::fabs(dz) < 1e-5f) return std::isfinite(t) ? fogDensity * e0 * t : kInfinity;
-  if (!std::isfinite(t)) return dz > 0.0f ? fogDensity * e0 / (dz * k) : kInfinity;
-  return fogDensity * e0 * (1.0f - std::exp(-dz * k * t)) / (dz * k);
+  float za = o.z + dz * a - fogBase;
+  float ea = std::exp(-za * k);
+  float len = b - a;
+  if (std::fabs(dz) < 1e-5f) return fogDensity * ea * len;
+  return fogDensity * ea * (1.0f - std::exp(-dz * k * len)) / (dz * k);
 }
 
 bool Renderer::Impl::sampleFog(const Vec3& o, const Vec3& d, float tMax, float u, float& t) const {
+  float a, b;
+  if (!clipToBox(fogBox, o, d, tMax, a, b)) return false;
   float target = -std::log(std::max(1.0f - u, 1e-12f));
   if (fogType == 0) {
-    t = target / fogDensity;
-    return t < tMax;
+    t = a + target / fogDensity;
+    return t < b;
   }
   float k = fogFalloff / fogHeight;
-  float z0 = o.z - fogBase;
-  float e0 = std::exp(-z0 * k);
   float dz = d.z;
+  float za = o.z + dz * a - fogBase;
+  float ea = std::exp(-za * k);
   if (std::fabs(dz) < 1e-5f) {
-    t = target / (fogDensity * e0);
-    return t < tMax;
+    t = a + target / (fogDensity * ea);
+    return t < b;
   }
-  // Solve tau(t) = target.
-  float x = 1.0f - target * dz * k / (fogDensity * e0);
-  if (x <= 0.0f) return false;  // escapes before accumulating enough density
-  t = -std::log(x) / (dz * k);
-  return t > 0.0f && t < tMax;
+  // Solve tau(a, t) = target.
+  float x = 1.0f - target * dz * k / (fogDensity * ea);
+  if (x <= 0.0f) return false;  // leaves before accumulating enough density
+  t = a - std::log(x) / (dz * k);
+  return t > a && t < b;
 }
 
 Vec3 Renderer::Impl::transmittance(Vec3 o, const Vec3& d, float tMax, float time, const Light* light) const {
@@ -440,7 +464,7 @@ void Renderer::Impl::cameraRay(float px, float py, Rng& rng, Vec3& o, Vec3& d, f
 // Subsurface random walk
 
 bool Renderer::Impl::randomWalk(const SurfaceHit& entry, const SubsurfaceParams& sss, const Vec3& dirIn, float time,
-                                Rng& rng, SurfaceHit& exitHit, Vec3& weight) const {
+                                Rng& rng, SurfaceHit& exitHit, Vec3& exitDir, Vec3& weight) const {
   Vec3 sigmaT(1.0f / std::max(sss.radius.x, 1e-5f), 1.0f / std::max(sss.radius.y, 1e-5f),
               1.0f / std::max(sss.radius.z, 1e-5f));
   Vec3 alpha = subsurfaceSingleScatterAlbedo(sss.albedo);
@@ -466,6 +490,7 @@ bool Renderer::Impl::randomWalk(const SurfaceHit& entry, const SubsurfaceParams&
       if (pdf <= 0.0f) return false;
       throughput *= T / pdf;
       surface(rh, planeHit, p, dir, time, exitHit);
+      exitDir = dir;
       weight = throughput;
       return isFiniteColor(weight);
     }
@@ -852,11 +877,11 @@ void Renderer::Impl::trace(Vec3 o, Vec3 d, float tNear, float tFar, float time, 
     // Subsurface: random walk to an exit point, then continue as a diffuse surface there.
     if (bs.subsurface && sh.hasSubsurface) {
       SurfaceHit ex;
-      Vec3 wWalk;
-      if (!randomWalk(s, sh.sss, bs.wi, time, rng, ex, wWalk)) break;
+      Vec3 wWalk, exitDir;
+      if (!randomWalk(s, sh.sss, bs.wi, time, rng, ex, exitDir, wWalk)) break;
       beta *= wWalk;
       if (!isFiniteColor(beta) || isBlack(beta)) break;
-      Vec3 outN = dot(ex.ng, bs.wi) > 0.0f ? ex.ng : -ex.ng;  // pointing out of the object
+      Vec3 outN = dot(ex.ng, exitDir) > 0.0f ? ex.ng : -ex.ng;  // pointing out of the object
       Vec3 ns = dot(ex.ns, outN) > 0.0f ? ex.ns : -ex.ns;
       Bsdf exitBsdf;
       Lobe l;

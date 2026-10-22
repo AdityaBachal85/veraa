@@ -325,6 +325,18 @@ bool Renderer::Impl::build(const Scene& scene, std::string* error) {
   fogG = clampf(rs.getFloat("fogAnisotropy"), -0.95f, 0.95f);
   fogAffectBackground = rs.getBool("fogAffectBackground");
   fogEmission = rs.getColor("fogEmission");
+  {
+    Aabb b = scene.bounds(true);
+    if (!b.valid()) {
+      b.expand(Vec3(-1000.0f));
+      b.expand(Vec3(1000.0f));
+    }
+    Vec3 margin = b.extent() * 0.25f + Vec3(100.0f);
+    fogBox = Aabb();
+    fogBox.expand(b.lo - margin);
+    fogBox.expand(b.hi + margin);
+    fogBase = b.lo.z;
+  }
   physicalExposure = rs.getInt("exposureControl") == 1 ? exposureScale(rs.getFloat("ev100")) : 1.0f;
   {
     Vec3 wb = kelvinToRgb(rs.getFloat("whiteBalanceK"));
@@ -431,8 +443,19 @@ bool Renderer::Impl::build(const Scene& scene, std::string* error) {
   };
   std::vector<Candidate> candidates;
   std::map<std::string, int> keyCount;
+  // Motion blur: the shutter of the view set before setScene(), else of the scene's render camera.
   double shutterOpen = view.shutterOpen, shutterClose = view.shutterClose;
   bool motionBlur = view.motionBlur && shutterClose > shutterOpen;
+  if (!motionBlur)
+    if (const Node* camNode = scene.findNodeByName(rs.getString("camera")))
+      if (camNode->camera()) {
+        RenderView cv = viewFromCamera(*camNode, static_cast<float>(sceneW) / std::max(sceneH, 1));
+        if (cv.motionBlur && cv.shutterClose > cv.shutterOpen) {
+          motionBlur = true;
+          shutterOpen = cv.shutterOpen;
+          shutterClose = cv.shutterClose;
+        }
+      }
   for (const auto& np : scene.nodes) {
     const Node& node = *np;
     ObjectKind kind = node.kind();

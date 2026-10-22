@@ -219,6 +219,7 @@ struct Renderer::Impl : public render::Tracer {
   int fogType = 0;
   Vec3 fogAlbedo{1, 1, 1}, fogEmission;
   float fogDensity = 0.0f, fogHeight = 200.0f, fogFalloff = 1.0f, fogG = 0.0f, fogBase = 0.0f;
+  Aabb fogBox;  // fog fills the scene's bounding volume
   bool fogAffectBackground = true;
   float physicalExposure = 1.0f;  // render-settings EV100 exposure control
   Vec3 settingsWhiteBalance{1, 1, 1};
@@ -241,6 +242,7 @@ struct Renderer::Impl : public render::Tracer {
   std::vector<render::AccumBuffer> elemBuf;   // per renderElementInfos() entry (empty when off)
   std::vector<render::AccumBuffer> groupBuf;  // light mix groups
   std::vector<uint8_t> converged;
+  std::vector<uint8_t> idSet;  // ID elements come from the first sample that hits a surface
   std::atomic<int> version{0};
   mutable std::mutex denoiseMutex;
   mutable std::vector<float> denoised;
@@ -287,7 +289,7 @@ struct Renderer::Impl : public render::Tracer {
                                    render::Rng& rng, float time, float footprint) const;
   void trace(Vec3 o, Vec3 d, float tNear, float tFar, float time, render::Rng& rng, render::PathOutput& out) const;
   bool randomWalk(const render::SurfaceHit& entry, const render::SubsurfaceParams& sss, const Vec3& dirIn,
-                  float time, render::Rng& rng, render::SurfaceHit& exitHit, Vec3& weight) const;
+                  float time, render::Rng& rng, render::SurfaceHit& exitHit, Vec3& exitDir, Vec3& weight) const;
   float fogTransmittanceTau(const Vec3& o, const Vec3& d, float t) const;
   bool sampleFog(const Vec3& o, const Vec3& d, float tMax, float u, float& t) const;
   int pickLight(float u, float& prob) const;

@@ -11,3 +11,8 @@ add_executable(rendercore_tests rendercore_tests.cpp)
 target_link_libraries(rendercore_tests PRIVATE veraa_core)
 target_compile_definitions(rendercore_tests PRIVATE VERAA_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 add_test(NAME rendercore_tests COMMAND rendercore_tests)
+
+add_executable(renderfeature_tests renderfeature_tests.cpp)
+target_link_libraries(renderfeature_tests PRIVATE veraa_render)
+target_compile_definitions(renderfeature_tests PRIVATE VERAA_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
+add_test(NAME renderfeature_tests COMMAND renderfeature_tests)
