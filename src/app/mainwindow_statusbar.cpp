@@ -2,6 +2,7 @@
 // isolate / selection lock / absolute-offset toggles, X/Y/Z transform type-in, grid size,
 // adaptive degradation, a slot for the animation controls, and the viewport navigation
 // controls.
+#include <algorithm>
 #include <QAction>
 #include <QActionGroup>
 #include <QGridLayout>

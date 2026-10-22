@@ -1,5 +1,6 @@
 #include "interfacedata.h"
 
+#include <algorithm>
 #include <QObject>
 
 namespace veraa {

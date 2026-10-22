@@ -1,5 +1,6 @@
 #include "navtools.h"
 
+#include <algorithm>
 #include <QMouseEvent>
 #include <QPainter>
 

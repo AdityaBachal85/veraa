@@ -3,6 +3,7 @@
 #define CGLTF_IMPLEMENTATION
 #include "cgltf/cgltf.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <filesystem>

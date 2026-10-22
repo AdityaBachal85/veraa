@@ -1,5 +1,6 @@
 // Interface self-tests ("Veraa --script interface", also part of "--script selftest"), and the
 // interface screenshot run ("Veraa --script interfaceScreens" with VERAA_UI_SCREENS=<folder>).
+#include <algorithm>
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>

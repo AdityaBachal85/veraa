@@ -38,6 +38,13 @@ class HotkeyEditorDialog : public QDialog {
   QLabel* conflict_;
 };
 
+// Customize > Customize User Interface: Keyboard (hotkey editor) and Toolbars tabs.
+class CustomizeUiDialog : public QDialog {
+  Q_OBJECT
+ public:
+  explicit CustomizeUiDialog(MainWindow* w);
+};
+
 class CustomDefaultsDialog : public QDialog {
   Q_OBJECT
  public:

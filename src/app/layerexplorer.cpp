@@ -1,5 +1,6 @@
 #include "layerexplorer.h"
 
+#include <algorithm>
 #include <QColorDialog>
 #include <QHBoxLayout>
 #include <QHeaderView>

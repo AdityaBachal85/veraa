@@ -1,6 +1,7 @@
 // File menu: New (all / keep objects / keep hierarchy), Reset, Open, Open Recent, View Image File,
 // Save variants, Archive, Import / Merge / Replace, Export, XRef, Project folder, Summary Info,
 // File Properties and auto backup.
+#include <algorithm>
 #include <QAction>
 #include <QApplication>
 #include <QCheckBox>

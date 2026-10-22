@@ -1,5 +1,6 @@
 #include "sceneexplorer.h"
 
+#include <algorithm>
 #include <QDropEvent>
 #include <QHBoxLayout>
 #include <QHeaderView>

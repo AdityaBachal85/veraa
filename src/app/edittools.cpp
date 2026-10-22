@@ -1,5 +1,6 @@
 #include "edittools.h"
 
+#include <algorithm>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QSettings>

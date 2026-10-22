@@ -1,5 +1,6 @@
 #include "commandtabs.h"
 
+#include <algorithm>
 #include <QButtonGroup>
 #include <QCheckBox>
 #include <QDialog>

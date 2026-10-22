@@ -202,6 +202,7 @@ MainWindow::MainWindow() {
   restoreGeometry(s.value("geometry").toByteArray());
   restoreState(s.value("windowState").toByteArray());
   setUiLocked(s.value("ui/locked", false).toBool());
+  if (int px = s.value("ui/toolbarIconSize", 0).toInt(); px >= 16) mainToolBar_->setIconSize(QSize(px, px));
 
   autoBackupTimer_ = new QTimer(this);
   connect(autoBackupTimer_, &QTimer::timeout, this, &MainWindow::autoBackup);
@@ -974,7 +975,7 @@ void MainWindow::createMenus() {
   QMenu* customize = menuAt("Customize");
   QAction* cui = cmd("customize.ui", tr("&Customize User Interface..."));
   connect(cui, &QAction::triggered, this, [this] {
-    HotkeyEditorDialog dlg(this);
+    CustomizeUiDialog dlg(this);
     dlg.exec();
   });
   customize->addAction(cui);
@@ -1008,6 +1009,8 @@ void MainWindow::createMenus() {
   customize->addAction(lockUiAct_);
   customize->addSeparator();
   menuAt("Customize/Show UI");
+  menuAt("Customize/Show Editors");
+  menuAt("Customize/Show Explorers");
   customize->addSeparator();
   QAction* projPaths = cmd("customize.projectPaths", tr("Configure &Project Paths..."));
   connect(projPaths, &QAction::triggered, this, [this] {
@@ -1045,6 +1048,19 @@ void MainWindow::createMenus() {
 
   // ---- Scripting ----
   installScriptingMenu(*this, menuAt("Scripting"));
+
+  // ---- Customize > Show Editors / Show Explorers (filled now that every command exists) ----
+  QMenu* editors = menuAt("Customize/Show Editors");
+  for (const char* id : {"render.materialEditor", "render.setup", "render.frameWindow", "graph.curveEditor",
+                         "graph.dopeSheet", "graph.schematic", "scripting.listener", "scripting.editor"}) {
+    QAction* a = command(id);
+    for (QAction* p : proxies_)
+      if (p->property("proxyId").toString() == id) a = p;
+    if (a) editors->addAction(a);
+  }
+  QMenu* explorers = menuAt("Customize/Show Explorers");
+  explorers->addAction(command("tools.sceneExplorer"));
+  explorers->addAction(command("tools.layerExplorer"));
 
   // ---- Help ----
   QMenu* help = menuAt("Help");

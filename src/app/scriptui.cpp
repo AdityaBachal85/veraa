@@ -1,5 +1,6 @@
 #include "scriptui.h"
 
+#include <algorithm>
 #include <QAction>
 #include <QCloseEvent>
 #include <QDesktopServices>

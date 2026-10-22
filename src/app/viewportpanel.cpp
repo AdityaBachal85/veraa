@@ -1,5 +1,6 @@
 #include "viewportpanel.h"
 
+#include <algorithm>
 #include <QSplitter>
 #include <QVBoxLayout>
 

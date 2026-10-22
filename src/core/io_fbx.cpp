@@ -1,4 +1,5 @@
 // FBX: import with ufbx (binary and ASCII, any version ufbx reads), export as ASCII FBX 7.4.
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdio>

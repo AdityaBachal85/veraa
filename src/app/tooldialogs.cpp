@@ -1,5 +1,6 @@
 #include "tooldialogs.h"
 
+#include <algorithm>
 #include <QButtonGroup>
 #include <QCheckBox>
 #include <QColorDialog>

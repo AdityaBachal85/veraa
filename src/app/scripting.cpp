@@ -6,6 +6,7 @@
 
 #include "scripting.h"
 
+#include <algorithm>
 #include <QAction>
 #include <QApplication>
 #include <QDir>

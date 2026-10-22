@@ -2,6 +2,7 @@
 // system, pivot center, manipulate, shortcut override, snaps, named selection sets, mirror and
 // align, explorers, graph editors, rendering), the axis constraint toolbar, workspaces and
 // commands owned by other modules (proxies).
+#include <algorithm>
 #include <QAction>
 #include <QActionGroup>
 #include <QCheckBox>

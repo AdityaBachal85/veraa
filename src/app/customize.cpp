@@ -1,10 +1,13 @@
 #include "customize.h"
 
+#include <algorithm>
 #include <QAction>
 #include <QButtonGroup>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialogButtonBox>
+#include <QDockWidget>
+#include <QToolBar>
 #include <QDir>
 #include <QDoubleSpinBox>
 #include <QFile>
@@ -221,6 +224,58 @@ bool HotkeyEditorDialog::loadKeys(const QString& path, QHash<QString, QString>* 
   for (auto it = j["hotkeys"].begin(); it != j["hotkeys"].end(); ++it)
     if (it->is_string()) keys->insert(QString::fromStdString(it.key()), QString::fromStdString(it->get<std::string>()));
   return true;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Customize User Interface
+
+CustomizeUiDialog::CustomizeUiDialog(MainWindow* w) : QDialog(w) {
+  noHelp(this);
+  setWindowTitle(tr("Customize User Interface"));
+  resize(760, 600);
+  auto* v = new QVBoxLayout(this);
+  auto* tabs = new QTabWidget(this);
+  v->addWidget(tabs);
+  auto* keys = new HotkeyEditorDialog(w);
+  keys->setWindowFlags(Qt::Widget);
+  connect(keys, &QDialog::finished, this, &QDialog::accept);
+  tabs->addTab(keys, tr("Keyboard"));
+
+  auto* bars = new QWidget(tabs);
+  auto* bv = new QVBoxLayout(bars);
+  bv->addWidget(new QLabel(tr("Toolbars and panels shown in the main window:"), bars));
+  for (QToolBar* t : w->findChildren<QToolBar*>()) {
+    auto* c = new QCheckBox(t->windowTitle(), bars);
+    c->setChecked(t->isVisible());
+    connect(c, &QCheckBox::toggled, t, &QWidget::setVisible);
+    bv->addWidget(c);
+  }
+  for (QDockWidget* d : w->findChildren<QDockWidget*>()) {
+    auto* c = new QCheckBox(d->windowTitle(), bars);
+    c->setChecked(d->isVisible());
+    connect(c, &QCheckBox::toggled, d, &QWidget::setVisible);
+    bv->addWidget(c);
+  }
+  auto* sizeRow = new QHBoxLayout;
+  sizeRow->addWidget(new QLabel(tr("Main toolbar icon size:"), bars));
+  auto* size = new QComboBox(bars);
+  for (int px : {16, 22, 28, 32}) size->addItem(tr("%1 px").arg(px), px);
+  size->setCurrentIndex(std::max(0, size->findData(w->mainToolBar()->iconSize().width())));
+  connect(size, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [w, size] {
+    int px = size->currentData().toInt();
+    w->mainToolBar()->setIconSize(QSize(px, px));
+    QSettings s = appSettings();
+    s.setValue("ui/toolbarIconSize", px);
+  });
+  sizeRow->addWidget(size);
+  sizeRow->addStretch(1);
+  bv->addLayout(sizeRow);
+  auto* lock = new QCheckBox(tr("Lock UI layout (toolbars and panels cannot be moved)"), bars);
+  lock->setChecked(appSettings().value("ui/locked", false).toBool());
+  connect(lock, &QCheckBox::toggled, this, [w](bool on) { w->setUiLocked(on); });
+  bv->addWidget(lock);
+  bv->addStretch(1);
+  tabs->addTab(bars, tr("Toolbars"));
 }
 
 // ---------------------------------------------------------------------------------------------
