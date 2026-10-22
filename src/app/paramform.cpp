@@ -1,5 +1,7 @@
 #include "paramform.h"
 
+#include "units.h"
+
 #include <QCheckBox>
 #include <QColorDialog>
 #include <QComboBox>
@@ -235,9 +237,10 @@ void ParamForm::rebuild() {
       QWidget* field = nullptr;
       switch (d.type) {
         case ParamType::Float: {
-          auto* sb = new QDoubleSpinBox(roll->body());
+          // Lengths show and accept display units (Customize > Units Setup).
+          auto* sb = isLengthParam(d) ? new UnitSpinBox(roll->body()) : new QDoubleSpinBox(roll->body());
           sb->setRange(std::max(d.minValue, -1e9), std::min(d.maxValue, 1e9));
-          sb->setDecimals(d.decimals);
+          sb->setDecimals(isLengthParam(d) ? std::max(d.decimals, 3) : d.decimals);
           sb->setSingleStep(d.step);
           sb->setKeyboardTracking(false);
           sb->setAccelerated(true);

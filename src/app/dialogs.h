@@ -6,6 +6,7 @@
 #include "document.h"
 #include "obj_import.h"
 
+class QButtonGroup;
 class QCheckBox;
 class QDoubleSpinBox;
 class QLineEdit;
@@ -49,17 +50,19 @@ class CloneOptionsDialog : public QDialog {
   int copies() const;
   QString name() const;
   Mode mode() const;
+  void setMode(int m);
 
  private:
   QSpinBox* copies_ = nullptr;
   QLineEdit* name_;
-  QRadioButton* instance_ = nullptr;
-  QRadioButton* reference_ = nullptr;
+  QButtonGroup* modeGroup_ = nullptr;
 };
 
 // Makes `cloneId` (a copy of `sourceId`) an instance or reference of the source.
 void applyCloneMode(Scene& scene, uint32_t sourceId, uint32_t cloneId, CloneOptionsDialog::Mode mode);
 
+// Edit > Object Properties: General (info, display and rendering flags) and User Defined tabs.
+// Flag changes apply to every selected object.
 class ObjectPropertiesDialog : public QDialog {
   Q_OBJECT
  public:

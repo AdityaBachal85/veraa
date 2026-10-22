@@ -46,18 +46,39 @@ uniform vec3 uEye;
 uniform vec3 uViewDir;
 uniform int uOrtho;
 uniform float uAlpha;
+uniform int uFacets;
+uniform int uHeadOnly;
+uniform int uLightCount;
+uniform vec3 uLightPos[4];
+uniform vec3 uLightColor[4];
+uniform int uLightDir[4];
 out vec4 frag;
 void main() {
-  vec3 n = normalize(vN);
+  vec3 n = uFacets == 1 ? normalize(cross(dFdx(vW), dFdy(vW))) : normalize(vN);
   vec3 v = uOrtho == 1 ? -uViewDir : normalize(uEye - vW);
   if (dot(n, v) < 0.0) n = -n;
-  vec3 key = normalize(vec3(0.4, -0.55, 0.75));
   float head = max(dot(n, v), 0.0);
-  float k = max(dot(n, key), 0.0);
-  float sky = 0.5 + 0.5 * n.z;
-  vec3 h = normalize(key + v);
-  float spec = pow(max(dot(n, h), 0.0), 48.0) * 0.12;
-  vec3 c = uColor * (0.14 + 0.5 * head + 0.32 * k + 0.08 * sky) + vec3(spec);
+  vec3 c;
+  if (uLightCount > 0) {
+    // Scene lights: Lambert per light plus a little ambient so unlit sides stay readable.
+    c = uColor * 0.1;
+    for (int i = 0; i < 4; ++i) {
+      if (i >= uLightCount) break;
+      vec3 l = uLightDir[i] == 1 ? normalize(uLightPos[i]) : normalize(uLightPos[i] - vW);
+      float ndl = max(dot(n, l), 0.0);
+      vec3 h = normalize(l + v);
+      c += uColor * uLightColor[i] * ndl + uLightColor[i] * pow(max(dot(n, h), 0.0), 48.0) * 0.08;
+    }
+  } else if (uHeadOnly == 1) {
+    c = uColor * (0.18 + 0.82 * head);
+  } else {
+    vec3 key = normalize(vec3(0.4, -0.55, 0.75));
+    float k = max(dot(n, key), 0.0);
+    float sky = 0.5 + 0.5 * n.z;
+    vec3 h = normalize(key + v);
+    float spec = pow(max(dot(n, h), 0.0), 48.0) * 0.12;
+    c = uColor * (0.14 + 0.5 * head + 0.32 * k + 0.08 * sky) + vec3(spec);
+  }
   frag = vec4(pow(c, vec3(0.95)), uAlpha);
 }
 )";
@@ -188,6 +209,17 @@ void GlScene::drawShaded(const Node& node, uint64_t stamp, const Mat4& viewProj,
   meshProg_.setUniformValue("uViewDir", QVector3D(viewDir.x, viewDir.y, viewDir.z));
   meshProg_.setUniformValue("uOrtho", ortho ? 1 : 0);
   meshProg_.setUniformValue("uAlpha", alpha);
+  meshProg_.setUniformValue("uFacets", style_.facets ? 1 : 0);
+  meshProg_.setUniformValue("uHeadOnly", style_.headlightOnly ? 1 : 0);
+  meshProg_.setUniformValue("uLightCount", style_.lightCount);
+  for (int i = 0; i < 4; ++i) {
+    const Vec3& lp = style_.lightPos[i];
+    const Vec3& lc = style_.lightColor[i];
+    QByteArray idx = QByteArray::number(i);
+    meshProg_.setUniformValue(("uLightPos[" + idx + "]").constData(), QVector3D(lp.x, lp.y, lp.z));
+    meshProg_.setUniformValue(("uLightColor[" + idx + "]").constData(), QVector3D(lc.x, lc.y, lc.z));
+    meshProg_.setUniformValue(("uLightDir[" + idx + "]").constData(), style_.lightDirectional[i] ? 1 : 0);
+  }
   gl_->glBindVertexArray(m.triVao);
   gl_->glDrawElements(GL_TRIANGLES, m.triCount, GL_UNSIGNED_INT, nullptr);
   gl_->glBindVertexArray(0);

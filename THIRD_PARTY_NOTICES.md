@@ -14,6 +14,10 @@ Veraa uses the following open-source components. Each is used under its own lice
 | earcut.hpp (Mapbox) | Capping shapes with holes | ISC (third_party/earcut/LICENSE) | https://github.com/mapbox/earcut.hpp |
 | Clipper2 1.4.0 (Angus Johnson) | Spline booleans and offsets | Boost Software License 1.0 (third_party/clipper2/LICENSE) | https://github.com/AngusJohnson/Clipper2 |
 | DejaVu fonts (DejaVu Sans, Sans Bold, Serif) | Bundled fonts for Text and TextPlus | Bitstream Vera / DejaVu font license (assets/fonts/LICENSE.txt) | https://dejavu-fonts.github.io/ |
+| ufbx 0.18.2 (Samuli Raivio) | FBX import | MIT or public domain (Unlicense) | https://github.com/ufbx/ufbx |
+| cgltf 1.14 (Johannes Kuhlmann) | glTF 2.0 import | MIT | https://github.com/jkuhlmann/cgltf |
+| miniz 3.0.2 (Rich Geldreich, RAD Game Tools, Valve) | Zip archives (File > Archive) | MIT | https://github.com/richgel999/miniz |
+| Python 3.12 (embeddable package, Windows builds) | Scripting (Scripting menu, listener) | Python Software Foundation License | https://www.python.org/ |
 | Microsoft Visual C++ runtime (Windows builds) | C++ runtime DLLs | Microsoft Visual Studio redistributable terms | https://learn.microsoft.com/cpp/windows/redistributing-visual-cpp-files |
 | Sample HDRI from Poly Haven | Sample scenes | CC0 | https://polyhaven.com/ |
 

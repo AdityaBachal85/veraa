@@ -29,6 +29,9 @@ struct ParamDef {
   std::vector<std::string> items;  // Enum choices
   std::string fileFilter;          // File dialog filter, e.g. "Images (*.png *.jpg)"
   std::string tooltip;
+  // UI unit hint: "length" (shown in display units), "angle", "percent", or "" (plain number).
+  // Leave empty to let the UI infer length for common keys (width, height, radius, ...).
+  std::string unit;
 
   // Default value.
   double defNumber = 0.0;

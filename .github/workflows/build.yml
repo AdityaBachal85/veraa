@@ -19,6 +19,9 @@ env:
   EMBREE_VERSION: "4.3.3"
   OIDN_VERSION: "2.3.3"
   QT_VERSION: "6.8.3"
+  PYTHON_VERSION: "3.12"
+  # Embeddable Python shipped next to Veraa.exe (same 3.12 ABI as the build-time Python).
+  PYTHON_EMBED_VERSION: "3.12.10"
 
 jobs:
   windows:
@@ -39,6 +42,11 @@ jobs:
           arch: win64_msvc2022_64
           cache: true
 
+      - name: Install Python (scripting)
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
       - name: Download Embree and Open Image Denoise
         run: |
           $deps = Join-Path $env:RUNNER_TEMP "deps"
@@ -56,6 +64,7 @@ jobs:
           cmake -S . -B build -G "Visual Studio 17 2022" -A x64
           -Dembree_DIR="$env:EMBREE_ROOT/lib/cmake/embree-$env:EMBREE_VERSION"
           -DOpenImageDenoise_DIR="$env:OIDN_ROOT/lib/cmake/OpenImageDenoise-$env:OIDN_VERSION"
+          -DPython3_ROOT_DIR="$env:pythonLocation"
 
       - name: Build
         run: cmake --build build --config Release --parallel
@@ -93,6 +102,14 @@ jobs:
             ForEach-Object { Join-Path $_.FullName "x64/Microsoft.VC143.CRT" } |
             Where-Object { Test-Path $_ } | Select-Object -First 1
           Copy-Item "$crt/*.dll" $dist
+          # Python for the Scripting menu: python312.dll, the standard library zip, extension
+          # modules and the ._pth file that points Python at them.
+          $ProgressPreference = "SilentlyContinue"
+          $embed = Join-Path $env:RUNNER_TEMP "python-embed.zip"
+          Invoke-WebRequest "https://www.python.org/ftp/python/$env:PYTHON_EMBED_VERSION/python-$env:PYTHON_EMBED_VERSION-embed-amd64.zip" -OutFile $embed
+          Expand-Archive $embed -DestinationPath $dist -Force
+          Remove-Item "$dist/python.exe", "$dist/pythonw.exe" -ErrorAction SilentlyContinue
+          if (-not (Test-Path "$dist/python312.dll")) { throw "python312.dll missing from the package" }
           foreach ($dir in "scenes", "assets") { if (Test-Path $dir) { Copy-Item $dir $dist -Recurse } }
           Copy-Item README.md $dist
           if (Test-Path THIRD_PARTY_NOTICES.md) { Copy-Item THIRD_PARTY_NOTICES.md $dist }
@@ -147,7 +164,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ninja-build qt6-base-dev libembree-dev libgl-dev
+          sudo apt-get install -y --no-install-recommends ninja-build qt6-base-dev libembree-dev libgl-dev python3-dev
 
       - name: Configure
         run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release

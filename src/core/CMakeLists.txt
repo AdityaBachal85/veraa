@@ -50,6 +50,10 @@ add_library(veraa_core STATIC
   aec_doors.cpp
   aec_stairs.cpp
   patch_nurbs.cpp
+  io_common.cpp
+  io_fbx.cpp
+  io_gltf.cpp
+  io_mesh_formats.cpp
 )
 target_include_directories(veraa_core
   PUBLIC
@@ -59,3 +63,6 @@ target_include_directories(veraa_core
 target_link_libraries(veraa_core PUBLIC veraa_clipper2)
 # Lets the font search find the bundled fonts when running from the build tree.
 target_compile_definitions(veraa_core PRIVATE VERAA_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
+
+# ufbx (FBX import) and miniz (archives) are compiled as C in third_party.
+target_link_libraries(veraa_core PRIVATE veraa_thirdparty)

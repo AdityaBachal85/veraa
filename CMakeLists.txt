@@ -32,6 +32,7 @@ else()
   message(STATUS "Veraa: Intel Open Image Denoise not found, denoiser disabled")
 endif()
 
+add_subdirectory(third_party)
 add_subdirectory(src/core)
 add_subdirectory(src/render)
 add_subdirectory(src/cli)
