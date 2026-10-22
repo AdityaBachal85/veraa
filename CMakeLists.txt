@@ -37,7 +37,11 @@ add_subdirectory(src/render)
 add_subdirectory(src/cli)
 
 if(VERAA_BUILD_APP)
-  add_subdirectory(src/app)
+  if(EXISTS ${PROJECT_SOURCE_DIR}/src/app/CMakeLists.txt)
+    add_subdirectory(src/app)
+  else()
+    message(WARNING "Veraa: src/app is missing, building without the desktop app")
+  endif()
 endif()
 
 if(VERAA_BUILD_TESTS)

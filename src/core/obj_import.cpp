@@ -1,5 +1,6 @@
 #include "obj_import.h"
 
+#include <cctype>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>

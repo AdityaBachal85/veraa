@@ -1,0 +1,132 @@
+name: Build
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write  # publishing a release when a v* tag is pushed
+
+env:
+  EMBREE_VERSION: "4.3.3"
+  OIDN_VERSION: "2.3.3"
+  QT_VERSION: "6.8.3"
+
+jobs:
+  windows:
+    name: Windows x64 (Veraa.exe)
+    runs-on: windows-2022
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: windows
+          target: desktop
+          arch: win64_msvc2022_64
+          cache: true
+
+      - name: Download Embree and Open Image Denoise
+        run: |
+          $deps = Join-Path $env:RUNNER_TEMP "deps"
+          New-Item -ItemType Directory -Force $deps | Out-Null
+          $ProgressPreference = "SilentlyContinue"
+          Invoke-WebRequest "https://github.com/RenderKit/embree/releases/download/v$env:EMBREE_VERSION/embree-$env:EMBREE_VERSION.x64.windows.zip" -OutFile "$deps/embree.zip"
+          Expand-Archive "$deps/embree.zip" -DestinationPath "$deps/embree"
+          Invoke-WebRequest "https://github.com/RenderKit/oidn/releases/download/v$env:OIDN_VERSION/oidn-$env:OIDN_VERSION.x64.windows.zip" -OutFile "$deps/oidn.zip"
+          Expand-Archive "$deps/oidn.zip" -DestinationPath $deps
+          "EMBREE_ROOT=$deps/embree" >> $env:GITHUB_ENV
+          "OIDN_ROOT=$deps/oidn-$env:OIDN_VERSION.x64.windows" >> $env:GITHUB_ENV
+
+      - name: Configure
+        run: >
+          cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+          -Dembree_DIR="$env:EMBREE_ROOT/lib/cmake/embree-$env:EMBREE_VERSION"
+          -DOpenImageDenoise_DIR="$env:OIDN_ROOT/lib/cmake/OpenImageDenoise-$env:OIDN_VERSION"
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Copy runtime libraries next to the executables
+        run: |
+          $bin = "build/bin/Release"
+          Copy-Item "$env:EMBREE_ROOT/bin/embree4.dll", "$env:EMBREE_ROOT/bin/tbbmalloc.dll" $bin
+          # CPU denoiser only; the GPU device modules are large and optional.
+          foreach ($dll in "OpenImageDenoise.dll", "OpenImageDenoise_core.dll", "OpenImageDenoise_device_cpu.dll", "tbb12.dll") {
+            Copy-Item "$env:OIDN_ROOT/bin/$dll" $bin
+          }
+
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: Package
+        run: |
+          $dist = "dist/Veraa"
+          New-Item -ItemType Directory -Force $dist | Out-Null
+          Get-ChildItem build/bin/Release -File |
+            Where-Object { $_.Extension -in ".exe", ".dll" -and $_.BaseName -notlike "*_tests" } |
+            Copy-Item -Destination $dist
+          windeployqt --release --no-translations --no-system-d3d-compiler "$dist/Veraa.exe"
+          # Microsoft C++ runtime, so Veraa runs on PCs without the VC++ redistributable.
+          $vs = & "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe" -latest -property installationPath
+          $crt = Get-ChildItem "$vs/VC/Redist/MSVC" -Directory | Sort-Object Name -Descending |
+            ForEach-Object { Join-Path $_.FullName "x64/Microsoft.VC143.CRT" } |
+            Where-Object { Test-Path $_ } | Select-Object -First 1
+          Copy-Item "$crt/*.dll" $dist
+          foreach ($dir in "scenes", "assets") { if (Test-Path $dir) { Copy-Item $dir $dist -Recurse } }
+          Copy-Item README.md $dist
+          if (Test-Path THIRD_PARTY_NOTICES.md) { Copy-Item THIRD_PARTY_NOTICES.md $dist }
+
+      - name: Smoke-test the packaged renderer
+        run: |
+          $scene = Get-ChildItem dist/Veraa/scenes -Filter *.veraa -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($scene) {
+            & dist/Veraa/veraa-render.exe $scene.FullName -o smoke.png --width 160 --height 90 --samples 4 --quiet
+            if ($LASTEXITCODE -ne 0) { throw "veraa-render failed with exit code $LASTEXITCODE" }
+            if (-not (Test-Path smoke.png)) { throw "veraa-render did not write an image" }
+          }
+
+      - name: Upload Veraa for Windows
+        uses: actions/upload-artifact@v4
+        with:
+          name: Veraa-windows-x64
+          path: dist/
+          if-no-files-found: error
+
+      - name: Zip for release
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: Compress-Archive -Path dist/Veraa -DestinationPath Veraa-windows-x64.zip
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: Veraa-windows-x64.zip
+
+  linux:
+    name: Linux (build + tests)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ninja-build qt6-base-dev libembree-dev libgl-dev
+
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
