@@ -69,12 +69,17 @@ jobs:
 
       - name: Package
         run: |
+          $ErrorActionPreference = "Stop"
           $dist = "dist/Veraa"
           New-Item -ItemType Directory -Force $dist | Out-Null
           Get-ChildItem build/bin/Release -File |
             Where-Object { $_.Extension -in ".exe", ".dll" -and $_.BaseName -notlike "*_tests" } |
             Copy-Item -Destination $dist
+          foreach ($exe in "Veraa.exe", "veraa-render.exe") {
+            if (-not (Test-Path "$dist/$exe")) { throw "$exe was not built" }
+          }
           windeployqt --release --no-translations --no-system-d3d-compiler "$dist/Veraa.exe"
+          if ($LASTEXITCODE -ne 0) { throw "windeployqt failed with exit code $LASTEXITCODE" }
           # Microsoft C++ runtime, so Veraa runs on PCs without the VC++ redistributable.
           $vs = & "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe" -latest -property installationPath
           $crt = Get-ChildItem "$vs/VC/Redist/MSVC" -Directory | Sort-Object Name -Descending |
