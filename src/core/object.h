@@ -10,6 +10,7 @@
 
 #include "mesh.h"
 #include "params.h"
+#include "polysel.h"
 #include "shape.h"
 
 namespace veraa {
@@ -53,6 +54,7 @@ class EditablePolyObject : public GeometryObject {
   void fromJson(const json& j) override;
 
   PolyMesh mesh;
+  PolySelection sel;  // sub-object selection (level, selected/hidden parts)
 };
 
 // Splines. Common parameters (added by addShapeParams): "steps", "optimize",

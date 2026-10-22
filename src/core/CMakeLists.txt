@@ -8,6 +8,8 @@ add_library(veraa_core STATIC
   material.cpp
   scene.cpp
   obj_import.cpp
+  polyselect.cpp
+  polyops.cpp
   shape.cpp
   registry.cpp
 )

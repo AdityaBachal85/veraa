@@ -97,12 +97,15 @@ BezierShape bezierShapeFromJson(const json& j) {
 json EditablePolyObject::toJson() const {
   json j = SceneObject::toJson();
   j["mesh"] = polyMeshToJson(mesh);
+  j["sel"] = sel.toJson();
   return j;
 }
 
 void EditablePolyObject::fromJson(const json& j) {
   SceneObject::fromJson(j);
   mesh = j.contains("mesh") ? polyMeshFromJson(j["mesh"]) : PolyMesh();
+  sel = PolySelection();
+  if (j.contains("sel")) sel.fromJson(j["sel"]);
 }
 
 void ShapeObject::addShapeParams(ParamBlock& p) {
