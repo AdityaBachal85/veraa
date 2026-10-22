@@ -7,6 +7,8 @@ void registerBuiltinObjectTypes() {
   registerCoreObjectTypes();
   registerShapeTypes();
   registerShapeGeometryTypes();
+  registerCompoundTypes();
+  registerAecTypes();
 }
 
 void registerBuiltinModifierTypes() {

@@ -15,5 +15,7 @@ void registerCoreModifierTypes();   // modifier.cpp: Bend, Taper, Twist, Noise, 
 void registerShapeTypes();          // shapes.cpp: Splines and Extended Splines
 void registerShapeGeometryTypes();  // shape_modifiers.cpp: TextPlus
 void registerShapeModifierTypes();  // shape_modifiers.cpp: Extrude, Lathe, Sweep, Bevel, Edit Spline, ...
+void registerCompoundTypes();       // compound.cpp: Loft, Scatter, Connect, ShapeMerge, Terrain, Conform, BlobMesh
+void registerAecTypes();            // aec_*.cpp: Doors, Windows, Wall, Railing, Foliage, Stairs
 
 }  // namespace veraa

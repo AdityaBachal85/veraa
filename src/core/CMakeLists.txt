@@ -30,6 +30,10 @@ add_library(veraa_core STATIC
   shape_mesh.cpp
   spline_ops.cpp
   shape_modifiers.cpp
+  compound.cpp
+  aec_walls.cpp
+  aec_doors.cpp
+  aec_stairs.cpp
 )
 target_include_directories(veraa_core
   PUBLIC

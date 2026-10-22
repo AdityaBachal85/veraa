@@ -4,6 +4,8 @@
 #include <cstdio>
 #include <map>
 
+#include "aec.h"
+#include "compound.h"
 #include "modifier.h"
 #include "scene.h"
 #include "shape2d.h"
@@ -457,8 +459,269 @@ static void testShapesAndSections() {
   CHECK(isClosedManifold(rr));
 }
 
+static CompoundOperand meshOperand(const std::string& role, PolyMesh mesh) {
+  CompoundOperand op;
+  op.role = role;
+  op.mesh = std::move(mesh);
+  return op;
+}
+
+static CompoundOperand shapeOperand(const std::string& role, BezierShape shape, float percent = 0) {
+  CompoundOperand op;
+  op.role = role;
+  op.isShape = true;
+  op.shape = std::move(shape);
+  op.percent = percent;
+  return op;
+}
+
+static PolyMesh boxMesh(float size) {
+  auto box = createObject("Box");
+  box->params.setNumber("length", size);
+  box->params.setNumber("width", size);
+  box->params.setNumber("height", size);
+  return static_cast<GeometryObject*>(box.get())->build();
+}
+
+static void testCompound() {
+  auto types = objectTypesIn("Geometry", "Compound Objects");
+  CHECK(types.size() >= 7);
+  // Loft: a 10 x 10 square along a 100-long line = a 10000 box.
+  auto loftObj = createObject("Loft");
+  auto* loft = dynamic_cast<CompoundObject*>(loftObj.get());
+  CHECK(loft != nullptr);
+  if (loft) {
+    loft->setOperand(shapeOperand("path", single(makePolylineSpline({{0, 0}, {100, 0}}, false))));
+    loft->setOperand(shapeOperand("shape", single(makeRectangleSpline(10, 10, 0)), 0));
+    PolyMesh m = loft->build();
+    CHECK(isClosedManifold(m));
+    CHECK_NEAR(signedVolume(m), 10000.0, 1.0);
+    // Second shape at 100%: a frustum from a 10 square to a 20 square (same point counts).
+    loft->setOperand(shapeOperand("shape", single(makeRectangleSpline(20, 20, 0)), 100));
+    loft->params.setNumber("pathSteps", 20);
+    m = loft->build();
+    CHECK(isClosedManifold(m));
+    CHECK_NEAR(signedVolume(m), 100.0 / 3.0 * (100 + 400 + 200), 300.0);
+    // Shapes with different point counts are resampled to match (circle to square).
+    loft->operands.pop_back();
+    loft->setOperand(shapeOperand("shape", single(makeCircleSpline(10)), 100));
+    m = loft->build();
+    CHECK(isClosedManifold(m));
+    // JSON round trip keeps the operands.
+    auto copy = createObject("Loft");
+    copy->fromJson(loft->toJson());
+    CHECK(dynamic_cast<CompoundObject*>(copy.get())->operands.size() == 3);
+  }
+  // Scatter: 25 copies of a small box over a plane, distribution hidden.
+  auto sc = createObject("Scatter");
+  auto* scatter = dynamic_cast<CompoundObject*>(sc.get());
+  scatter->setOperand(meshOperand("source", boxMesh(2)));
+  auto plane = createObject("Plane");
+  scatter->setOperand(meshOperand("distribution", static_cast<GeometryObject*>(plane.get())->build()));
+  sc->params.setNumber("duplicates", 25);
+  sc->params.setNumber("hideDistribution", 1);
+  PolyMesh sm = scatter->build();
+  CHECK(sm.faces.size() == 25 * boxMesh(2).faces.size());
+  Aabb pb = static_cast<GeometryObject*>(plane.get())->build().bounds();
+  CHECK(sm.bounds().lo.x >= pb.lo.x - 3 && sm.bounds().hi.x <= pb.hi.x + 3);
+  for (int mode = 0; mode < 8; ++mode) {
+    sc->params.setNumber("distribution", mode);
+    CHECK(!scatter->build().faces.empty());
+  }
+  // Volume needs a closed distribution object: copies land inside the box.
+  sc->params.setNumber("distribution", 8);
+  scatter->setOperand(meshOperand("distribution", boxMesh(50)));
+  PolyMesh vol = scatter->build();
+  CHECK(vol.faces.size() == 25 * boxMesh(2).faces.size());
+  CHECK(vol.bounds().hi.z <= 50 + 2.0f && vol.bounds().lo.z >= -2.0f);
+  // Connect: two open-ended tubes facing each other are bridged into one closed surface.
+  auto tube = [](float z0) {
+    PolyMesh t;
+    int n = 12;
+    for (int r = 0; r < 2; ++r)
+      for (int k = 0; k < n; ++k)
+        t.addVertex(Vec3(10 * std::cos(kTwoPi * k / n), 10 * std::sin(kTwoPi * k / n), z0 + r * 20));
+    for (int k = 0; k < n; ++k) t.addFace({k, (k + 1) % n, n + (k + 1) % n, n + k});
+    std::vector<int> cap;
+    if (z0 < 0) {  // closed bottom, open top
+      for (int k = n - 1; k >= 0; --k) cap.push_back(k);
+    } else {  // open bottom, closed top
+      for (int k = 0; k < n; ++k) cap.push_back(n + k);
+    }
+    t.addFace(cap);
+    return t;
+  };
+  auto cn = createObject("Connect");
+  auto* connect = dynamic_cast<CompoundObject*>(cn.get());
+  connect->setOperand(meshOperand("operand", tube(-60)));
+  connect->setOperand(meshOperand("operand", tube(20)));
+  cn->params.setNumber("segments", 4);
+  PolyMesh cm = connect->build();
+  CHECK(isClosedManifold(cm));
+  CHECK(signedVolume(cm) > 0);
+  // ShapeMerge: cookie-cut a 20 x 20 square out of a 100 x 100 plane.
+  auto smo = createObject("ShapeMerge");
+  auto* merge = dynamic_cast<CompoundObject*>(smo.get());
+  PolyMesh planeMesh = static_cast<GeometryObject*>(plane.get())->build();
+  merge->setOperand(meshOperand("mesh", planeMesh));
+  BezierShape cut = single(makeRectangleSpline(20, 20, 0));
+  cut.transform(Mat4::translate(Vec3(0, 0, 10)));
+  merge->setOperand(shapeOperand("shape", cut));
+  auto area = [](const PolyMesh& m) {
+    double a = 0;
+    for (const auto& f : m.faces) a += length(m.faceNormal(f)) * 0.5;  // Newell normal length = 2 x area
+    return a;
+  };
+  smo->params.setNumber("operation", 0);  // Cookie Cutter
+  PolyMesh cutMesh = merge->build();
+  CHECK_NEAR(area(cutMesh), area(planeMesh) - 400.0, 1.0);
+  smo->params.setNumber("invert", 1);
+  CHECK_NEAR(area(merge->build()), 400.0, 1.0);
+  smo->params.setNumber("operation", 1);  // Merge: keeps everything, inside gets the material ID
+  smo->params.setNumber("invert", 0);
+  smo->params.setNumber("setMatId", 1);
+  smo->params.setNumber("matId", 5);
+  PolyMesh merged = merge->build();
+  CHECK_NEAR(area(merged), area(planeMesh), 1.0);
+  double insideArea = 0;
+  for (const auto& f : merged.faces)
+    if (f.matId == 4) insideArea += length(merged.faceNormal(f)) * 0.5;
+  CHECK_NEAR(insideArea, 400.0, 1.0);
+  // Terrain from two contours: surface and solid.
+  auto te = createObject("Terrain");
+  auto* terrain = dynamic_cast<CompoundObject*>(te.get());
+  BezierShape c1 = single(makeCircleSpline(100));
+  BezierShape c2 = single(makeCircleSpline(50));
+  c2.transform(Mat4::translate(Vec3(0, 0, 30)));
+  terrain->setOperand(shapeOperand("contour", c1));
+  terrain->setOperand(shapeOperand("contour", c2));
+  PolyMesh tm = terrain->build();
+  CHECK(!tm.faces.empty());
+  CHECK(std::fabs(tm.bounds().hi.z - 30.0f) < 1e-3f);
+  te->params.setNumber("form", 1);
+  PolyMesh solid = terrain->build();
+  CHECK(isClosedManifold(solid));
+  CHECK(signedVolume(solid) > 0);
+  te->params.setNumber("form", 2);
+  CHECK(!terrain->build().faces.empty());
+  // Conform: a plane above a box drops onto it.
+  auto co = createObject("Conform");
+  auto* conform = dynamic_cast<CompoundObject*>(co.get());
+  PolyMesh sheet = planeMesh;
+  sheet.transform(Mat4::translate(Vec3(0, 0, 100)) * Mat4::scale(Vec3(0.1f, 0.1f, 1)));
+  conform->setOperand(meshOperand("wrapper", sheet));
+  conform->setOperand(meshOperand("target", boxMesh(40)));
+  co->params.setNumber("standoff", 1);
+  co->params.setNumber("hideTarget", 1);
+  PolyMesh wrapped = conform->build();
+  CHECK(std::fabs(wrapped.bounds().hi.z - 41.0f) < 0.05f);
+  // BlobMesh: a single blob is a closed sphere of about the given size.
+  auto bl = createObject("BlobMesh");
+  auto* blob = dynamic_cast<CompoundObject*>(bl.get());
+  PolyMesh pt;
+  pt.addVertex(Vec3(0, 0, 0));
+  blob->setOperand(meshOperand("source", pt));
+  bl->params.setNumber("size", 20);
+  bl->params.setNumber("coarseness", 2);
+  PolyMesh bm = blob->build();
+  CHECK(isClosedManifold(bm));
+  double sphere = 4.0 / 3.0 * kPi * 8000.0;
+  CHECK_NEAR(signedVolume(bm), sphere, sphere * 0.05);
+  // Two nearby blobs merge into one surface.
+  PolyMesh two;
+  two.addVertex(Vec3(-12, 0, 0));
+  two.addVertex(Vec3(12, 0, 0));
+  blob->operands.clear();
+  blob->setOperand(meshOperand("source", two));
+  PolyMesh bm2 = blob->build();
+  CHECK(isClosedManifold(bm2));
+  CHECK(boundaryLoops(bm2).empty());
+  CHECK(metaballMesh({Vec3()}, 10, 1, 1).faces.size() > 100);
+}
+
+static void testAec() {
+  for (const char* sub : {"Doors", "Windows", "AEC Extended", "Stairs"}) {
+    auto types = objectTypesIn("Geometry", sub);
+    CHECK(!types.empty());
+    for (const auto* t : types) {
+      auto o = createObject(t->type);
+      PolyMesh m = static_cast<GeometryObject*>(o.get())->build();
+      bool ok = !m.faces.empty() && m.isValid() && !triangulate(m).empty();
+      if (!ok) std::printf("  %s builds no valid mesh\n", t->type.c_str());
+      CHECK(ok);
+    }
+  }
+  CHECK(objectTypesIn("Geometry", "Doors").size() == 3);
+  CHECK(objectTypesIn("Geometry", "Windows").size() == 6);
+  CHECK(objectTypesIn("Geometry", "Stairs").size() == 4);
+  // Wall: straight 300 x 20 x 250 is a closed box with its material IDs.
+  WallObject wall;
+  wall.points = {Vec2(0, 0), Vec2(300, 0)};
+  PolyMesh wm = wall.build();
+  CHECK(isClosedManifold(wm));
+  CHECK_NEAR(signedVolume(wm), 300.0 * 20.0 * 250.0, 1.0);
+  std::map<int, int> ids;
+  for (const auto& f : wm.faces) ids[f.matId]++;
+  CHECK(ids[0] == 2 && ids[1] == 1 && ids[2] == 1 && ids[3] == 1 && ids[4] == 1);
+  // An L-shaped wall keeps its thickness at the corner (mitered).
+  wall.points = {Vec2(0, 0), Vec2(300, 0), Vec2(300, 200)};
+  wm = wall.build();
+  CHECK(isClosedManifold(wm));
+  CHECK_NEAR(signedVolume(wm), (300.0 + 200.0) * 20.0 * 250.0, 10.0);
+  // A closed room is a ring with outside and inside faces.
+  wall.points = {Vec2(0, 0), Vec2(400, 0), Vec2(400, 300), Vec2(0, 300)};
+  wall.closed = true;
+  wm = wall.build();
+  CHECK(isClosedManifold(wm));
+  CHECK_NEAR(signedVolume(wm), (420.0 * 320.0 - 380.0 * 280.0) * 250.0, 10.0);
+  auto wall2 = createObject("Wall");
+  wall2->fromJson(wall.toJson());
+  CHECK(static_cast<WallObject*>(wall2.get())->points.size() == 4);
+  // Door: frame, leaf and panel material IDs all present; opening changes the bounds.
+  auto door = createObject("PivotDoor");
+  PolyMesh dm = static_cast<GeometryObject*>(door.get())->build();
+  std::map<int, int> did;
+  for (const auto& f : dm.faces) did[f.matId]++;
+  CHECK(did.count(0) && did.count(1) && did.count(2) && did.count(3) && did.count(4));
+  Aabb closedBox = dm.bounds();
+  door->params.setNumber("open", 90);
+  Aabb openBox = static_cast<GeometryObject*>(door.get())->build().bounds();
+  CHECK(openBox.lo.y < closedBox.lo.y - 40);
+  // Window glass gets its own ID.
+  auto win = createObject("CasementWindow");
+  bool glass = false;
+  for (const auto& f : static_cast<GeometryObject*>(win.get())->build().faces) glass = glass || f.matId == 2;
+  CHECK(glass);
+  // Straight box stair: a closed solid whose top reaches the overall height.
+  auto stair = createObject("StraightStair");
+  stair->params.setNumber("stairType", 2);
+  PolyMesh st = static_cast<GeometryObject*>(stair.get())->build();
+  CHECK(isClosedManifold(st));
+  CHECK(std::fabs(st.bounds().hi.z - 300.0f) < 1e-2f);
+  // The solid's volume is the sum of the steps: step j is g deep, (j + 1) risers tall, 100 wide.
+  double g = 300.0 / 16, r = 300.0 / 16, vol = 0;
+  for (int j = 0; j < 16; ++j) vol += g * r * (j + 1) * 100.0;
+  CHECK_NEAR(signedVolume(st), vol, 1.0);
+  // Railing along a picked path follows it.
+  RailingObject rail;
+  rail.path = single(makePolylineSpline({{0, 0}, {200, 0}, {200, 150}}, false));
+  PolyMesh rm = rail.build();
+  CHECK(!rm.faces.empty());
+  CHECK(rm.bounds().hi.y > 140);
+  // Spiral stair with rails, stringers and pole.
+  auto sp = createObject("SpiralStair");
+  for (const char* k : {"railLeft", "railRight", "stringers", "carriage"}) sp->params.setNumber(k, 1);
+  sp->params.setNumber("stairType", 0);
+  PolyMesh spm = static_cast<GeometryObject*>(sp.get())->build();
+  std::map<int, int> sid;
+  for (const auto& f : spm.faces) sid[f.matId]++;
+  CHECK(sid.count(1) && sid.count(2) && sid.count(3) && sid.count(4) && sid.count(5));
+}
+
 int main() {
   testRegistration();
+  testCompound();
+  testAec();
   testCappingWithHoles();
   testExtrude();
   testLathe();
