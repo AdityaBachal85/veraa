@@ -169,7 +169,12 @@ void ViewportPanel::rebuild() {
     if (n.dir == 'h') rows.push_back(s);
     return s;
   };
-  root_ = build(spec, this);
+  // A container owns the splitters (never a viewport itself, so deleting it is always safe).
+  root_ = new QWidget(this);
+  auto* rootLayout = new QVBoxLayout(root_);
+  rootLayout->setContentsMargins(0, 0, 0, 0);
+  QWidget* tree = build(spec, root_);
+  rootLayout->addWidget(tree);
   if (layout_ == 9 && rows.size() == 2) {
     // Keep the two rows aligned like a grid.
     QSplitter *a = rows[0], *b = rows[1];
@@ -177,7 +182,7 @@ void ViewportPanel::rebuild() {
     connect(b, &QSplitter::splitterMoved, a, [a, b] { a->setSizes(b->sizes()); });
   }
   if (bigLastLayout(layout_) || layout_ == 11 || layout_ == 13)
-    if (auto* s = qobject_cast<QSplitter*>(root_)) {
+    if (auto* s = qobject_cast<QSplitter*>(tree)) {
       // The single big viewport gets two thirds of the space.
       bool bigFirst = layout_ == 11 || layout_ == 13;
       s->setStretchFactor(bigFirst ? 0 : 1, 2);
@@ -209,7 +214,7 @@ void ViewportPanel::applyMaximize() {
     }
     return !w->isHidden();
   };
-  fix(root_);
+  if (root_ && root_->layout() && root_->layout()->count()) fix(root_->layout()->itemAt(0)->widget());
 }
 
 void ViewportPanel::toggleMaximize() {

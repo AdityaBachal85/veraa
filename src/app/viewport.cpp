@@ -402,11 +402,14 @@ void Viewport::initializeGL() {
   gl_ = std::make_unique<GlScene>(static_cast<QOpenGLFunctions_3_3_Core*>(this));
   if (!gl_->init(&glError_)) qWarning("Viewport shader error: %s", qPrintable(glError_));
   // Moving the viewport to another splitter (layout change) can recreate the context.
-  connect(context(), &QOpenGLContext::aboutToBeDestroyed, this, [this] {
-    makeCurrent();
-    gl_.reset();
-    doneCurrent();
-  }, Qt::UniqueConnection);
+  if (hookedContext_ != context()) {
+    hookedContext_ = context();
+    connect(context(), &QOpenGLContext::aboutToBeDestroyed, this, [this] {
+      makeCurrent();
+      gl_.reset();
+      doneCurrent();
+    });
+  }
 }
 
 void Viewport::resizeGL(int, int) { updateCamera(); }
@@ -1158,6 +1161,13 @@ QVector<uint32_t> Viewport::pickNodesInPolygon(const QPolygonF& poly, bool windo
           double f = k / 8.0;
           if (inside(a + (b - a) * f)) hit = true;
         }
+      }
+      // A region drawn inside a surface touches it too.
+      QPointF c = bounds.center();
+      if (!hit && !n.triMesh().empty() && inside(c)) {
+        Ray ray = cam_.rayAt(static_cast<float>(c.x()), static_cast<float>(c.y()));
+        Mat4 inv = n.objectWorldMatrix().inverse();
+        hit = intersectTriMesh(n.triMesh(), Ray{inv.transformPoint(ray.o), inv.transformDir(ray.d)}) > 0;
       }
     }
     if (hit) out.push_back(n.id);

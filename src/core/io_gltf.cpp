@@ -223,7 +223,7 @@ bool importGltf(Scene& scene, const std::string& path, const ImportOptions& opti
     }
     uint32_t myId = parentId;
     if (n) {
-      if (!name.empty()) n->name = io::uniqueName(scene, name);
+      if (!name.empty() && n->name != name && (gn->light || gn->camera || (!gn->mesh && haveDummy))) n->name = io::uniqueName(scene, name);
       n->parentId = parentId;
       n->transform = decomposeTransform(local);
       if (gn->camera || gn->light) {

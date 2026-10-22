@@ -177,7 +177,7 @@ PyObject* py_create(PyObject*, PyObject* args) {
     PyErr_Format(PyExc_RuntimeError, "could not create '%s'", type);
     return nullptr;
   }
-  if (*name) n->name = d->scene().uniqueNodeName(name) == name ? std::string(name) : d->scene().uniqueNodeName(name);
+  if (*name) n->name = d->scene().findNodeByName(name) ? d->scene().uniqueNodeName(name) : std::string(name);
   d->notifyStructureChanged();
   d->endEdit();
   return PyLong_FromUnsignedLong(n->id);

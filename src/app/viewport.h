@@ -188,6 +188,7 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
   bool active_ = false;
   std::unique_ptr<GlScene> gl_;
   QString glError_;
+  QOpenGLContext* hookedContext_ = nullptr;
 
   Drag drag_ = Drag::None;
   QPoint pressPos_, lastPos_;

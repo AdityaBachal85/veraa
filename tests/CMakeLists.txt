@@ -6,3 +6,7 @@ add_executable(render_tests render_tests.cpp)
 target_link_libraries(render_tests PRIVATE veraa_render)
 target_compile_definitions(render_tests PRIVATE VERAA_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 add_test(NAME render_tests COMMAND render_tests)
+
+add_executable(io_tests io_tests.cpp)
+target_link_libraries(io_tests PRIVATE veraa_core)
+add_test(NAME io_tests COMMAND io_tests)
