@@ -21,6 +21,8 @@ target_link_libraries(Veraa PRIVATE
 )
 
 target_compile_definitions(Veraa PRIVATE QT_NO_KEYWORDS VERAA_VERSION="${PROJECT_VERSION}")
+# Lets bundled assets (IES files, HDRIs) be found when running from a build tree.
+target_compile_definitions(Veraa PRIVATE VERAA_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 
 # Python scripting (Scripting menu, listener, veraa module). Enabled when Python development
 # files are found; set VERAA_WITH_PYTHON=OFF to build without it.

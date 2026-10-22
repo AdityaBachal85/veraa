@@ -30,5 +30,11 @@ void registerPatchGridTypes();      // patch_nurbs.cpp: Quad Patch, Tri Patch (N
 void registerAecTypes();            // aec_*.cpp: Doors, Windows, Wall, Railing, Foliage, Stairs
 void registerPolyModifierTypes();   // polymods.cpp: Edit Poly, Poly/Mesh/Vol. Select, Turn to Poly
 void registerMeshModifierTypes();   // meshmods.cpp: FFDs, Symmetry, Slice, Optimize, Unwrap UVW, ...
+void registerRenderObjectTypes();   // renderobjects.cpp: VeraaLight, VeraaIES, VeraaSun, physical camera, proxy, fur
+void registerRenderModifierTypes(); // renderobjects.cpp: VeraaDisplacementMod
+
+// Material and texture map registries (called on first access of their own registries).
+void registerMaterialTypes();       // material.cpp: VeraaMtl, Blend, Multi/Sub-Object, ...
+void registerTexMapTypes();         // texmap.cpp: Bitmap, Checker, Noise, Falloff, Tiles, ...
 
 }  // namespace veraa

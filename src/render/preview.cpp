@@ -1,4 +1,5 @@
 #include "renderer.h"
+#include "texmaps.h"
 
 namespace veraa {
 
@@ -46,10 +47,14 @@ std::vector<uint8_t> renderMaterialPreview(const Material& material, const Scene
   sphere->invalidate();
 
   Material* floorMat = scene.createMaterial("Preview floor");
-  floorMat->params.setString("diffuseMap", ":checker");
-  floorMat->params.setColor("diffuse", Vec3(1.0f));
-  floorMat->params.setNumber("mapTileU", 6);
-  floorMat->params.setNumber("mapTileV", 6);
+  {
+    MapSlot slot;
+    slot.map = createTexMap("Bitmap");
+    slot.map->params.setString("file", ":checker");
+    slot.map->params.setNumber("uTiling", 6);
+    slot.map->params.setNumber("vTiling", 6);
+    floorMat->maps["diffuse"] = std::move(slot);
+  }
   Node* floor = scene.createNode("Plane");
   floor->object->params.setNumber("length", 3000);
   floor->object->params.setNumber("width", 3000);
@@ -82,6 +87,10 @@ std::vector<uint8_t> renderMaterialPreview(const Material& material, const Scene
   r.resolve(d, rgba);
   if (rgba.size() != static_cast<size_t>(size) * size * 4) rgba.assign(static_cast<size_t>(size) * size * 4, 0);
   return rgba;
+}
+
+std::vector<uint8_t> renderMapPreview(const TexMap& map, const Scene* sceneForPaths, int size) {
+  return render::renderMapSwatch(map, sceneForPaths, size);
 }
 
 }  // namespace veraa

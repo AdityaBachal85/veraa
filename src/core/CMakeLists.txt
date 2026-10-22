@@ -54,6 +54,11 @@ add_library(veraa_core STATIC
   io_fbx.cpp
   io_gltf.cpp
   io_mesh_formats.cpp
+  texmap.cpp
+  renderobjects.cpp
+  rendersettings.cpp
+  photometry.cpp
+  motionhook.cpp
 )
 target_include_directories(veraa_core
   PUBLIC

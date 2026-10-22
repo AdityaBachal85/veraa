@@ -314,7 +314,7 @@ bool exportFbx(const Scene& scene, const std::string& path, const ExportOptions&
         int64_t matId = nextId++;
         materialIds[key] = matId;
         ++mats;
-        Vec3 diffuse = mat ? mat->params.getColor("diffuse") : n->wireColor;
+        Vec3 diffuse = mat ? mat->viewportColor() : n->wireColor;
         float opacity = mat ? mat->params.getFloat("opacity") : 1.0f;
         std::string name = mat ? mat->name : n->name + "_color";
         obj << "\tMaterial: " << matId << ", " << quote("Material::" + name) << ", \"\" {\n";
@@ -329,7 +329,7 @@ bool exportFbx(const Scene& scene, const std::string& path, const ExportOptions&
               << num(2.0 + 98.0 * mat->params.getFloat("reflectGlossiness")) << "\n";
         }
         obj << "\t\t}\n\t}\n";
-        std::string map = mat ? mat->params.getString("diffuseMap") : std::string();
+        std::string map = mat ? mat->viewportTexture() : std::string();
         if (!map.empty()) {
           std::string abs = scene.resolvePath(map);
           int64_t tid;

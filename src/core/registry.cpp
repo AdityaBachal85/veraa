@@ -16,6 +16,7 @@ void registerBuiltinObjectTypes() {
   registerAecTypes();
   registerRiggingTypes();
   registerGroupObjectTypes();
+  registerRenderObjectTypes();
 }
 
 void registerBuiltinModifierTypes() {
@@ -26,6 +27,7 @@ void registerBuiltinModifierTypes() {
   registerRiggingModifiers();
   registerParticleModifiers();
   registerDynamicsModifiers();
+  registerRenderModifierTypes();
 }
 
 void registerBuiltinSceneModules() {

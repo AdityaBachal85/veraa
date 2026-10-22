@@ -18,6 +18,7 @@ Veraa uses the following open-source components. Each is used under its own lice
 | cgltf 1.14 (Johannes Kuhlmann) | glTF 2.0 import | MIT | https://github.com/jkuhlmann/cgltf |
 | miniz 3.0.2 (Rich Geldreich, RAD Game Tools, Valve) | Zip archives (File > Archive) | MIT | https://github.com/richgel999/miniz |
 | Python 3.12 (embeddable package, Windows builds) | Scripting (Scripting menu, listener) | Python Software Foundation License | https://www.python.org/ |
+| TinyEXR 1.0.9 (Syoyo Fujita), includes OpenEXR-derived code (ILM) | OpenEXR loading and saving | BSD 3-Clause | https://github.com/syoyo/tinyexr |
 | Microsoft Visual C++ runtime (Windows builds) | C++ runtime DLLs | Microsoft Visual Studio redistributable terms | https://learn.microsoft.com/cpp/windows/redistributing-visual-cpp-files |
 | Sample HDRI from Poly Haven | Sample scenes | CC0 | https://polyhaven.com/ |
 

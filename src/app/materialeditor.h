@@ -12,6 +12,7 @@
 #include <thread>
 
 #include "document.h"
+#include "materialwidgets.h"
 
 class QComboBox;
 class QLabel;
@@ -58,12 +59,20 @@ class MaterialEditor : public QDialog {
   explicit MaterialEditor(SceneDocument* doc, QWidget* parent = nullptr);
   void selectMaterial(uint32_t id);
   uint32_t currentMaterial() const { return currentId_; }
+  // Shows a sub-material or map of the current material (Go to Parent returns up the tree).
+  void navigate(const MtlPath& path);
+  const MtlPath& currentPath() const { return path_; }
+  LevelEditor* levelEditor() const { return level_; }
+
+ Q_SIGNALS:
+  void slateRequested(uint32_t materialId);
 
  private:
   void rebuildSlots();
   void showCurrent();
   void refreshUsage();
   void requestPreview(uint32_t id);
+  void updateLevelPreview();
   void applyPreset(int index);
   Material* current() const;
 
@@ -74,10 +83,12 @@ class MaterialEditor : public QDialog {
   QLineEdit* name_;
   QComboBox* presets_;
   QLabel* usage_;
-  ParamForm* form_;
+  QLabel* breadcrumb_;
+  QPushButton* parentBtn_;
+  LevelEditor* level_;
   QPushButton *assign_, *pick_, *del_, *dup_;
   uint32_t currentId_ = 0;
-  const Material* formMaterial_ = nullptr;
+  MtlPath path_;
   QHash<uint32_t, QImage> images_;
   QTimer previewTimer_;
   QList<uint32_t> pendingPreviews_;

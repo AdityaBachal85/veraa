@@ -1,5 +1,6 @@
 #include "materialeditor.h"
 
+#include <QApplication>
 #include <QComboBox>
 #include <QFileInfo>
 #include <QHBoxLayout>
@@ -21,6 +22,7 @@ namespace veraa {
 
 namespace {
 constexpr int kSlotSize = 96;
+constexpr uint32_t kLevelPreviewId = 0xFFFFFFF0u;  // preview of a sub-material level
 
 // Same pixmap for normal and selected states (no blue selection tint over the swatch).
 QIcon slotIcon(const QImage& img) {
@@ -60,6 +62,176 @@ QImage placeholder(int size) {
   p.drawEllipse(QRectF(size * 0.18, size * 0.14, size * 0.64, size * 0.64));
   return img;
 }
+
+QImage mapSwatch(const TexMap& map, const Scene& scene, int size) {
+  std::vector<uint8_t> rgba = renderMapPreview(previewCopy(map, scene), nullptr, size);
+  QImage img(rgba.data(), size, size, size * 4, QImage::Format_RGBA8888);
+  return img.copy();
+}
+
+// Preset materials: index -> (label, builder).
+struct Preset {
+  const char* label;
+  void (*build)(Material& m);
+};
+
+void glossy(Material& m, const Vec3& refl, float gloss) {
+  m.params.setColor("reflect", refl);
+  m.params.setNumber("reflectGlossiness", gloss);
+}
+
+const Preset kPresets[] = {
+    {"Default (matte)", [](Material& m) { m.params.setColor("diffuse", Vec3(0.6f)); }},
+    {"Glossy plastic",
+     [](Material& m) {
+       m.params.setColor("diffuse", Vec3(0.55f, 0.08f, 0.06f));
+       glossy(m, Vec3(1.0f), 0.88f);
+       m.params.setNumber("fresnelIor", 1.5);
+     }},
+    {"Clear glass",
+     [](Material& m) {
+       m.params.setColor("diffuse", Vec3(0.0f));
+       glossy(m, Vec3(1.0f), 1.0f);
+       m.params.setColor("refract", Vec3(1.0f));
+       m.params.setNumber("ior", 1.52);
+       m.params.setNumber("fresnelIor", 1.52);
+     }},
+    {"Frosted glass",
+     [](Material& m) {
+       m.params.setColor("diffuse", Vec3(0.0f));
+       glossy(m, Vec3(1.0f), 0.8f);
+       m.params.setColor("refract", Vec3(0.95f));
+       m.params.setNumber("refractGlossiness", 0.75);
+       m.params.setNumber("ior", 1.52);
+     }},
+    {"Diamond (dispersion)",
+     [](Material& m) {
+       m.params.setColor("diffuse", Vec3(0.0f));
+       glossy(m, Vec3(1.0f), 1.0f);
+       m.params.setColor("refract", Vec3(1.0f));
+       m.params.setNumber("ior", 2.42);
+       m.params.setNumber("lockIor", 1);
+       m.params.setNumber("abbe", 55);
+     }},
+    {"Chrome",
+     [](Material& m) {
+       m.params.setColor("diffuse", Vec3(0.95f));
+       glossy(m, Vec3(1.0f), 0.98f);
+       m.params.setNumber("metalness", 1.0);
+     }},
+    {"Brushed aluminium",
+     [](Material& m) {
+       m.params.setColor("diffuse", Vec3(0.91f, 0.92f, 0.92f));
+       glossy(m, Vec3(1.0f), 0.72f);
+       m.params.setNumber("metalness", 1.0);
+       m.params.setNumber("anisotropy", 0.7);
+     }},
+    {"Gold",
+     [](Material& m) {
+       m.params.setColor("diffuse", Vec3(1.0f, 0.77f, 0.34f));
+       glossy(m, Vec3(1.0f), 0.9f);
+       m.params.setNumber("metalness", 1.0);
+     }},
+    {"Copper",
+     [](Material& m) {
+       m.params.setColor("diffuse", Vec3(0.95f, 0.64f, 0.54f));
+       glossy(m, Vec3(1.0f), 0.85f);
+       m.params.setNumber("metalness", 1.0);
+     }},
+    {"Rubber",
+     [](Material& m) {
+       m.params.setColor("diffuse", Vec3(0.04f));
+       glossy(m, Vec3(0.5f), 0.45f);
+     }},
+    {"Ceramic (glazed)",
+     [](Material& m) {
+       m.params.setColor("diffuse", Vec3(0.85f, 0.85f, 0.82f));
+       glossy(m, Vec3(1.0f), 0.95f);
+       m.params.setNumber("fresnelIor", 1.55);
+     }},
+    {"Lacquered wood (coat)",
+     [](Material& m) {
+       m.params.setColor("diffuse", Vec3(0.35f, 0.18f, 0.08f));
+       m.params.setNumber("coatAmount", 1.0);
+       m.params.setNumber("coatGlossiness", 0.95);
+       MapSlot s;
+       s.map = createTexMap("Noise");
+       s.map->params.setColor("color1", Vec3(0.28f, 0.13f, 0.05f));
+       s.map->params.setColor("color2", Vec3(0.45f, 0.24f, 0.1f));
+       s.map->params.setNumber("noiseType", 1);
+       s.map->params.setNumber("tilingX", 0.15);
+       s.map->params.setNumber("size", 4.0);
+       m.maps["diffuse"] = std::move(s);
+     }},
+    {"Velvet (sheen)",
+     [](Material& m) {
+       m.params.setColor("diffuse", Vec3(0.18f, 0.02f, 0.06f));
+       m.params.setColor("sheenColor", Vec3(1.0f, 0.6f, 0.75f));
+       m.params.setNumber("sheenGlossiness", 0.6);
+     }},
+    {"Water",
+     [](Material& m) {
+       m.params.setColor("diffuse", Vec3(0.0f));
+       glossy(m, Vec3(1.0f), 1.0f);
+       m.params.setColor("refract", Vec3(1.0f));
+       m.params.setNumber("ior", 1.333);
+       m.params.setNumber("fresnelIor", 1.333);
+       m.params.setColor("fogColor", Vec3(0.75f, 0.92f, 0.95f));
+       m.params.setNumber("fogMultiplier", 0.05);
+     }},
+    {"Brick wall (Tiles map)",
+     [](Material& m) {
+       MapSlot s;
+       s.map = createTexMap("Tiles");
+       s.map->params.setNumber("tilesH", 4);
+       s.map->params.setNumber("tilesV", 8);
+       MapSlot b;
+       b.map = std::make_unique<TexMap>(*s.map);
+       b.map->params.setColor("tileColor", Vec3(1.0f));
+       b.map->params.setColor("groutColor", Vec3(0.0f));
+       m.maps["diffuse"] = std::move(s);
+       m.maps["bump"] = std::move(b);
+       m.params.setNumber("bumpAmount", 2.0);
+       m.params.setNumber("roughness", 0.5);
+     }},
+    {"Car paint (red)", [](Material& m) { m.setMaterialType("VeraaCarPaintMtl"); }},
+    {"Skin (subsurface)",
+     [](Material& m) {
+       m.setMaterialType("VeraaSSSMtl");
+       m.params.setColor("sssColor", Vec3(0.85f, 0.55f, 0.45f));
+       m.params.setNumber("scatterRadius", 0.8);
+     }},
+    {"Wax / marble (subsurface)",
+     [](Material& m) {
+       m.setMaterialType("VeraaSSSMtl");
+       m.params.setColor("sssColor", Vec3(0.92f, 0.9f, 0.85f));
+       m.params.setColor("radiusColor", Vec3(1.0f, 0.85f, 0.7f));
+       m.params.setNumber("scatterRadius", 2.0);
+       m.params.setNumber("specularGlossiness", 0.85);
+     }},
+    {"Leaf (two-sided)",
+     [](Material& m) {
+       m.setMaterialType("VeraaTwoSidedMtl");
+       m.params.setColor("translucency", Vec3(0.45f, 0.55f, 0.25f));
+       if (!m.subs.empty() && m.subs[0].material) {
+         m.subs[0].material->params.setColor("diffuse", Vec3(0.12f, 0.3f, 0.06f));
+         glossy(*m.subs[0].material, Vec3(0.4f), 0.6f);
+       }
+     }},
+    {"Light emitter",
+     [](Material& m) {
+       m.setMaterialType("VeraaLightMtl");
+       m.params.setColor("color", Vec3(1.0f, 0.95f, 0.85f));
+       m.params.setNumber("multiplier", 5.0);
+     }},
+    {"Shadow catcher (matte)",
+     [](Material& m) {
+       m.setMaterialType("VeraaWrapperMtl");
+       m.params.setNumber("matteSurface", 1);
+       m.params.setNumber("alphaContribution", -1.0);
+     }},
+};
+
 }  // namespace
 
 // ---------------------------------------------------------------------------------------------
@@ -112,7 +284,7 @@ void PreviewRenderer::run() {
 MaterialEditor::MaterialEditor(SceneDocument* doc, QWidget* parent) : QDialog(parent), doc_(doc) {
   setWindowTitle(tr("Material Editor - Veraa"));
   setWindowFlag(Qt::WindowContextHelpButtonHint, false);
-  resize(760, 640);
+  resize(860, 720);
 
   auto* root = new QHBoxLayout(this);
   root->setContentsMargins(6, 6, 6, 6);
@@ -137,6 +309,7 @@ MaterialEditor::MaterialEditor(SceneDocument* doc, QWidget* parent) : QDialog(pa
   lv->addWidget(slots_, 1);
   auto* row1 = new QHBoxLayout;
   auto* newBtn = new QPushButton(tr("New"), left);
+  newBtn->setToolTip(tr("New material (Shift-click to choose the type)"));
   dup_ = new QPushButton(tr("Duplicate"), left);
   del_ = new QPushButton(tr("Delete"), left);
   row1->addWidget(newBtn);
@@ -149,8 +322,10 @@ MaterialEditor::MaterialEditor(SceneDocument* doc, QWidget* parent) : QDialog(pa
   row2->addWidget(assign_);
   row2->addWidget(pick_);
   lv->addLayout(row2);
+  auto* slate = new QPushButton(tr("Slate (Node) Editor..."), left);
+  lv->addWidget(slate);
 
-  // Right: preview, name, presets, parameters.
+  // Right: preview, name, presets, navigation and the level editor.
   auto* right = new QWidget(split);
   auto* rv = new QVBoxLayout(right);
   rv->setContentsMargins(0, 0, 0, 0);
@@ -162,9 +337,8 @@ MaterialEditor::MaterialEditor(SceneDocument* doc, QWidget* parent) : QDialog(pa
   auto* info = new QVBoxLayout;
   name_ = new QLineEdit(right);
   presets_ = new QComboBox(right);
-  presets_->addItems({tr("Apply preset..."), tr("Default (matte)"), tr("Glossy plastic"), tr("Clear glass"),
-                      tr("Frosted glass"), tr("Chrome"), tr("Brushed aluminium"), tr("Gold"), tr("Copper"),
-                      tr("Rubber"), tr("Ceramic (glazed)"), tr("Water"), tr("Light emitter")});
+  presets_->addItem(tr("Apply preset..."));
+  for (const auto& p : kPresets) presets_->addItem(tr(p.label));
   usage_ = new QLabel(right);
   usage_->setWordWrap(true);
   usage_->setStyleSheet("color: #a8a8a8;");
@@ -175,38 +349,58 @@ MaterialEditor::MaterialEditor(SceneDocument* doc, QWidget* parent) : QDialog(pa
   info->addStretch();
   top->addLayout(info, 1);
   rv->addLayout(top);
+  auto* nav = new QHBoxLayout;
+  parentBtn_ = new QPushButton(tr("Go to Parent"), right);
+  parentBtn_->setToolTip(tr("Go up one level in the material tree"));
+  breadcrumb_ = new QLabel(right);
+  breadcrumb_->setWordWrap(true);
+  breadcrumb_->setStyleSheet("color: #d8d8d8; font-weight: bold;");
+  nav->addWidget(parentBtn_);
+  nav->addWidget(breadcrumb_, 1);
+  rv->addLayout(nav);
   auto* scroll = new QScrollArea(right);
   scroll->setWidgetResizable(true);
   scroll->setFrameShape(QFrame::NoFrame);
-  form_ = new ParamForm;
-  scroll->setWidget(form_);
+  level_ = new LevelEditor(doc_);
+  scroll->setWidget(level_);
   rv->addWidget(scroll, 1);
   split->setStretchFactor(0, 1);
   split->setStretchFactor(1, 2);
-  split->setSizes({300, 460});
+  split->setSizes({300, 560});
 
   previewTimer_.setSingleShot(true);
   previewTimer_.setInterval(250);
   connect(&previewTimer_, &QTimer::timeout, this, [this] {
     for (uint32_t id : pendingPreviews_) requestPreview(id);
     pendingPreviews_.clear();
+    updateLevelPreview();
   });
   connect(&previews_, &PreviewRenderer::ready, this, [this](uint32_t id, const QImage& img) {
     images_[id] = img;
     for (int i = 0; i < slots_->count(); ++i)
-      if (slots_->item(i)->data(Qt::UserRole).toUInt() == id)
-        slots_->item(i)->setIcon(slotIcon(img));
-    if (id == currentId_) bigPreview_->setPixmap(QPixmap::fromImage(img));
+      if (slots_->item(i)->data(Qt::UserRole).toUInt() == id) slots_->item(i)->setIcon(slotIcon(img));
+    if ((id == currentId_ && path_.empty()) || id == kLevelPreviewId) bigPreview_->setPixmap(QPixmap::fromImage(img));
   });
 
   connect(slots_, &QListWidget::currentItemChanged, this, [this](QListWidgetItem* it) {
     if (!it) return;
-    currentId_ = it->data(Qt::UserRole).toUInt();
+    uint32_t id = it->data(Qt::UserRole).toUInt();
+    if (id != currentId_) {
+      currentId_ = id;
+      path_.clear();
+    }
     showCurrent();
   });
   connect(newBtn, &QPushButton::clicked, this, [this] {
+    std::string type = "VeraaMtl";
+    if (QApplication::keyboardModifiers() & Qt::ShiftModifier) {
+      QString t = browseMaterialType(this);
+      if (t.isEmpty()) return;
+      type = t.toStdString();
+    }
     doc_->beginEdit(tr("New Material"));
     Material* m = doc_->scene().createMaterial(doc_->scene().uniqueMaterialName("Material"));
+    m->setMaterialType(type);
     uint32_t id = m->id;
     doc_->notifyMaterialsChanged();
     doc_->endEdit();
@@ -232,6 +426,7 @@ MaterialEditor::MaterialEditor(SceneDocument* doc, QWidget* parent) : QDialog(pa
     doc_->beginEdit(tr("Delete Material"));
     doc_->scene().removeMaterial(cur->id);
     currentId_ = 0;
+    path_.clear();
     doc_->notifyMaterialsChanged();
     if (!users.isEmpty()) doc_->notifyNodesChanged(users, ChangeMaterial);
     doc_->endEdit();
@@ -244,28 +439,36 @@ MaterialEditor::MaterialEditor(SceneDocument* doc, QWidget* parent) : QDialog(pa
     Node* n = doc_->firstSelected();
     if (n && n->materialId) selectMaterial(n->materialId);
   });
+  connect(slate, &QPushButton::clicked, this, [this] { Q_EMIT slateRequested(currentId_); });
+  connect(parentBtn_, &QPushButton::clicked, this, [this] {
+    if (path_.empty()) return;
+    MtlPath p = path_;
+    p.pop_back();
+    navigate(p);
+  });
   connect(name_, &QLineEdit::editingFinished, this, [this] {
-    Material* cur = current();
-    if (!cur || name_->text().isEmpty() || cur->name == name_->text().toStdString()) return;
+    MtlTarget t = resolveMtlPath(current(), path_);
+    QString text = name_->text();
+    if (text.isEmpty()) return;
+    std::string* target = t.material ? &t.material->name : (t.map ? &t.map->name : nullptr);
+    if (!target || *target == text.toStdString()) return;
     doc_->beginEdit(tr("Rename Material"));
-    cur->name = name_->text().toStdString();
+    t = resolveMtlPath(current(), path_);
+    if (t.material) t.material->name = text.toStdString();
+    else if (t.map) t.map->name = text.toStdString();
     doc_->notifyMaterialsChanged();
     doc_->endEdit();
   });
   connect(presets_, &QComboBox::activated, this, [this](int i) {
-    if (i > 0) applyPreset(i);
+    if (i > 0) applyPreset(i - 1);
     QSignalBlocker b(presets_);
     presets_->setCurrentIndex(0);
   });
-
-  form_->beforeChange = [this](const std::string& key) {
-    doc_->softEdit(tr("Material Parameter"), QString("mtl/%1/%2").arg(currentId_).arg(QString::fromStdString(key)));
-  };
-  form_->afterChange = [this](const std::string&) {
-    doc_->notifyMaterialsChanged();
+  connect(level_, &LevelEditor::navigateRequested, this, [this](const MtlPath& p) { navigate(p); });
+  connect(level_, &LevelEditor::edited, this, [this] {
     if (!pendingPreviews_.contains(currentId_)) pendingPreviews_.push_back(currentId_);
     previewTimer_.start();
-  };
+  });
 
   auto onScene = [this] {
     // Material objects may have been replaced (undo/redo/load).
@@ -293,6 +496,12 @@ void MaterialEditor::selectMaterial(uint32_t id) {
     }
 }
 
+void MaterialEditor::navigate(const MtlPath& path) {
+  if (!resolveMtlPath(current(), path).valid()) return;
+  path_ = path;
+  showCurrent();
+}
+
 void MaterialEditor::rebuildSlots() {
   const Scene& scene = doc_->scene();
   // Keep the list when only names/params changed; rebuild if the set of materials changed.
@@ -316,7 +525,10 @@ void MaterialEditor::rebuildSlots() {
     for (int i = 0; i < slots_->count(); ++i)
       if (const Material* m = scene.findMaterial(ids[i])) slots_->item(i)->setText(QString::fromStdString(m->name));
   }
-  if (!scene.findMaterial(currentId_)) currentId_ = scene.materials.empty() ? 0 : scene.materials.front()->id;
+  if (!scene.findMaterial(currentId_)) {
+    currentId_ = scene.materials.empty() ? 0 : scene.materials.front()->id;
+    path_.clear();
+  }
   for (int i = 0; i < slots_->count(); ++i)
     if (slots_->item(i)->data(Qt::UserRole).toUInt() == currentId_) slots_->setCurrentRow(i);
   showCurrent();
@@ -324,28 +536,42 @@ void MaterialEditor::rebuildSlots() {
 
 void MaterialEditor::showCurrent() {
   Material* m = current();
+  if (m && m->upgradeLegacyMaps()) doc_->setModified(true);  // older scenes: file maps become Bitmap maps
+  if (!resolveMtlPath(m, path_).valid()) path_.clear();
+  MtlTarget t = resolveMtlPath(m, path_);
   dup_->setEnabled(m);
   del_->setEnabled(m);
-  presets_->setEnabled(m);
+  presets_->setEnabled(m && path_.empty());
   name_->setEnabled(m);
+  parentBtn_->setEnabled(!path_.empty());
   assign_->setEnabled(m && !doc_->selection().isEmpty());
   pick_->setEnabled(doc_->firstSelected() && doc_->firstSelected()->materialId);
   {
     QSignalBlocker b(name_);
-    name_->setText(m ? QString::fromStdString(m->name) : QString());
+    name_->setText(t.material ? QString::fromStdString(t.material->name)
+                              : (t.map ? QString::fromStdString(t.map->name) : QString()));
   }
-  if (m != formMaterial_) {
-    formMaterial_ = m;
-    QString file = doc_->filePath();
-    form_->browseDir = file.isEmpty() ? QString() : QFileInfo(file).absolutePath();
-    form_->setBlock(m ? &m->params : nullptr);
-  } else {
-    form_->refresh();
-  }
-  bigPreview_->setPixmap(QPixmap::fromImage(m ? images_.value(m->id, placeholder(kPreviewSize))
-                                              : placeholder(kPreviewSize))
-                             .scaled(kPreviewSize, kPreviewSize));
+  breadcrumb_->setText(m ? describeMtlPath(m, path_) : QString());
+  if (level_->materialId() != currentId_ || level_->path() != path_) level_->setTarget(m ? currentId_ : 0, path_);
+  else level_->sync();
+  updateLevelPreview();
   refreshUsage();
+}
+
+void MaterialEditor::updateLevelPreview() {
+  Material* m = current();
+  MtlTarget t = resolveMtlPath(m, path_);
+  if (!m) {
+    bigPreview_->setPixmap(QPixmap::fromImage(placeholder(kPreviewSize)));
+    return;
+  }
+  if (path_.empty()) {
+    bigPreview_->setPixmap(QPixmap::fromImage(images_.value(m->id, placeholder(kPreviewSize)).scaled(kPreviewSize, kPreviewSize)));
+  } else if (t.map) {
+    bigPreview_->setPixmap(QPixmap::fromImage(mapSwatch(*t.map, doc_->scene(), kPreviewSize)));
+  } else if (t.material) {
+    previews_.request(kLevelPreviewId, previewCopy(*t.material, doc_->scene()), kPreviewSize, kPreviewSamples);
+  }
 }
 
 void MaterialEditor::refreshUsage() {
@@ -357,65 +583,33 @@ void MaterialEditor::refreshUsage() {
   QStringList users;
   for (const auto& n : doc_->scene().nodes)
     if (n->materialId == m->id) users << QString::fromStdString(n->name);
-  usage_->setText(users.isEmpty() ? tr("Not assigned to any object.")
-                                  : tr("Used by: %1").arg(users.mid(0, 12).join(", ") +
-                                                          (users.size() > 12 ? QString(", ...") : QString())));
+  usage_->setText(QString("%1\n").arg(QString::fromStdString(materialDisplayName(m->materialType))) +
+                  (users.isEmpty() ? tr("Not assigned to any object.")
+                                   : tr("Used by: %1").arg(users.mid(0, 12).join(", ") +
+                                                           (users.size() > 12 ? QString(", ...") : QString()))));
 }
 
 void MaterialEditor::requestPreview(uint32_t id) {
   const Material* m = doc_->scene().findMaterial(id);
   if (!m) return;
-  Material copy = *m;
-  // Resolve texture paths now so the worker never touches the scene.
-  for (const auto& d : copy.params.defs())
-    if (d.type == ParamType::File) copy.params.setString(d.key, doc_->scene().resolvePath(copy.params.getString(d.key)));
-  previews_.request(id, copy, kPreviewSize, kPreviewSamples);
+  previews_.request(id, previewCopy(*m, doc_->scene()), kPreviewSize, kPreviewSamples);
 }
 
 void MaterialEditor::applyPreset(int index) {
   Material* m = current();
-  if (!m) return;
+  if (!m || index < 0 || index >= static_cast<int>(sizeof(kPresets) / sizeof(kPresets[0]))) return;
   doc_->beginEdit(tr("Material Preset"));
-  ParamBlock fresh = Material().params;  // start from defaults, keep maps
-  for (const auto& d : fresh.defs()) {
-    if (d.type == ParamType::File) continue;
-    if (d.type == ParamType::Color) m->params.setColor(d.key, fresh.getColor(d.key));
-    else if (d.type == ParamType::String) m->params.setString(d.key, fresh.getString(d.key));
-    else m->params.setNumber(d.key, fresh.getFloat(d.key));
-  }
-  ParamBlock& p = m->params;
-  auto glossy = [&](const Vec3& refl, float gloss) {
-    p.setColor("reflect", refl);
-    p.setNumber("reflectGlossiness", gloss);
-  };
-  switch (index) {
-    case 1: p.setColor("diffuse", Vec3(0.6f)); break;
-    case 2: p.setColor("diffuse", Vec3(0.55f, 0.08f, 0.06f)); glossy(Vec3(1.0f), 0.88f); p.setNumber("fresnelIor", 1.5); break;
-    case 3:
-      p.setColor("diffuse", Vec3(0.0f)); glossy(Vec3(1.0f), 1.0f); p.setColor("refract", Vec3(1.0f));
-      p.setNumber("ior", 1.52); p.setNumber("fresnelIor", 1.52);
-      break;
-    case 4:
-      p.setColor("diffuse", Vec3(0.0f)); glossy(Vec3(1.0f), 0.8f); p.setColor("refract", Vec3(0.95f));
-      p.setNumber("refractGlossiness", 0.75); p.setNumber("ior", 1.52);
-      break;
-    case 5: p.setColor("diffuse", Vec3(0.95f)); glossy(Vec3(1.0f), 0.98f); p.setNumber("metalness", 1.0); break;
-    case 6: p.setColor("diffuse", Vec3(0.91f, 0.92f, 0.92f)); glossy(Vec3(1.0f), 0.72f); p.setNumber("metalness", 1.0); break;
-    case 7: p.setColor("diffuse", Vec3(1.0f, 0.77f, 0.34f)); glossy(Vec3(1.0f), 0.9f); p.setNumber("metalness", 1.0); break;
-    case 8: p.setColor("diffuse", Vec3(0.95f, 0.64f, 0.54f)); glossy(Vec3(1.0f), 0.85f); p.setNumber("metalness", 1.0); break;
-    case 9: p.setColor("diffuse", Vec3(0.04f)); glossy(Vec3(0.5f), 0.45f); break;
-    case 10: p.setColor("diffuse", Vec3(0.85f, 0.85f, 0.82f)); glossy(Vec3(1.0f), 0.95f); p.setNumber("fresnelIor", 1.55); break;
-    case 11:
-      p.setColor("diffuse", Vec3(0.0f)); glossy(Vec3(1.0f), 1.0f); p.setColor("refract", Vec3(1.0f));
-      p.setNumber("ior", 1.333); p.setNumber("fresnelIor", 1.333); p.setColor("fogColor", Vec3(0.75f, 0.92f, 0.95f));
-      p.setNumber("fogMultiplier", 0.05);
-      break;
-    case 12: p.setColor("diffuse", Vec3(0.0f)); p.setColor("selfIllum", Vec3(1.0f, 0.95f, 0.85f)); p.setNumber("selfIllumMultiplier", 5.0); break;
-    default: break;
-  }
+  std::string name = m->name;
+  uint32_t id = m->id;
+  Material fresh;
+  kPresets[index].build(fresh);
+  fresh.name = name;
+  fresh.id = id;
+  *m = std::move(fresh);
+  path_.clear();
   doc_->notifyMaterialsChanged();
   doc_->endEdit();
-  form_->refresh();
+  showCurrent();
   requestPreview(m->id);
 }
 

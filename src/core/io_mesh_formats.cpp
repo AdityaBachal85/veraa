@@ -615,12 +615,12 @@ bool exportObj(const Scene& scene, const std::string& path, const ExportOptions&
     }
     const Material* m = scene.findMaterial(key);
     if (!m) continue;
-    Vec3 kd = m->params.getColor("diffuse"), ks = m->params.getColor("reflect");
+    Vec3 kd = m->viewportColor(), ks = m->params.getColor("reflect");
     float gloss = m->params.getFloat("reflectGlossiness");
     mtl << "\nnewmtl " << m->name << "\nKd " << kd.x << ' ' << kd.y << ' ' << kd.z << "\nKa 0 0 0\nKs " << ks.x << ' '
         << ks.y << ' ' << ks.z << "\nNs " << 2.0f + gloss * 998.0f << "\nNi " << m->params.getFloat("ior") << "\nd "
         << m->params.getFloat("opacity") << "\nillum 2\n";
-    std::string map = m->params.getString("diffuseMap");
+    std::string map = m->viewportTexture();
     if (!map.empty()) mtl << "map_Kd " << io::relativePath(dir, scene.resolvePath(map)) << "\n";
     std::string bump = m->params.getString("bumpMap");
     if (!bump.empty()) mtl << "map_bump " << io::relativePath(dir, scene.resolvePath(bump)) << "\n";

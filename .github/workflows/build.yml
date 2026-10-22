@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write  # publish Veraa-windows-x64.zip on the Releases page
+  contents: write  # commit the built app into the App folder (and publish version releases)
   actions: write   # delete old build artifacts (they use the account's Actions storage)
 
 # A newer push to the same branch cancels the build still running for the previous one.
@@ -124,21 +124,32 @@ jobs:
           }
 
       - name: Zip
+        if: startsWith(github.ref, 'refs/tags/v')
         run: Compress-Archive -Path dist/Veraa -DestinationPath Veraa-windows-x64.zip
 
-      # The download lives on the Releases page ("Veraa latest build"), not as an Actions
-      # artifact: release files don't count against the Actions storage quota.
-      - name: Publish the latest build on the Releases page
+      # The finished app goes into the repository's App folder, so downloading the repository
+      # gives a runnable Veraa.exe. Pushes made with the workflow token don't start new runs.
+      - name: Put the app in the App folder of the repository
         if: github.ref_type == 'branch'
         shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
-          gh release delete latest-build --cleanup-tag --yes || true
-          gh release create latest-build Veraa-windows-x64.zip \
-            --target "$GITHUB_SHA" --prerelease \
-            --title "Veraa latest build" \
-            --notes "Latest Windows build of Veraa (branch $GITHUB_REF_NAME, commit ${GITHUB_SHA:0:7}). Download Veraa-windows-x64.zip, unzip it anywhere and run Veraa.exe. No installation needed."
+          set -euo pipefail
+          rm -rf App
+          cp -r dist/Veraa App
+          # GitHub rejects files over 100 MB.
+          big=$(find App -type f -size +95M)
+          if [ -n "$big" ]; then echo "Too large to commit: $big"; exit 1; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A App
+          if git diff --cached --quiet; then echo "App folder is already up to date"; exit 0; fi
+          git commit -q -m "Update App folder with the Windows build of ${GITHUB_SHA:0:7} [skip ci]"
+          for attempt in 1 2 3 4; do
+            if git push origin "HEAD:refs/heads/$GITHUB_REF_NAME"; then exit 0; fi
+            sleep $((attempt * 2))
+            git pull -q --rebase origin "$GITHUB_REF_NAME"
+          done
+          exit 1
 
       - name: Publish the version release
         if: startsWith(github.ref, 'refs/tags/v')

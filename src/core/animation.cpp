@@ -8,6 +8,7 @@
 #include <unordered_set>
 
 #include "ik.h"
+#include "motionhook.h"
 #include "registry.h"
 
 namespace veraa {
@@ -1597,6 +1598,14 @@ const char* constraintTypeName(ConstraintType t) {
 
 void registerAnimationModule() {
   registerSceneModule("animation", [] { return std::make_unique<Animation>(); });
+  // Motion blur: the renderer asks where nodes are at the shutter's open and close times.
+  setNodeMatrixAtTime([](const Scene& scene, const Node& node, double frame, bool wantPivot, Mat4& out) {
+    const Animation* a = Animation::of(scene);
+    if (!a || a->empty()) return false;
+    out = a->worldMatrixAt(scene, node.id, frame);
+    if (!wantPivot) out = out * node.objectOffset.matrix();
+    return true;
+  });
 }
 
 }  // namespace veraa

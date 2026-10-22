@@ -12,14 +12,15 @@ affiliated with Autodesk or Chaos.
 
 ## Download (Windows)
 
-The newest Windows build is always on the [Releases page](../../releases) as
-**Veraa latest build**. No installation is needed.
+The ready-to-run Windows app is in the [`App`](App) folder of this repository: `Veraa.exe`
+with everything it needs next to it. No installation is needed.
 
-1. Open the [Releases page](../../releases/tag/latest-build).
-2. Under **Assets**, download **Veraa-windows-x64.zip**.
-3. Unzip it anywhere and double-click `Veraa.exe`.
+1. On the repository page, click **Code > Download ZIP** (or clone the repository).
+2. Unzip it anywhere.
+3. Open the `App` folder and double-click `Veraa.exe`.
 
-Numbered versions (tags `v*`) also appear on the Releases page.
+The `App` folder is rebuilt automatically after every change, so downloading the repository
+again always gets the newest version.
 
 Requirements: 64-bit Windows 10 or 11, a graphics driver with OpenGL 3.3, and a CPU with
 SSE4.2 or newer (any PC from the last decade). Rendering runs on all CPU cores; no GPU is

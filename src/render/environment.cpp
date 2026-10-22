@@ -2,7 +2,9 @@
 
 #include <algorithm>
 
+#include "lights.h"
 #include "scene.h"
+#include "sky.h"
 
 namespace veraa {
 namespace render {
@@ -184,32 +186,41 @@ void Environment::buildConstant(const Vec3& radiance) {
   useMap_ = false;
   map_ = nullptr;
   baked_.reset();
+  hemisphere_ = false;
+  tint_ = Vec3(1.0f);
   constant_ = vmax(radiance, Vec3(0.0f));
   black_ = veraa::isBlack(constant_);
+  average_ = luminance(constant_);
 }
 
-void Environment::buildFromMap(const Texture* map, float rotationRad, float intensity) {
+void Environment::buildFromMap(const Texture* map, float rotationRad, const Vec3& tint) {
   useMap_ = true;
   map_ = map;
   rotation_ = rotationRad;
-  intensity_ = intensity;
+  tint_ = tint;
   int w = map->width(), h = map->height();
   // Importance distribution at up to 1024 x 512 (box-filtered from larger maps).
   int dw = std::min(w, 1024), dh = std::min(h, 512);
   std::vector<float> weights(static_cast<size_t>(dw) * dh, 0.0f);
+  double avg = 0.0, solid = 0.0;
   for (int y = 0; y < dh; ++y) {
     int y0 = y * h / dh, y1 = std::max(y0 + 1, (y + 1) * h / dh);
     float sinT = std::sin((y + 0.5f) / dh * kPi);
+    bool below = hemisphere_ && (y + 0.5f) / dh > 0.5f;
     for (int x = 0; x < dw; ++x) {
       int x0 = x * w / dw, x1 = std::max(x0 + 1, (x + 1) * w / dw);
       float acc = 0.0f;
       for (int yy = y0; yy < y1; ++yy)
-        for (int xx = x0; xx < x1; ++xx) acc += luminance(map->texel(xx, yy, true));
-      weights[static_cast<size_t>(y) * dw + x] = acc / ((y1 - y0) * (x1 - x0)) * sinT;
+        for (int xx = x0; xx < x1; ++xx) acc += luminance(map->texel(xx, yy, true) * tint);
+      float l = below ? 0.0f : acc / ((y1 - y0) * (x1 - x0));
+      weights[static_cast<size_t>(y) * dw + x] = l * sinT;
+      avg += l * sinT;
+      solid += sinT;
     }
   }
   dist_.build(weights, dw, dh);
-  black_ = !dist_.valid() || intensity <= 0.0f;
+  average_ = solid > 0.0 ? static_cast<float>(avg / solid) : 0.0f;
+  black_ = !dist_.valid() || maxComponent(tint) <= 0.0f;
 }
 
 void Environment::buildGradient(const Vec3& zenith, const Vec3& horizon, const Vec3& ground, float intensity) {
@@ -220,17 +231,33 @@ void Environment::buildGradient(const Vec3& zenith, const Vec3& horizon, const V
       Vec3 d = equirectToDirection((x + 0.5f) / w, (y + 0.5f) / h, 0.0f);
       Vec3 c = gradientSky(d, zenith, horizon, ground) * intensity;
       size_t i = (static_cast<size_t>(y) * w + x) * 3;
-      rgb[i] = c.x; rgb[i + 1] = c.y; rgb[i + 2] = c.z;
+      rgb[i] = c.x;
+      rgb[i + 1] = c.y;
+      rgb[i + 2] = c.z;
     }
   baked_ = Texture::fromFloatRgb(w, h, std::move(rgb));
-  buildFromMap(baked_.get(), 0.0f, 1.0f);
+  hemisphere_ = false;
+  buildFromMap(baked_.get(), 0.0f, Vec3(1.0f));
 }
 
 void Environment::build(const Scene& scene, TextureCache& cache, const Vec3* sunDir, float sunIrradiance,
                         std::vector<std::string>* warnings) {
+  LightBuildResult lights;
+  if (sunDir) {
+    lights.hasSun = true;
+    lights.sunDir = *sunDir;
+    lights.sunIrradiance = sunIrradiance;
+  }
+  build(scene, cache, lights, warnings);
+}
+
+void Environment::build(const Scene& scene, TextureCache& cache, const LightBuildResult& lights,
+                        std::vector<std::string>* warnings) {
   const ParamBlock& rs = scene.renderSettings;
   visibleToCamera = rs.getBool("envVisible");
   background = rs.getColor("backgroundColor");
+  hasSunDisk_ = false;
+  hemisphere_ = false;
   float envIntensity = rs.getFloat("envIntensity");
   int mode = rs.getInt("envMode");
   Vec3 zenith = rs.getColor("skyZenith"), horizon = rs.getColor("skyHorizon"), ground = rs.getColor("groundColor");
@@ -248,71 +275,127 @@ void Environment::build(const Scene& scene, TextureCache& cache, const Vec3* sun
       tex = cache.get(path, warnings);
     }
     if (tex) {
-      buildFromMap(tex, radians(rs.getFloat("hdriRotation")), rs.getFloat("hdriIntensity") * envIntensity);
+      buildFromMap(tex, radians(rs.getFloat("hdriRotation")), Vec3(rs.getFloat("hdriIntensity") * envIntensity));
       return;
     }
     buildGradient(zenith, horizon, ground, envIntensity);
     return;
   }
   if (mode == 3) {
-    Vec3 sd = sunDir ? normalize(*sunDir) : normalize(Vec3(0.0f, 0.7071f, 0.7071f));
-    float sunE = sunDir ? sunIrradiance : 3.0f * luminance(Vec3(1.0f, 0.95f, 0.88f));
-    float turbidity = rs.getFloat("skyTurbidity");
-    // Keep the model valid while the sun is near or below the horizon; dim the sky instead.
-    float elevation = std::asin(clampf(sd.z, -1.0f, 1.0f));
-    Vec3 modelSun = sd;
-    if (modelSun.z < 0.02f) {
-      modelSun.z = 0.02f;
-      modelSun = normalize(modelSun);
-    }
-    PreethamSky sky(modelSun, turbidity);
-    const int w = 256, h = 128;
-    std::vector<float> rgb(static_cast<size_t>(w) * h * 3, 0.0f);
-    double eRaw = 0.0;
-    for (int y = 0; y < h / 2; ++y)
-      for (int x = 0; x < w; ++x) {
-        Vec3 d = equirectToDirection((x + 0.5f) / w, (y + 0.5f) / h, 0.0f);
-        Vec3 c = sky.radiance(d);
-        size_t i = (static_cast<size_t>(y) * w + x) * 3;
-        rgb[i] = c.x; rgb[i + 1] = c.y; rgb[i + 2] = c.z;
-        float sinT = std::sin((y + 0.5f) / h * kPi);
-        eRaw += luminance(c) * d.z * sinT * (kTwoPi / w) * (kPi / h);
+    bool physical = lights.hasSun && lights.physicalSun;
+    Vec3 sd = lights.hasSun ? normalize(lights.sunDir) : normalize(Vec3(0.0f, 0.7071f, 0.7071f));
+    if (physical && lights.sunSkyModel == 1) {
+      AtmosphereParams ap;
+      ap.turbidity = lights.sunTurbidity;
+      ap.ozone = lights.sunOzone;
+      ap.groundAlbedo = lights.sunGroundAlbedo;
+      PhysicalSky sky;
+      sky.build(sd, ap, kSolarIlluminance * lights.sunIntensity);
+      const int w = 512, h = 256;
+      std::vector<float> rgb = sky.bake(w, h);
+      for (float& f : rgb) f *= envIntensity;
+      baked_ = Texture::fromFloatRgb(w, h, std::move(rgb));
+      buildFromMap(baked_.get(), 0.0f, Vec3(1.0f));
+    } else {
+      float sunE = lights.hasSun ? lights.sunIrradiance : 3.0f * luminance(Vec3(1.0f, 0.95f, 0.88f));
+      float turbidity = physical ? lights.sunTurbidity : rs.getFloat("skyTurbidity");
+      Vec3 groundAlbedo = physical ? lights.sunGroundAlbedo : ground;
+      // Keep the model valid while the sun is near or below the horizon; dim the sky instead.
+      float elevation = std::asin(clampf(sd.z, -1.0f, 1.0f));
+      Vec3 modelSun = sd;
+      if (modelSun.z < 0.02f) {
+        modelSun.z = 0.02f;
+        modelSun = normalize(modelSun);
       }
-    // Physical sky brightness tied to the sun: diffuse sky irradiance on the ground is
-    // about 8% of the sun's irradiance plus 25% of its horizontal component (clear-sky ratios).
-    float cosS = std::max(sd.z, 0.0f);
-    float target = sunE * (0.08f + 0.25f * cosS);
-    if (elevation < 0.0f) target *= std::max(0.0f, 1.0f + degrees(elevation) / 6.0f);
-    float scale = eRaw > 0.0 ? static_cast<float>(target / eRaw) * envIntensity : 0.0f;
-    for (size_t i = 0; i < static_cast<size_t>(w) * (h / 2) * 3; ++i) rgb[i] *= scale;
-    // Ground: a diffuse plane lit by the sun and sky, blended into the horizon.
-    Vec3 groundL = ground * ((sunE * cosS + target) * kInvPi) * envIntensity;
-    for (int y = h / 2; y < h; ++y) {
-      float below = ((y + 0.5f) / h - 0.5f) * 180.0f;  // degrees below the horizon
-      float t = clampf(below / 4.0f, 0.0f, 1.0f);
-      t = t * t * (3.0f - 2.0f * t);
-      for (int x = 0; x < w; ++x) {
-        size_t hi = (static_cast<size_t>(h / 2 - 1) * w + x) * 3;
-        size_t i = (static_cast<size_t>(y) * w + x) * 3;
-        Vec3 horizonC(rgb[hi], rgb[hi + 1], rgb[hi + 2]);
-        Vec3 c = lerp(horizonC, groundL, t);
-        rgb[i] = c.x; rgb[i + 1] = c.y; rgb[i + 2] = c.z;
+      PreethamSky sky(modelSun, clampf(turbidity, 1.7f, 10.0f));
+      const int w = 256, h = 128;
+      std::vector<float> rgb(static_cast<size_t>(w) * h * 3, 0.0f);
+      double eRaw = 0.0;
+      for (int y = 0; y < h / 2; ++y)
+        for (int x = 0; x < w; ++x) {
+          Vec3 d = equirectToDirection((x + 0.5f) / w, (y + 0.5f) / h, 0.0f);
+          Vec3 c = sky.radiance(d);
+          size_t i = (static_cast<size_t>(y) * w + x) * 3;
+          rgb[i] = c.x;
+          rgb[i + 1] = c.y;
+          rgb[i + 2] = c.z;
+          float sinT = std::sin((y + 0.5f) / h * kPi);
+          eRaw += luminance(c) * d.z * sinT * (kTwoPi / w) * (kPi / h);
+        }
+      // Physical sky brightness tied to the sun: diffuse sky irradiance on the ground is
+      // about 8% of the sun's irradiance plus 25% of its horizontal component (clear-sky ratios).
+      float cosS = std::max(sd.z, 0.0f);
+      float target = sunE * (0.08f + 0.25f * cosS);
+      if (physical) target = kSolarIlluminance * lights.sunIntensity * (0.02f + 0.1f * cosS);
+      if (elevation < 0.0f) target *= std::max(0.0f, 1.0f + degrees(elevation) / 6.0f);
+      float scale = eRaw > 0.0 ? static_cast<float>(target / eRaw) * envIntensity : 0.0f;
+      for (size_t i = 0; i < static_cast<size_t>(w) * (h / 2) * 3; ++i) rgb[i] *= scale;
+      // Ground: a diffuse plane lit by the sun and sky, blended into the horizon.
+      Vec3 groundL = groundAlbedo * ((sunE * cosS + target) * kInvPi) * envIntensity;
+      for (int y = h / 2; y < h; ++y) {
+        float below = ((y + 0.5f) / h - 0.5f) * 180.0f;  // degrees below the horizon
+        float t = clampf(below / 4.0f, 0.0f, 1.0f);
+        t = t * t * (3.0f - 2.0f * t);
+        for (int x = 0; x < w; ++x) {
+          size_t hi = (static_cast<size_t>(h / 2 - 1) * w + x) * 3;
+          size_t i = (static_cast<size_t>(y) * w + x) * 3;
+          Vec3 horizonC(rgb[hi], rgb[hi + 1], rgb[hi + 2]);
+          Vec3 c = lerp(horizonC, groundL, t);
+          rgb[i] = c.x;
+          rgb[i + 1] = c.y;
+          rgb[i + 2] = c.z;
+        }
       }
+      baked_ = Texture::fromFloatRgb(w, h, std::move(rgb));
+      buildFromMap(baked_.get(), 0.0f, Vec3(1.0f));
     }
-    baked_ = Texture::fromFloatRgb(w, h, std::move(rgb));
-    buildFromMap(baked_.get(), 0.0f, 1.0f);
+    if (physical && !lights.sunInvisible && lights.sunCos < 1.0f && sd.z > -0.01f) {
+      hasSunDisk_ = true;
+      sunDir_ = sd;
+      sunCos_ = lights.sunCos;
+      sunRadiance_ = lights.sunColor / (kTwoPi * (1.0f - lights.sunCos));
+    }
     return;
   }
   buildGradient(zenith, horizon, ground, envIntensity);
 }
 
+void Environment::buildDome(const Scene& scene, TextureCache& cache, const LightBuildResult& lights,
+                            std::vector<std::string>* warnings) {
+  visibleToCamera = !lights.domeInvisible;
+  background = scene.renderSettings.getColor("backgroundColor");
+  hasSunDisk_ = false;
+  hemisphere_ = !lights.domeSpherical;
+  const Texture* tex = nullptr;
+  if (!lights.domeTexture.empty()) tex = cache.get(scene.resolvePath(lights.domeTexture), warnings);
+  if (tex) {
+    buildFromMap(tex, radians(lights.domeRotation), lights.domeColor);
+    return;
+  }
+  if (hemisphere_) {
+    // A constant hemisphere is still importance sampled through a small baked map.
+    const int w = 8, h = 8;
+    std::vector<float> rgb(static_cast<size_t>(w) * h * 3, 1.0f);
+    baked_ = Texture::fromFloatRgb(w, h, std::move(rgb));
+    buildFromMap(baked_.get(), 0.0f, lights.domeColor);
+    return;
+  }
+  buildConstant(lights.domeColor);
+}
+
 Vec3 Environment::eval(const Vec3& dir) const {
   if (black_) return Vec3(0.0f);
+  if (hemisphere_ && dir.z < 0.0f) return Vec3(0.0f);
   if (!useMap_) return constant_;
   Vec2 uv = directionToEquirect(dir, rotation_);
   float h = static_cast<float>(map_->height());
   float v = clampf(uv.y, 0.5f / h, 1.0f - 0.5f / h);  // no wrapping across the poles
-  return map_->color(Vec2(uv.x, 1.0f - v), true) * intensity_;
+  return map_->color(Vec2(uv.x, 1.0f - v), true) * tint_;
+}
+
+Vec3 Environment::sunDisk(const Vec3& dir) const {
+  if (!hasSunDisk_ || dot(dir, sunDir_) < sunCos_) return Vec3(0.0f);
+  return sunRadiance_;
 }
 
 bool Environment::sample(float u1, float u2, Vec3& dir, Vec3& radiance, float& pdf) const {
@@ -336,6 +419,7 @@ bool Environment::sample(float u1, float u2, Vec3& dir, Vec3& radiance, float& p
 float Environment::pdf(const Vec3& dir) const {
   if (black_) return 0.0f;
   if (!useMap_) return 1.0f / (4.0f * kPi);
+  if (hemisphere_ && dir.z < 0.0f) return 0.0f;
   Vec2 uv = directionToEquirect(dir, rotation_);
   float sinT = std::sin(uv.y * kPi);
   if (sinT <= 1e-6f) return 0.0f;

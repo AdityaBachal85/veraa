@@ -342,14 +342,14 @@ bool exportGltf(const Scene& scene, const std::string& path, const ExportOptions
     uint32_t key = mat ? mat->id : 0x80000000u | n->id;
     auto it = materialIndex.find(key);
     if (it != materialIndex.end()) return it->second;
-    Vec3 d = mat ? mat->params.getColor("diffuse") : n->wireColor;
+    Vec3 d = mat ? mat->viewportColor() : n->wireColor;
     float opacity = mat ? mat->params.getFloat("opacity") : 1.0f;
     json pbr = {{"baseColorFactor", {d.x, d.y, d.z, opacity}},
                 {"metallicFactor", mat ? mat->params.getFloat("metalness") : 0.0f},
                 {"roughnessFactor", mat && maxComponent(mat->params.getColor("reflect")) > 0.01f
                                         ? 1.0f - mat->params.getFloat("reflectGlossiness")
                                         : 1.0f}};
-    std::string map = mat ? mat->params.getString("diffuseMap") : std::string();
+    std::string map = mat ? mat->viewportTexture() : std::string();
     if (!map.empty()) {
       std::string abs = scene.resolvePath(map);
       int img;
