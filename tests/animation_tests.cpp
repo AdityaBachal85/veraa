@@ -3,6 +3,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <exception>
 #include <filesystem>
 #include <fstream>
 #include <vector>
@@ -639,19 +640,35 @@ static void testAvi() {
 }
 
 int main() {
-  testBezier();
-  testTcb();
-  testOutOfRange();
-  testExpressions();
-  testQuat();
-  testAutoKeyAndEvaluate();
-  testLayersWiresReactions();
-  testConstraints();
-  testIk();
-  testSkinMorphPathDeform();
-  testParticles();
-  testRigidBodies();
-  testAvi();
+  // Unbuffered, so a crash still shows how far the tests got.
+  std::setvbuf(stdout, nullptr, _IONBF, 0);
+  const struct {
+    const char* name;
+    void (*run)();
+  } tests[] = {
+      {"testBezier", testBezier},
+      {"testTcb", testTcb},
+      {"testOutOfRange", testOutOfRange},
+      {"testExpressions", testExpressions},
+      {"testQuat", testQuat},
+      {"testAutoKeyAndEvaluate", testAutoKeyAndEvaluate},
+      {"testLayersWiresReactions", testLayersWiresReactions},
+      {"testConstraints", testConstraints},
+      {"testIk", testIk},
+      {"testSkinMorphPathDeform", testSkinMorphPathDeform},
+      {"testParticles", testParticles},
+      {"testRigidBodies", testRigidBodies},
+      {"testAvi", testAvi},
+  };
+  for (const auto& t : tests) {
+    std::printf("%s\n", t.name);
+    try {
+      t.run();
+    } catch (const std::exception& e) {
+      std::printf("FAIL %s threw: %s\n", t.name, e.what());
+      ++g_failures;
+    }
+  }
   if (g_failures) {
     std::printf("%d animation test(s) failed\n", g_failures);
     return 1;
