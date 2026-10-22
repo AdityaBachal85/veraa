@@ -19,6 +19,10 @@ option(VERAA_BUILD_TESTS "Build the test suite" ON)
 if(MSVC)
   add_compile_options(/W3 /permissive- /utf-8 /MP /EHsc)
   add_compile_definitions(_USE_MATH_DEFINES NOMINMAX _CRT_SECURE_NO_WARNINGS)
+  # Debug information for Release builds too (the .pdb files stay in the build tree), so
+  # crashes found by CI come with readable call stacks.
+  add_compile_options($<$<CONFIG:Release>:/Zi> $<$<CONFIG:Release>:/FS>)
+  add_link_options($<$<CONFIG:Release>:/DEBUG> $<$<CONFIG:Release>:/OPT:REF> $<$<CONFIG:Release>:/OPT:ICF>)
 else()
   add_compile_options(-Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers)
 endif()

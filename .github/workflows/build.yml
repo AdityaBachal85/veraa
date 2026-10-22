@@ -163,12 +163,29 @@ jobs:
         timeout-minutes: 20
         run: |
           $env:QT_OPENGL = "software"
-          $p = Start-Process -FilePath dist/Veraa/Veraa.exe -ArgumentList "--script", "selftest" -Wait -PassThru `
-            -NoNewWindow -RedirectStandardOutput selftest.log -RedirectStandardError selftest.err
-          Select-String -Path selftest.log, selftest.err -Pattern "FAIL" | ForEach-Object { $_.Line }
-          Get-Content selftest.log -Tail 40
-          Get-Content selftest.err -Tail 40
-          if ($p.ExitCode -ne 0) { throw "Self-test exited with code $($p.ExitCode)" }
+          $env:QT_FORCE_STDERR_LOGGING = "1"
+          $cdb = "${env:ProgramFiles(x86)}/Windows Kits/10/Debuggers/x64/cdb.exe"
+          if (Test-Path $cdb) {
+            # Under the console debugger: a crash prints the call stack (symbols from the build).
+            @(
+              'sxd -c2 ".ecxr; kn 80; q" av'
+              'sxe -c "kn 80; q" c0000409'
+              'sxe -c "kn 80; q" c00000fd'
+              'g'
+              'q'
+            ) | Set-Content cdb-commands.txt
+            & $cdb -G -lines -y "build/bin/Release" -cf cdb-commands.txt dist/Veraa/Veraa.exe --script selftest *>&1 |
+              Tee-Object selftest.log | Out-Null
+          } else {
+            $p = Start-Process -FilePath dist/Veraa/Veraa.exe -ArgumentList "--script", "selftest" -Wait -PassThru `
+              -NoNewWindow -RedirectStandardOutput selftest.log -RedirectStandardError selftest.err
+          }
+          $log = Get-Content selftest.log
+          $log | Select-String -Pattern 'FAIL|failure\(s\)|Access violation|Security check|Veraa!' |
+            ForEach-Object { $_.Line }
+          "---- last lines ----"
+          $log | Select-Object -Last 120
+          if (-not ($log -match "^0 failure\(s\)")) { throw "The self-test did not pass" }
 
       - name: Publish the version release
         if: startsWith(github.ref, 'refs/tags/v')
