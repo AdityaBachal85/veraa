@@ -2244,7 +2244,9 @@ bool runPolyOp(PolyMesh& m, PolySelection& sel, const json& op, std::string* msg
   } else if (name == "collapse") {
     ok = opCollapse(m, sel, msg);
   } else if (name == "tessellate") {
-    ok = opTessellate(m, sel, msg);
+    int it = std::clamp(i("iterations", 1), 1, 4);
+    ok = true;
+    for (int k = 0; k < it && ok; ++k) ok = opTessellate(m, sel, msg);
   } else if (name == "msmooth") {
     int it = std::clamp(i("iterations", 1), 1, 4);
     for (int k = 0; k < it; ++k) m = subdivideCatmullClark(m);

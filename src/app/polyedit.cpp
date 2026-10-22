@@ -1419,7 +1419,7 @@ void PolyEditTool::drawOverlay(Viewport& vp, QPainter& p) {
   static const char* names[] = {"", "Vertex", "Edge", "Border", "Polygon", "Element"};
   if (s.level > 0 && s.level <= 5) {
     p.setPen(QColor(255, 200, 80));
-    p.drawText(QRectF(8, vp.height() - 52, 300, 18), Qt::AlignLeft | Qt::AlignVCenter,
+    p.drawText(QRectF(8, 24, 300, 18), Qt::AlignLeft | Qt::AlignVCenter,
                QObject::tr("Sub-object: %1").arg(names[s.level]));
   }
 }
