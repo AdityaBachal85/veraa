@@ -279,8 +279,84 @@ void testPolyModeling(MainWindow& w) {
   b2 = doc->scene().findNode(id2);
   check(b2->mesh().faces.size() == 10, "Edit Poly: Inset recorded and applied");
   shot(w, "poly_05_edit_poly_modifier");
+  // Repeat Last runs the inset again.
+  if (auto* rep = widget<QPushButton>("poly_repeatLast")) rep->click();
+  pump(30);
+  check(doc->scene().findNode(id2)->mesh().faces.size() == 14, "Repeat Last repeats the inset");
+  // A sub-object move on the Edit Poly modifier is recorded as an operation.
+  {
+    PolyTarget t(doc, st, id2, 0);
+    size_t opsBefore = epm ? dynamic_cast<EditPolyModifier*>(doc->scene().findNode(id2)->modifiers[0].get())->ops.size() : 0;
+    t.beginLive("Move");
+    json m = json::array();
+    Mat4 up = Mat4::translate(Vec3(0, 0, 15));
+    for (int r = 0; r < 4; ++r)
+      for (int c = 0; c < 4; ++c) m.push_back(up.m[r][c]);
+    t.updateLive({{"op", "transform"}, {"matrix", m}});
+    t.endLive(true);
+    pump(20);
+    auto* mod = dynamic_cast<EditPolyModifier*>(doc->scene().findNode(id2)->modifiers[0].get());
+    check(mod && mod->ops.size() == opsBefore + 1, "Edit Poly records the move");
+    check(std::fabs(doc->scene().findNode(id2)->mesh().bounds().hi.z - 115.0f) < 1e-3f, "Edit Poly move raises the polygon");
+  }
   if (auto* l0 = actionNamed(w, "poly.level0")) l0->trigger();
   pump(30);
+
+  // 10. Poly Select passes a vertex selection to a Push modifier above it.
+  doc->beginEdit("Create Box");
+  Node* b3 = doc->createNode("Box");
+  b3->transform.position = Vec3(-250, 0, 0);
+  doc->endEdit();
+  uint32_t id3 = b3->id;
+  doc->setSelection({id3});
+  w.commandPanel()->addModifier("PolySelect");
+  pump(30);
+  if (auto* l1 = actionNamed(w, "poly.level1")) l1->trigger();
+  pump(30);
+  check(widget<QWidget>("poly_extrudeVerts") == nullptr, "Poly Select shows only selection rollouts");
+  vp->zoomExtents(true);
+  pump(30);
+  b3 = doc->scene().findNode(id3);
+  int corner = -1;
+  float bestZ = -1e9f;
+  const PolyMesh& bm = b3->mesh();
+  for (size_t v = 0; v < bm.positions.size(); ++v) {
+    // A top vertex facing the perspective camera.
+    Vec3 p = bm.positions[v];
+    float score = p.z * 10.0f - p.y + p.x * 0.1f;
+    if (score > bestZ) {
+      bestZ = score;
+      corner = static_cast<int>(v);
+    }
+  }
+  click(vp, projectPoint(vp, b3->objectWorldMatrix().transformPoint(bm.positions[corner])));
+  auto* psel = dynamic_cast<PolySelectModifier*>(doc->scene().findNode(id3)->modifiers[0].get());
+  check(psel && psel->sel.verts.size() == 1, "Poly Select: clicking selects a vertex");
+  if (auto* l0 = actionNamed(w, "poly.level0")) l0->trigger();
+  pump(20);
+  // Level 0 at the modifier would pass everything up; go back to vertex level for the stack.
+  if (psel) {
+    PolySelection s = psel->sel;
+    s.level = PolyVertex;
+    psel->setSelection(s);
+  }
+  w.commandPanel()->addModifier("Push");
+  pump(30);
+  b3 = doc->scene().findNode(id3);
+  int moved = 0;
+  PolyMesh raw = static_cast<GeometryObject*>(b3->object.get())->build();
+  for (size_t v = 0; v < raw.positions.size(); ++v)
+    if (length(b3->mesh().positions[v] - raw.positions[v]) > 1e-3f) ++moved;
+  check(moved == 1, "Push above Poly Select moves only the selected vertex");
+
+  // 11. The viewport context menu offers sub-object levels and Collapse Stack.
+  QAction* collapse = actionNamed(w, "tools.collapseStack");
+  check(collapse && collapse->property("quadMenu").toBool(), "Collapse Stack is in the context menu");
+  check(actionNamed(w, "poly.level1") && actionNamed(w, "poly.level1")->isVisible(), "sub-object levels are in the context menu");
+  collapse->trigger();
+  pump(30);
+  b3 = doc->scene().findNode(id3);
+  check(polyOf(b3) && b3->modifiers.empty() && b3->mesh().faces.size() == 6, "Collapse Stack bakes the modifiers");
 }
 
 }  // namespace

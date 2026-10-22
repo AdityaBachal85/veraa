@@ -1460,14 +1460,14 @@ void installPolyPanel(MainWindow& w) {
     });
     levelActions.push_back(a);
   }
-  QObject::connect(w.document(), &SceneDocument::selectionChanged, &w, [&w, levelActions] {
+  auto updateLevelActions = [&w, levelActions] {
     bool on = selectionIsPolyEditable(w);
     for (QAction* a : levelActions) a->setVisible(on);
-  });
-  QObject::connect(w.document(), &SceneDocument::structureChanged, &w, [&w, levelActions] {
-    bool on = selectionIsPolyEditable(w);
-    for (QAction* a : levelActions) a->setVisible(on);
-  });
+  };
+  // Modifiers added to the selection only emit nodesChanged, so listen to that too.
+  QObject::connect(w.document(), &SceneDocument::selectionChanged, &w, updateLevelActions);
+  QObject::connect(w.document(), &SceneDocument::structureChanged, &w, updateLevelActions);
+  QObject::connect(w.document(), &SceneDocument::nodesChanged, &w, updateLevelActions);
 
   // Ctrl+B toggles between the object level and the last sub-object level.
   auto* toggle = new QAction(QObject::tr("Sub-object Toggle"), &w);
