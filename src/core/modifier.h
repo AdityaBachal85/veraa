@@ -21,6 +21,10 @@ struct GeomState {
   BezierShape shape;
   bool isShape = false;
   double time = 0.0;  // scene time in frames (for animated modifiers)
+  // Spline interpolation of the base shape (its "Steps" and "Optimize" parameters), used by
+  // modifiers that turn splines into meshes.
+  int shapeSteps = 6;
+  bool shapeOptimize = true;
 };
 
 class Modifier {

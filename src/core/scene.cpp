@@ -148,6 +148,8 @@ void Node::evaluate() const {
   } else if (auto* s = shapeObject()) {
     st.shape = s->buildShape();
     st.isShape = true;
+    if (s->params.has("steps")) st.shapeSteps = s->params.getInt("steps");
+    if (s->params.has("optimize")) st.shapeOptimize = s->params.getBool("optimize");
   }
   for (const auto& m : modifiers)
     if (m && m->enabled) m->applyState(st);

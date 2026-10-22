@@ -10,6 +10,10 @@ Veraa uses the following open-source components. Each is used under its own lice
 | oneAPI Threading Building Blocks (TBB) | Used by Embree and Open Image Denoise | Apache License 2.0 | https://github.com/oneapi-src/oneTBB |
 | nlohmann/json 3.11.3 | Scene files | MIT | https://github.com/nlohmann/json |
 | stb_image / stb_image_write (Sean Barrett) | Texture loading, image saving | Public domain / MIT | https://github.com/nothings/stb |
+| stb_truetype (Sean Barrett) | Font outlines for Text and TextPlus | Public domain / MIT | https://github.com/nothings/stb |
+| earcut.hpp (Mapbox) | Capping shapes with holes | ISC (third_party/earcut/LICENSE) | https://github.com/mapbox/earcut.hpp |
+| Clipper2 1.4.0 (Angus Johnson) | Spline booleans and offsets | Boost Software License 1.0 (third_party/clipper2/LICENSE) | https://github.com/AngusJohnson/Clipper2 |
+| DejaVu fonts (DejaVu Sans, Sans Bold, Serif) | Bundled fonts for Text and TextPlus | Bitstream Vera / DejaVu font license (assets/fonts/LICENSE.txt) | https://dejavu-fonts.github.io/ |
 | Microsoft Visual C++ runtime (Windows builds) | C++ runtime DLLs | Microsoft Visual Studio redistributable terms | https://learn.microsoft.com/cpp/windows/redistributing-visual-cpp-files |
 | Sample HDRI from Poly Haven | Sample scenes | CC0 | https://polyhaven.com/ |
 

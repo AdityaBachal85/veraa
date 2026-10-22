@@ -12,5 +12,8 @@ void registerBuiltinModifierTypes();  // called once, on first registry access
 void registerPrimitiveTypes();      // primitives.cpp: Standard Primitives, Chamfer Box
 void registerCoreObjectTypes();     // object.cpp: Editable Poly/Spline, lights, camera
 void registerCoreModifierTypes();   // modifier.cpp: Bend, Taper, Twist, Noise, Smooth, ...
+void registerShapeTypes();          // shapes.cpp: Splines and Extended Splines
+void registerShapeGeometryTypes();  // shape_modifiers.cpp: TextPlus
+void registerShapeModifierTypes();  // shape_modifiers.cpp: Extrude, Lathe, Sweep, Bevel, Edit Spline, ...
 
 }  // namespace veraa
