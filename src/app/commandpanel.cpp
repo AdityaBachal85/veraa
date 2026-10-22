@@ -1,5 +1,7 @@
 #include "commandpanel.h"
 
+#include "extension.h"
+
 #include <QButtonGroup>
 #include <QComboBox>
 #include <QFileInfo>
@@ -306,6 +308,12 @@ QWidget* CommandPanel::buildModifyTab() {
   modInfo_->setStyleSheet("color: #a8a8a8;");
   v->addWidget(modInfo_);
 
+  modExtraHost_ = new QWidget(content);
+  auto* extraLayout = new QVBoxLayout(modExtraHost_);
+  extraLayout->setContentsMargins(0, 0, 0, 0);
+  extraLayout->setSpacing(4);
+  v->addWidget(modExtraHost_);
+
   modForm_ = new ParamForm(content);
   v->addWidget(modForm_);
   v->addStretch();
@@ -469,6 +477,19 @@ void CommandPanel::selectStackRow(int row) {
   ParamBlock* block = idx < 0 ? &n->object->params : &n->modifiers[idx]->params;
   wireForm(modForm_, n->id, idx);
   modForm_->setBlock(block);
+
+  // Type-specific rollouts (Editable Poly tools, Edit Spline, FFD, ...).
+  if (modExtra_) {
+    modExtra_->hide();
+    modExtra_->deleteLater();
+    modExtra_ = nullptr;
+  }
+  QString type = QString::fromStdString(idx < 0 ? n->object->type() : n->modifiers[idx]->type());
+  if (ModifyRolloutFactory factory = modifyRolloutsFor(type)) {
+    ModifyPanelContext ctx{doc_, state_, n->id, idx};
+    modExtra_ = factory(ctx, modExtraHost_);
+    if (modExtra_) modExtraHost_->layout()->addWidget(modExtra_);
+  }
 }
 
 void CommandPanel::refreshModifyValues() {
@@ -485,7 +506,7 @@ void CommandPanel::addModifier(const QString& type) {
   auto nodes = doc_->selectedNodes();
   QVector<uint32_t> ids;
   for (Node* n : nodes)
-    if (n->kind() == ObjectKind::Geometry) ids.push_back(n->id);
+    if (n->kind() == ObjectKind::Geometry || n->kind() == ObjectKind::Shape) ids.push_back(n->id);
   if (ids.isEmpty()) return;
   doc_->beginEdit(tr("Add %1").arg(QString::fromStdString(modifierDisplayName(type.toStdString()))));
   for (uint32_t id : ids) {

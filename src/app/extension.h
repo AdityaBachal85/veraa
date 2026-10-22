@@ -13,6 +13,7 @@
 
 #include <QString>
 
+#include <cstdint>
 #include <functional>
 #include <memory>
 
@@ -20,12 +21,15 @@ class QKeyEvent;
 class QMouseEvent;
 class QPainter;
 class QWheelEvent;
+class QWidget;
 
 namespace veraa {
 
+class EditorState;
 class LineBatch;
 class MainWindow;
 class Node;
+class SceneDocument;
 class Viewport;
 
 // An interactive viewport mode (sub-object editing, Line creation, measuring, ...). While set
@@ -72,6 +76,20 @@ void runAppExtensions(MainWindow& window);
 using CreationToolFactory = std::function<std::shared_ptr<ViewportTool>()>;
 void registerCreationTool(const QString& objectType, CreationToolFactory factory);
 CreationToolFactory creationToolFor(const QString& objectType);
+
+// Extra Modify panel rollouts for an object or modifier type (Editable Poly selection levels,
+// Edit Spline tools, FFD control points, Unwrap UVW, ...). The factory builds a widget shown
+// above the generated parameter rollouts while that stack entry is selected. stackIndex is -1
+// for the base object, otherwise the modifier index (bottom = 0).
+struct ModifyPanelContext {
+  SceneDocument* doc = nullptr;
+  EditorState* state = nullptr;
+  uint32_t nodeId = 0;
+  int stackIndex = -1;
+};
+using ModifyRolloutFactory = std::function<QWidget*(const ModifyPanelContext& ctx, QWidget* parent)>;
+void registerModifyRollouts(const QString& type, ModifyRolloutFactory factory);
+ModifyRolloutFactory modifyRolloutsFor(const QString& type);
 
 }  // namespace veraa
 

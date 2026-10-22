@@ -60,6 +60,8 @@ registries, so a new type appears everywhere once registered.
   and key events first and can draw 3D lines and a 2D overlay.
 - `ViewportDecorator`: always-on viewport drawing (`EditorState::addDecorator()`).
 - `registerCreationTool(type, factory)`: custom interactive creation for an object type.
+- `registerModifyRollouts(type, factory)`: custom Modify panel rollouts for an object or
+  modifier type (selection levels, editing buttons), shown above the generated parameters.
 - Snapping: `EditorState::setPointSnapper()`, `setAngleSnap()`, `setPercentSnap()`; creation and
   transform drags already call them.
 - Selection filter: `EditorState::setSelectionFilter()`.
@@ -73,5 +75,7 @@ spinner drags). Undo restores a scene JSON snapshot, so new data saved by a modu
 ## Tests
 
 - `tests/core_tests.cpp`, `tests/render_tests.cpp` (CTest).
-- `Veraa --script selftest` drives the real UI under Xvfb.
+- `Veraa --script selftest` drives the real UI under Xvfb. Feature modules add their own UI
+  tests in their own files with `VERAA_SELF_TEST(name, fn)` (helpers in `selftest.h`);
+  `Veraa --script <name>` runs one of them.
 - `Veraa --script demo --screenshot out.png` saves screenshots of the main windows.

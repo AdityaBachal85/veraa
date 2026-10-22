@@ -66,6 +66,8 @@ class CommandPanel : public QTabWidget {
   QListWidget* stack_ = nullptr;
   QToolButton *delMod_ = nullptr, *upMod_ = nullptr, *downMod_ = nullptr;
   QLabel* modInfo_ = nullptr;
+  QWidget* modExtraHost_ = nullptr;  // holds type-specific rollouts (see registerModifyRollouts)
+  QWidget* modExtra_ = nullptr;
   ParamForm* modForm_ = nullptr;
   uint32_t modNode_ = 0;
   QHash<uint32_t, int> stackChoice_;  // node -> chosen stack index

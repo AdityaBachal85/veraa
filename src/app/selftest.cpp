@@ -13,6 +13,8 @@
 
 #include <cmath>
 #include <cstdio>
+#include <string>
+#include <vector>
 
 #include "commandpanel.h"
 #include "framebuffer.h"
@@ -24,9 +26,9 @@
 
 namespace veraa {
 
-namespace {
+namespace testing {
 
-void pump(int ms = 50) {
+void pump(int ms) {
   QElapsedTimer t;
   t.start();
   do {
@@ -39,6 +41,17 @@ QString sibling(const QString& path, const QString& suffix) {
   QFileInfo fi(path);
   return fi.dir().filePath(fi.completeBaseName() + suffix + "." + (fi.suffix().isEmpty() ? "png" : fi.suffix()));
 }
+
+}  // namespace testing
+
+namespace {
+
+using testing::pump;
+using testing::sibling;
+
+}  // namespace
+
+namespace testing {
 
 bool saveGrab(QWidget* w, const QString& path) {
   w->repaint();
@@ -54,6 +67,11 @@ bool saveGrab(QWidget* w, const QString& path) {
   std::printf("%s screenshot %s\n", ok ? "Saved" : "FAILED to save", qPrintable(path));
   return ok;
 }
+
+}  // namespace testing
+
+namespace {
+using testing::saveGrab;
 
 Material* addMaterial(Scene& s, const char* name, const Vec3& diffuse) {
   Material* m = s.createMaterial(name);
@@ -166,17 +184,52 @@ void buildDemoScene(MainWindow& w) {
 namespace {
 
 int g_failures = 0;
+
+struct ModuleTestEntry {
+  std::string name;
+  testing::ModuleTest fn;
+};
+
+std::vector<ModuleTestEntry>& moduleTests() {
+  static std::vector<ModuleTestEntry> list;
+  return list;
+}
+
+}  // namespace
+
+namespace testing {
+
 void check(bool ok, const char* what) {
   std::printf("%s  %s\n", ok ? "PASS" : "FAIL", what);
   std::fflush(stdout);
   if (!ok) ++g_failures;
 }
 
+int failures() { return g_failures; }
+
 QPointF projectPoint(Viewport* vp, const Vec3& p) {
   vp->updateCamera();
   float x = 0, y = 0;
   vp->camera().project(p, x, y);
   return QPointF(x, y);
+}
+
+SelfTestRegistrar::SelfTestRegistrar(const char* name, ModuleTest fn) { moduleTests().push_back({name, fn}); }
+
+}  // namespace testing
+
+namespace {
+using testing::check;
+using testing::projectPoint;
+
+// Runs one module test on a fresh scene.
+void runModuleTest(MainWindow& w, const ModuleTestEntry& t) {
+  std::printf("---- %s ----\n", t.name.c_str());
+  w.document()->newScene();
+  pump(50);
+  t.fn(w);
+  w.document()->newScene();
+  pump(50);
 }
 
 int selfTest(MainWindow& w) {
@@ -369,6 +422,9 @@ int selfTest(MainWindow& w) {
   pump(50);
   check(true, "undo history fully unwound");
 
+  // Feature module tests (VERAA_SELF_TEST).
+  for (const auto& t : moduleTests()) runModuleTest(w, t);
+
   std::printf("%d failure(s)\n", g_failures);
   return g_failures;
 }
@@ -381,6 +437,12 @@ int runScript(MainWindow& w, const QString& script, const QString& shotPath) {
   w.move(0, 0);
   pump(300);
   if (script == "selftest") return selfTest(w);
+  for (const auto& t : moduleTests())
+    if (script == QString::fromStdString(t.name)) {
+      runModuleTest(w, t);
+      std::printf("%d failure(s)\n", g_failures);
+      return g_failures;
+    }
 
   if (script == "demo" || script.isEmpty()) {
     if (w.document()->scene().nodes.empty()) buildDemoScene(w);

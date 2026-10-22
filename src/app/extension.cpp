@@ -26,7 +26,18 @@ QHash<QString, CreationToolFactory>& creationTools() {
   return tools;
 }
 
+QHash<QString, ModifyRolloutFactory>& modifyRollouts() {
+  static QHash<QString, ModifyRolloutFactory> factories;
+  return factories;
+}
+
 }  // namespace
+
+void registerModifyRollouts(const QString& type, ModifyRolloutFactory factory) {
+  modifyRollouts().insert(type, std::move(factory));
+}
+
+ModifyRolloutFactory modifyRolloutsFor(const QString& type) { return modifyRollouts().value(type); }
 
 ExtensionRegistrar::ExtensionRegistrar(const char* name, int order, ExtensionInstaller installer) {
   extensions().push_back({name, order, installer});
