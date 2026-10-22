@@ -1413,8 +1413,8 @@ void collapseStack(MainWindow& w, bool keepIfPoly) {
     n->object = poly;
     n->modifiers.clear();
   }
+  doc->notifyStructureChanged();  // first: panels drop references to the replaced objects
   doc->notifyNodesChanged(ids, ChangeGeometry);
-  doc->notifyStructureChanged();
   doc->endEdit();
 }
 

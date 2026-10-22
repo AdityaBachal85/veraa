@@ -11,6 +11,7 @@ void registerBuiltinModifierTypes();  // called once, on first registry access
 // Module register functions.
 void registerPrimitiveTypes();      // primitives.cpp: Standard Primitives, Chamfer Box
 void registerCoreObjectTypes();     // object.cpp: Editable Poly/Spline, lights, camera
+void registerCompoundObjectTypes(); // csg.cpp: Boolean
 void registerCoreModifierTypes();   // modifier.cpp: Bend, Taper, Twist, Noise, Smooth, ...
 void registerPolyModifierTypes();   // polymods.cpp: Edit Poly, Poly/Mesh/Vol. Select, Turn to Poly
 void registerMeshModifierTypes();   // meshmods.cpp: FFDs, Symmetry, Slice, Optimize, Unwrap UVW, ...

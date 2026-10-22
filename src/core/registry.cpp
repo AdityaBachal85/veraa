@@ -5,6 +5,7 @@ namespace veraa {
 void registerBuiltinObjectTypes() {
   registerPrimitiveTypes();
   registerCoreObjectTypes();
+  registerCompoundObjectTypes();
 }
 
 void registerBuiltinModifierTypes() {

@@ -459,8 +459,8 @@ void MainWindow::createMenus() {
       n->object = std::move(poly);
       n->modifiers.clear();
     }
+    doc_->notifyStructureChanged();  // first: panels drop references to the replaced objects
     doc_->notifyNodesChanged(ids, ChangeGeometry);
-    doc_->notifyStructureChanged();
     doc_->endEdit();
   });
   tools->addSeparator();

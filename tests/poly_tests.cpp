@@ -9,6 +9,7 @@
 
 #include "modifier.h"
 #include "object.h"
+#include "csg.h"
 #include "meshmods.h"
 #include "polymods.h"
 #include "polyops.h"
@@ -986,7 +987,58 @@ static void testMeshModifiers() {
   }
 }
 
+static void testCsg() {
+  PolyMesh a = box100();
+  PolyMesh b = box100();
+  b.transform(Mat4::translate(Vec3(50, 50, 50)));  // overlap: 50 x 50 x 50
+  double overlap = 125000.0;
+  PolyMesh u = csgMesh(a, b, CsgOp::Union);
+  CHECK_NEAR(meshVolume(u), 2e6 - overlap, 10.0);
+  PolyMesh in = csgMesh(a, b, CsgOp::Intersection);
+  CHECK_NEAR(meshVolume(in), overlap, 10.0);
+  PolyMesh ab = csgMesh(a, b, CsgOp::SubtractAB);
+  CHECK_NEAR(meshVolume(ab), 1e6 - overlap, 10.0);
+  PolyMesh ba = csgMesh(a, b, CsgOp::SubtractBA);
+  CHECK_NEAR(meshVolume(ba), 1e6 - overlap, 10.0);
+  CHECK(ab.bounds().lo.x < -49.0f && ba.bounds().hi.x > 99.0f && ba.bounds().lo.x > -1.0f);
+  PolyMesh mg = csgMesh(a, b, CsgOp::Merge);
+  CHECK(mg.faces.size() == 12);
+  // Disjoint operands: subtraction keeps A, intersection is empty.
+  PolyMesh far = box100();
+  far.transform(Mat4::translate(Vec3(500, 0, 0)));
+  CHECK_NEAR(meshVolume(csgMesh(a, far, CsgOp::SubtractAB)), 1e6, 10.0);
+  CHECK(csgMesh(a, far, CsgOp::Intersection).faces.empty());
+  // A cylinder drilled through a box removes pi r^2 h.
+  PolyMesh cyl = buildObject("Cylinder", {{"radius", 20.0}, {"height", 200.0}, {"sides", 64}});
+  cyl.transform(Mat4::translate(Vec3(0, 0, -50)));
+  PolyMesh drilled = csgMesh(a, cyl, CsgOp::SubtractAB);
+  double hole = meshVolume(csgMesh(a, cyl, CsgOp::Intersection));
+  CHECK(std::fabs(hole - kPi * 400.0 * 100.0) / (kPi * 400.0 * 100.0) < 0.01);
+  CHECK_NEAR(meshVolume(drilled), 1e6 - hole, 50.0);
+  // Sphere minus box: the remaining volume is positive and smaller.
+  PolyMesh sph = buildObject("Sphere", {{"radius", 60.0}});
+  double vs = meshVolume(sph);
+  double vsb = meshVolume(csgMesh(sph, a, CsgOp::SubtractAB));
+  CHECK(vsb > 0 && vsb < vs);
+  CHECK_NEAR(vsb + meshVolume(csgMesh(sph, a, CsgOp::Intersection)), vs, vs * 1e-3);
+
+  // The Boolean object combines its operands and survives a JSON round trip.
+  BooleanObject bo;
+  bo.meshA = box100();
+  BooleanObject::Operand op;
+  op.mesh = box100();
+  op.transform = Mat4::translate(Vec3(50, 50, 50));
+  op.op = CsgOp::SubtractAB;
+  bo.operands.push_back(op);
+  CHECK_NEAR(meshVolume(bo.build()), 1e6 - overlap, 10.0);
+  BooleanObject copy;
+  copy.fromJson(bo.toJson());
+  CHECK(copy.operands.size() == 1);
+  CHECK_NEAR(meshVolume(copy.build()), 1e6 - overlap, 10.0);
+}
+
 int main() {
+  testCsg();
   testStackModifiers();
   testMeshModifiers();
   testExtrudeInsetBevel();
