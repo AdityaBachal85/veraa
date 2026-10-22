@@ -3,6 +3,7 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -150,6 +151,21 @@ class Node {
   mutable std::vector<std::vector<Vec3>> shapeLines_;
 };
 
+// Live data a feature module keeps with the scene (animation tracks, ...). It is written to
+// Scene::extensions[name] when the scene is serialized and read back when it is loaded, so it
+// is saved in files and is part of undo snapshots.
+class SceneModule {
+ public:
+  virtual ~SceneModule() = default;
+  virtual json toJson() const = 0;
+  // Called with the saved section, or with null for a new or cleared scene.
+  virtual void fromJson(const json& j) = 0;
+};
+using SceneModuleFactory = std::function<std::unique_ptr<SceneModule>()>;
+// Every Scene creates one instance of each registered module. Register from a registerXxx()
+// function listed in registry.cpp (registerBuiltinSceneModules).
+void registerSceneModule(const std::string& name, SceneModuleFactory factory);
+
 class Scene {
  public:
   Scene();
@@ -202,6 +218,9 @@ class Scene {
   // Resolves a texture/HDRI path relative to the scene file's folder.
   std::string resolvePath(const std::string& path) const;
 
+  // Live data of a registered scene module (see SceneModule), or null.
+  SceneModule* module(const std::string& name) const;
+
   std::vector<std::unique_ptr<Node>> nodes;
   std::vector<Layer> layers;  // layers[0] is layer "0"
   uint32_t currentLayerId = 0;
@@ -219,6 +238,7 @@ class Scene {
   uint32_t nextLayerId_ = 1;
   uint32_t colorCounter_ = 0;
   mutable std::unordered_map<uint32_t, Node*> index_;  // id -> node, for fast parent lookups
+  std::vector<std::pair<std::string, std::unique_ptr<SceneModule>>> modules_;
 };
 
 // Render settings keys (Scene::renderSettings):

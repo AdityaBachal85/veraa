@@ -144,6 +144,11 @@ void SceneDocument::commitSoftEdit() {
 }
 
 void SceneDocument::pushSnapshot(const QString& label, json before, const QVector<uint32_t>& selBefore) {
+  if (commitHook_ && !inCommitHook_) {
+    inCommitHook_ = true;
+    commitHook_(before);
+    inCommitHook_ = false;
+  }
   json after = scene_.toJson();
   if (after == before && selBefore == selection_) return;
   undo_.push(new SnapshotCommand(this, label, std::move(before), std::move(after), selBefore, selection_));

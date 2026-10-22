@@ -8,20 +8,12 @@
 #include <string>
 #include <vector>
 
+#include "geomstate.h"
 #include "mesh.h"
 #include "params.h"
 #include "shape.h"
 
 namespace veraa {
-
-// What flows up a modifier stack: a mesh, or splines (shapes). Modifiers like Extrude or
-// Lathe turn splines into a mesh by filling `mesh` and setting isShape = false.
-struct GeomState {
-  PolyMesh mesh;
-  BezierShape shape;
-  bool isShape = false;
-  double time = 0.0;  // scene time in frames (for animated modifiers)
-};
 
 class Modifier {
  public:
@@ -38,6 +30,11 @@ class Modifier {
 
   virtual json toJson() const;
   virtual void fromJson(const json& j);
+
+  // True when the result changes with scene time (re-evaluated on every time change).
+  virtual bool timeDependent() const { return false; }
+  // Other nodes this modifier reads (bones, targets, paths); the node re-evaluates when they move.
+  virtual std::vector<uint32_t> referencedNodes() const { return {}; }
 
   // Bumped by touch(); nodes sharing this modifier (instances) re-evaluate when it changes.
   uint64_t revision() const { return revision_; }

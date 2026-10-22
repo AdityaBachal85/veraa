@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 
+#include "geomstate.h"
 #include "mesh.h"
 #include "params.h"
 #include "shape.h"
@@ -25,6 +26,11 @@ class SceneObject {
   virtual json toJson() const;
   virtual void fromJson(const json& j);
 
+  // True when the object changes with scene time (particles); re-evaluated on time changes.
+  virtual bool timeDependent() const { return false; }
+  // Other nodes this object reads (bound space warps, emitters); re-evaluated when they move.
+  virtual std::vector<uint32_t> referencedNodes() const { return {}; }
+
   // Bumped by touch(); nodes sharing this object (instances) re-evaluate when it changes.
   uint64_t revision() const { return revision_; }
   void touch();
@@ -40,6 +46,9 @@ class GeometryObject : public SceneObject {
   ObjectKind kind() const override { return ObjectKind::Geometry; }
   // Builds the base mesh in object space (before modifiers).
   virtual PolyMesh build() const = 0;
+  // Builds the base mesh for a given evaluation context (time, scene, node). Time-dependent
+  // objects such as particle systems override this; the default calls build().
+  virtual PolyMesh buildAt(const GeomState& context) const { return build(); }
 };
 
 // Mesh stored explicitly (imported models, Convert to Editable Poly). The Editable Poly tools
