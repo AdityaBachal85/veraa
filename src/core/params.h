@@ -9,7 +9,7 @@
 
 #include <nlohmann/json.hpp>
 
-#include "math.h"
+#include "vmath.h"
 
 namespace veraa {
 

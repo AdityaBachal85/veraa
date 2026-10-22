@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <vector>
 
-#include "math.h"
+#include "vmath.h"
 
 namespace veraa {
 

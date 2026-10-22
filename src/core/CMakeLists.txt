@@ -1,5 +1,5 @@
 add_library(veraa_core STATIC
-  math.cpp
+  vmath.cpp
   params.cpp
   mesh.cpp
   object.cpp
