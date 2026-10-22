@@ -391,6 +391,11 @@ void Renderer::setRegion(bool enabled, float x0, float y0, float x1, float y1) {
   impl_->overRegionBox[3] = y1;
 }
 
+void Renderer::setRenderOnly(const std::vector<uint32_t>& nodeIds) {
+  impl_->overSelected = nodeIds;
+  std::sort(impl_->overSelected.begin(), impl_->overSelected.end());
+}
+
 void Renderer::start() {
   impl_->stop();
   if (!impl_->rtc) return;

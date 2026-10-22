@@ -230,6 +230,7 @@ struct Renderer::Impl : public render::Tracer {
   int overW = 0, overH = 0, overSpp = 0;
   double overTime = -1.0;
   bool overRegion = false;
+  std::vector<uint32_t> overSelected;
   float overRegionBox[4] = {0, 0, 1, 1};
   RenderView view;
   render::RenderCamera cam;

@@ -124,6 +124,8 @@ class Renderer {
   void setTimeLimit(double seconds);
   // Region override (fractions of the image, top-left origin). Disabled = scene setting.
   void setRegion(bool enabled, float x0, float y0, float x1, float y1);
+  // Renders only these geometry nodes (empty = the scene setting). Takes effect in setScene().
+  void setRenderOnly(const std::vector<uint32_t>& nodeIds);
 
   // Progressive rendering on background threads; each pass adds one sample per pixel.
   void start();

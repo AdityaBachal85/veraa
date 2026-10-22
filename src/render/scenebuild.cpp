@@ -410,7 +410,7 @@ bool Renderer::Impl::build(const Scene& scene, std::string* error) {
   }
   std::vector<uint32_t> hiddenNodes = lb.hiddenByMeshLights;
   std::sort(hiddenNodes.begin(), hiddenNodes.end());
-  std::vector<uint32_t> selectedOnly = parseIds(rs.getString("renderSelected"));
+  std::vector<uint32_t> selectedOnly = overSelected.empty() ? parseIds(rs.getString("renderSelected")) : overSelected;
 
   RTCScene top = rtcNewScene(device);
   rtcSetSceneFlags(top, RTC_SCENE_FLAG_ROBUST);
