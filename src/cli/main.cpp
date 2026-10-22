@@ -311,40 +311,13 @@ int main(int argc, char** argv) {
     }
   }
   if (!elementsDir.empty()) {
-    std::filesystem::create_directories(std::filesystem::u8path(elementsDir));
-    bool exr = extensionOf(outPath) == ".exr";
-    auto saveElement = [&](const std::string& name, const std::vector<float>& rgb, bool data) {
-      // Lighting parts use the beauty's tone curve; data elements are shown linearly.
-      DisplaySettings d = display;
-      d.denoise = false;
-      d.useLightMix = false;
-      d.element.clear();
-      if (data) {
-        d = DisplaySettings();
-        d.tonemap = 2;
-      }
-      std::vector<uint8_t> rgba8;
-      toneMapImage(rgb, renderer.width(), renderer.height(), d, rgba8);
-      std::string path = (std::filesystem::u8path(elementsDir) / (name + (exr ? ".exr" : ".png"))).u8string();
-      if (!saveImage(path, renderer.width(), renderer.height(), rgba8, &rgb, nullptr, false, &error))
-        std::fprintf(stderr, "Error: %s\n", error.c_str());
-      else if (!quiet)
-        std::printf("  Element %s\n", path.c_str());
-    };
-    for (const auto& name : renderer.elementNames()) {
-      std::vector<float> rgb;
-      if (!renderer.resolveElement(name, rgb)) continue;
-      bool data = name == "Normals" || name == "ZDepth" || name == "ObjectID" || name == "MaterialID" ||
-                  name == "WireColor" || name == "Alpha" || name == "DiffuseFilter";
-      saveElement(name, rgb, data);
-    }
-    std::vector<std::string> groups = renderer.lightGroupNames();
-    for (const auto& g : groups) {
-      std::vector<LightMixGroup> solo;
-      for (const auto& other : groups) solo.push_back({other, Vec3(1.0f), 1.0f, other == g});
-      std::vector<float> rgb;
-      if (renderer.resolveLightMix(solo, rgb)) saveElement("LightMix_" + g, rgb, false);
-    }
+    std::string ext = extensionOf(outPath) == ".exr" ? ".exr" : ".png";
+    std::vector<std::string> saved;
+    error.clear();
+    saveRenderElements(renderer, display, elementsDir, "", {ext}, &saved, &error);
+    if (!error.empty()) std::fprintf(stderr, "Error: %s\n", error.c_str());
+    if (!quiet)
+      for (const auto& path : saved) std::printf("  Element %s\n", path.c_str());
   }
   if (!quiet) std::printf("Saved %s\n", outPath.c_str());
   return 0;

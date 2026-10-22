@@ -129,4 +129,48 @@ bool saveImage(const std::string& path, int w, int h, const std::vector<uint8_t>
   return ok ? true : fail("Cannot write " + path);
 }
 
+bool isDataElement(const std::string& name) {
+  return name == "Normals" || name == "ZDepth" || name == "ObjectID" || name == "MaterialID" || name == "WireColor" ||
+         name == "Alpha" || name == "DiffuseFilter";
+}
+
+int saveRenderElements(const Renderer& renderer, const DisplaySettings& beauty, const std::string& dir,
+                       const std::string& prefix, const std::vector<std::string>& extensions,
+                       std::vector<std::string>* savedPaths, std::string* error) {
+  std::error_code ec;
+  std::filesystem::create_directories(std::filesystem::u8path(dir), ec);
+  int w = renderer.width(), h = renderer.height(), saved = 0;
+  // Lighting parts use the beauty's tone curve (without denoising or Light Mix); data
+  // elements are written linearly.
+  DisplaySettings lit = beauty;
+  lit.denoise = false;
+  lit.useLightMix = false;
+  lit.element.clear();
+  DisplaySettings data;
+  data.tonemap = 2;
+  auto save = [&](const std::string& name, const std::vector<float>& rgb, bool isData) {
+    std::vector<uint8_t> rgba8;
+    toneMapImage(rgb, w, h, isData ? data : lit, rgba8);
+    for (const std::string& ext : extensions) {
+      std::string path = (std::filesystem::u8path(dir) / std::filesystem::u8path(prefix + name + ext)).u8string();
+      if (saveImage(path, w, h, rgba8, &rgb, nullptr, false, error)) {
+        ++saved;
+        if (savedPaths) savedPaths->push_back(path);
+      }
+    }
+  };
+  for (const auto& name : renderer.elementNames()) {
+    std::vector<float> rgb;
+    if (renderer.resolveElement(name, rgb)) save(name, rgb, isDataElement(name));
+  }
+  std::vector<std::string> groups = renderer.lightGroupNames();
+  for (const auto& g : groups) {
+    std::vector<LightMixGroup> solo;
+    for (const auto& other : groups) solo.push_back({other, Vec3(1.0f), 1.0f, other == g});
+    std::vector<float> rgb;
+    if (renderer.resolveLightMix(solo, rgb)) save("LightMix_" + g, rgb, false);
+  }
+  return saved;
+}
+
 }  // namespace veraa

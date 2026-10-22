@@ -925,38 +925,10 @@ void FrameBufferWindow::saveAllElements() {
   }
   QString dir = QFileDialog::getExistingDirectory(this, tr("Save Render Elements To"));
   if (dir.isEmpty()) return;
-  int w = renderer_.width(), h = renderer_.height();
-  DisplaySettings d = display();
-  d.denoise = false;
-  d.useLightMix = false;
-  d.element.clear();
-  int saved = 0;
-  auto save = [&](const std::string& name, const std::vector<float>& rgb, bool data) {
-    DisplaySettings dd = data ? DisplaySettings() : d;
-    if (data) dd.tonemap = 2;
-    std::vector<uint8_t> px;
-    toneMapImage(rgb, w, h, dd, px);
-    std::string err;
-    std::string base = (QDir(dir).filePath(QString::fromStdString(name))).toStdString();
-    if (saveImage(base + ".png", w, h, px, &rgb, nullptr, false, &err) && saveImage(base + ".exr", w, h, px, &rgb, nullptr, false, &err))
-      ++saved;
-    else
-      log_->addItem(QString::fromStdString(err));
-  };
-  for (const auto& n : names) {
-    std::vector<float> rgb;
-    if (!renderer_.resolveElement(n, rgb)) continue;
-    bool data = n == "Normals" || n == "ZDepth" || n == "ObjectID" || n == "MaterialID" || n == "WireColor" ||
-                n == "Alpha" || n == "DiffuseFilter";
-    save(n, rgb, data);
-  }
-  for (const auto& g : groups) {
-    std::vector<LightMixGroup> solo;
-    for (const auto& other : groups) solo.push_back({other, Vec3(1.0f), 1.0f, other == g});
-    std::vector<float> rgb;
-    if (renderer_.resolveLightMix(solo, rgb)) save("LightMix_" + g, rgb, false);
-  }
-  log_->addItem(tr("Saved %1 elements (PNG and EXR) to %2").arg(saved).arg(dir));
+  std::string err;
+  int saved = saveRenderElements(renderer_, display(), dir.toStdString(), "", {".png", ".exr"}, nullptr, &err);
+  if (!err.empty()) log_->addItem(QString::fromStdString(err));
+  log_->addItem(tr("Saved %1 element files (PNG and EXR) to %2").arg(saved).arg(dir));
 }
 
 void FrameBufferWindow::copyToClipboard() {

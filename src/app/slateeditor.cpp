@@ -523,8 +523,13 @@ void SlateEditor::rebuildGraph() {
     if (pit != positions_.end()) {
       n->setPos(pit->second);
     } else {
+      // New node: below everything already placed in its column.
+      double x = -depth * 290.0;
       double& y = columnY[depth];
-      n->setPos(-depth * 290.0, y);
+      for (auto* other : scene_->items())
+        if (auto* o = dynamic_cast<SlateNodeItem*>(other); o && o != n && std::fabs(o->x() - x) < 220.0)
+          y = std::max(y, o->y() + o->height() + 24.0);
+      n->setPos(x, y);
       y += n->height() + 24;
     }
     for (size_t i = 0; i < n->sockets.size(); ++i) {
@@ -605,10 +610,19 @@ void SlateEditor::connectNodes(SlateNodeItem* from, SlateNodeItem* to, int socke
   std::unique_ptr<TexMap> map;
   std::unique_ptr<Material> mtl;
   if (fromFloating) {
+    auto idx = static_cast<size_t>(floatingIndex);
     if (fromMaterial) {
-      mtl = copy ? std::make_unique<Material>(*floatingMtls_[floatingIndex]) : std::move(floatingMtls_[floatingIndex]);
+      mtl = copy ? std::make_unique<Material>(*floatingMtls_[idx]) : std::move(floatingMtls_[idx]);
+      if (!copy) {
+        floatingMtls_.erase(floatingMtls_.begin() + floatingIndex);
+        if (idx < floatingMtlPos_.size()) floatingMtlPos_.erase(floatingMtlPos_.begin() + floatingIndex);
+      }
     } else {
-      map = copy ? std::make_unique<TexMap>(*floatingMaps_[floatingIndex]) : std::move(floatingMaps_[floatingIndex]);
+      map = copy ? std::make_unique<TexMap>(*floatingMaps_[idx]) : std::move(floatingMaps_[idx]);
+      if (!copy) {
+        floatingMaps_.erase(floatingMaps_.begin() + floatingIndex);
+        if (idx < floatingMapPos_.size()) floatingMapPos_.erase(floatingMapPos_.begin() + floatingIndex);
+      }
     }
   } else {
     MtlPath parentPath(fromPath.begin(), fromPath.end() - 1);
@@ -630,24 +644,45 @@ void SlateEditor::connectNodes(SlateNodeItem* from, SlateNodeItem* to, int socke
   if (target.valid()) {
     if (step.kind == MtlPathStep::Kind::Sub && target.material && mtl) {
       auto& slot = target.material->subs[step.sub].material;
-      if (slot) floatingMtls_.push_back(std::move(slot));
+      if (slot) {  // the replaced material stays as a floating node
+        floatingMtls_.push_back(std::move(slot));
+        floatingMtlPos_.resize(floatingMtls_.size() - 1, QPointF(-900, -300));
+        floatingMtlPos_.push_back(QPointF(-900, -300 - 120.0 * static_cast<double>(floatingMtls_.size())));
+      }
       slot = std::move(mtl);
     } else if (step.kind == MtlPathStep::Kind::Map && map) {
       MapSlots* slots = target.material ? &target.material->maps : &target.map->maps;
       MapSlot& s = (*slots)[step.key];
-      if (s.map) floatingMaps_.push_back(std::move(s.map));
+      if (s.map) {
+        floatingMaps_.push_back(std::move(s.map));
+        floatingMapPos_.resize(floatingMaps_.size() - 1, QPointF(-900, 400));
+        floatingMapPos_.push_back(QPointF(-900, 400 + 120.0 * static_cast<double>(floatingMaps_.size())));
+      }
       s.map = std::move(map);
       s.enabled = true;
     }
   }
-  // Drop emptied floating entries.
-  floatingMaps_.erase(std::remove(floatingMaps_.begin(), floatingMaps_.end(), nullptr), floatingMaps_.end());
-  floatingMtls_.erase(std::remove(floatingMtls_.begin(), floatingMtls_.end(), nullptr), floatingMtls_.end());
-  floatingMapPos_.resize(floatingMaps_.size());
-  floatingMtlPos_.resize(floatingMtls_.size());
+  // Drop emptied floating entries (a move out of a slot that could not be connected).
+  for (size_t i = floatingMaps_.size(); i-- > 0;)
+    if (!floatingMaps_[i]) {
+      floatingMaps_.erase(floatingMaps_.begin() + static_cast<std::ptrdiff_t>(i));
+      if (i < floatingMapPos_.size()) floatingMapPos_.erase(floatingMapPos_.begin() + static_cast<std::ptrdiff_t>(i));
+    }
+  for (size_t i = floatingMtls_.size(); i-- > 0;)
+    if (!floatingMtls_[i]) {
+      floatingMtls_.erase(floatingMtls_.begin() + static_cast<std::ptrdiff_t>(i));
+      if (i < floatingMtlPos_.size()) floatingMtlPos_.erase(floatingMtlPos_.begin() + static_cast<std::ptrdiff_t>(i));
+    }
   doc_->notifyMaterialsChanged();
   doc_->endEdit();
   rebuildGraph();
+  // Keep newly connected nodes in view.
+  QRectF all = scene_->itemsBoundingRect().adjusted(-40, -40, 40, 40);
+  QRectF visible = view_->mapToScene(view_->viewport()->rect()).boundingRect();
+  if (!visible.contains(all)) {
+    view_->fitInView(all, Qt::KeepAspectRatio);
+    if (view_->transform().m11() > 1.0) view_->resetTransform();
+  }
 }
 
 void SlateEditor::dropItem(const QString& what, const QPointF& pos) {

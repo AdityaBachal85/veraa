@@ -186,4 +186,13 @@ bool saveImage(const std::string& path, int width, int height, const std::vector
                const std::vector<float>* hdr, const std::vector<float>* alpha, bool withAlpha,
                std::string* error = nullptr);
 
+// True for data elements (normals, depth, IDs, alpha, albedo) that are saved without tone mapping.
+bool isDataElement(const std::string& name);
+// Saves every rendered element and one image per Light Mix group into dir, named
+// <prefix><element><ext> for each extension (".png", ".exr", ...). Lighting elements use the
+// beauty's display settings. Returns the number of files written.
+int saveRenderElements(const Renderer& renderer, const DisplaySettings& beauty, const std::string& dir,
+                       const std::string& prefix, const std::vector<std::string>& extensions,
+                       std::vector<std::string>* savedPaths = nullptr, std::string* error = nullptr);
+
 }  // namespace veraa
