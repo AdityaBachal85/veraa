@@ -446,6 +446,29 @@ void AnimController::onCommit(const json& before) {
   double f = frame();
   int start = startFrame();
   bool touched = false;
+  // Wired values: editing the slave of a two-way wire drives its master; other edits of wired
+  // slaves are overridden by the wire.
+  std::vector<Change> driven;
+  for (const auto& w : anim->wires)
+    for (auto it = changes.begin(); it != changes.end();) {
+      if (it->path != w.to) {
+        ++it;
+        continue;
+      }
+      if (w.twoWay) {
+        Expression e;
+        double ov;
+        if (e.parse(w.exprFrom) && Animation::readValue(old, w.from, ov)) {
+          double x = it->newV;
+          double nv = e.evaluate([&](const std::string& n) { return n == "x" ? x : n == "F" ? f : 0.0; });
+          Animation::writeValue(s, w.from, nv);
+          driven.push_back({w.from, ov, nv});
+          touched = true;
+        }
+      }
+      it = changes.erase(it);
+    }
+  changes.insert(changes.end(), driven.begin(), driven.end());
   for (auto& c : changes) {
     ValuePath p = ValuePath::parse(c.path);
     if (p.kind == ValuePath::Kind::Transform && p.channel >= 3 && p.channel < 6)
