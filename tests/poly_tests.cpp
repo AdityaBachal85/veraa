@@ -1,5 +1,6 @@
 // Poly modeling tests: Editable Poly operations, selection tools, mesh modifiers, Boolean,
 // decimation and snapping math. Topology checks use closed-manifold and volume tests.
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <map>
@@ -52,6 +53,8 @@ static int faceToward(const PolyMesh& m, const Vec3& dir) {
   }
   return best;
 }
+
+static bool cornerOf3(const PolyMesh::Face& f, int v) { return std::find(f.v.begin(), f.v.end(), v) != f.v.end(); }
 
 static bool run(PolyMesh& m, PolySelection& sel, const json& op) {
   std::string msg;
@@ -479,6 +482,63 @@ static void testFaceOps() {
   CHECK(run(c, cs, {{"op", "cut"}, {"face", ct}, {"a", va}, {"b", vb}}));
   CHECK(c.faces.size() == 7);
   CHECK(isClosedManifold(c));
+
+  // Turn the diagonal between two triangles.
+  PolyMesh tr = buildObject("Plane", {{"widthSegs", 1}, {"lengthSegs", 1}});
+  PolySelection trs;
+  CHECK(run(tr, trs, {{"op", "triangulateFaces"}}));
+  CHECK(tr.faces.size() == 2);
+  int da = -1, db = -1;
+  for (int k = 0; k < 3; ++k)
+    if (cornerOf3(tr.faces[1], tr.faces[0].v[k]) && cornerOf3(tr.faces[1], tr.faces[0].v[(k + 1) % 3])) {
+      da = tr.faces[0].v[k];
+      db = tr.faces[0].v[(k + 1) % 3];
+    }
+  CHECK(run(tr, trs, {{"op", "turnEdge"}, {"a", da}, {"b", db}}));
+  CHECK(!cornerOf3(tr.faces[0], da) || !cornerOf3(tr.faces[0], db));
+  CHECK_NEAR(length(tr.faceNormal(tr.faces[0])) + length(tr.faceNormal(tr.faces[1])), 2 * 1e4, 1.0);
+
+  // Create a polygon on the open top of a box, then insert a vertex inside it.
+  PolyMesh cf = box100();
+  int cfTop = faceToward(cf, Vec3(0, 0, 1));
+  std::vector<int> ring = cf.faces[cfTop].v;
+  PolySelection cfs = faceSel({cfTop});
+  CHECK(run(cf, cfs, {{"op", "delete"}}));
+  std::vector<int> loop = openBorderLoops(cf)[0];
+  CHECK(run(cf, cfs, {{"op", "createFace"}, {"verts", loop}}));
+  CHECK(isClosedManifold(cf));
+  CHECK(run(cf, cfs, {{"op", "insertVertexInFace"}, {"face", static_cast<int>(cf.faces.size()) - 1}, {"point", {0, 0, 100}}}));
+  CHECK(isClosedManifold(cf));
+  CHECK(cf.faces.size() == 9);
+
+  // Detach to element separates the polygon from its neighbours.
+  PolyMesh de = box100();
+  PolySelection des = faceSel({faceToward(de, Vec3(0, 0, 1))});
+  CHECK(run(de, des, {{"op", "detachElement"}}));
+  CHECK(elementOf(de, faceToward(de, Vec3(0, 0, 1))).size() == 1);
+  CHECK(de.positions.size() == 12);
+
+  // Weld pairs: weld the detached lid back.
+  std::vector<std::vector<int>> pairs;
+  for (int v = 8; v < 12; ++v)
+    for (int u = 0; u < 8; ++u)
+      if (length(de.positions[v] - de.positions[u]) < 1e-3f) pairs.push_back({v, u});
+  CHECK(pairs.size() == 4);
+  CHECK(run(de, des, {{"op", "weldPairs"}, {"pairs", pairs}}));
+  CHECK(isClosedManifold(de));
+
+  // Border chamfer adds a strip along the open edge.
+  PolyMesh bc = box100();
+  PolySelection bcs = faceSel({faceToward(bc, Vec3(0, 0, 1))});
+  CHECK(run(bc, bcs, {{"op", "delete"}}));
+  PolySelection border;
+  border.level = PolyBorder;
+  auto bl = openBorderLoops(bc)[0];
+  border.edges = borderLoopOf(bc, bl[0], bl[1]);
+  CHECK(run(bc, border, {{"op", "chamferEdges"}, {"amount", 10.0}}));
+  CHECK(bc.faces.size() == 9);
+  CHECK(openBorderLoops(bc).size() == 1);
+  CHECK(openBorderLoops(bc)[0].size() == 4);
 
   // Hide / unhide and delete.
   PolyMesh h = box100();

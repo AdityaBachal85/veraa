@@ -434,6 +434,19 @@ ChamferResult chamferCore(PolyMesh& m, PolySelection& sel, const std::set<int>& 
   if (!open) {
     // One quad per chamfered edge, between the two faces' moved copies of the edge.
     for (const auto& [e, list] : sides) {
+      if (list.size() == 1) {
+        // Open (border) edge: a strip between the original border and its moved copy.
+        const auto& s0 = list[0];
+        PolyMesh::Face q;
+        q.v = std::vector<int>{s0[0], s0[1], s0[3], s0[2]};
+        q.smoothGroups = 0;
+        m.faces.push_back(q);
+        res.newFaces.push_back(static_cast<int>(m.faces.size()) - 1);
+        boundaryHalf.insert({s0[0], s0[1]});
+        boundaryHalf.insert({s0[2], s0[0]});
+        boundaryHalf.insert({s0[1], s0[3]});
+        continue;
+      }
       if (list.size() != 2) continue;
       const auto& s0 = list[0];
       const auto& s1 = list[1];
@@ -773,6 +786,8 @@ void autoSmooth(PolyMesh& m, const std::vector<int>* faces, float angleDeg) {
   for (size_t f = 0; f < nf; ++f)
     if (in[f]) m.faces[f].smoothGroups = 1u << color[region[f]];
 }
+
+std::vector<int> faceTriangles(const PolyMesh& m, const PolyMesh::Face& f) { return earClipFace(m, f); }
 
 double meshVolume(const PolyMesh& m) {
   double v = 0;
@@ -1210,8 +1225,8 @@ bool opChamferEdges(PolyMesh& m, PolySelection& sel, float amount, bool open, st
   if (sel.edges.empty()) return fail(msg, "Select edges to chamfer");
   if (amount <= 0) return fail(msg, "Chamfer amount must be positive");
   PolyTopology topo(m);
-  std::set<int> es = interiorEdges(topo, sel.edges);
-  if (es.empty()) return fail(msg, "Chamfer needs edges shared by two polygons");
+  std::set<int> es = edgeSetFromKeys(topo, sel.edges);
+  if (es.empty()) return fail(msg, "Select edges to chamfer");
   ChamferResult r = chamferCore(m, sel, {}, es, amount, open);
   // The new chamfer polygons stay selected for follow-up polygon tools.
   sel.faces = r.newFaces;
@@ -1828,6 +1843,131 @@ bool opInsertLoop(PolyMesh& m, PolySelection& sel, int a, int b, float t, std::s
   return true;
 }
 
+bool opTurnEdge(PolyMesh& m, PolySelection& sel, int a, int b, std::string* msg) {
+  int f1 = -1, f2 = -1, k1 = -1, k2 = -1;
+  for (size_t f = 0; f < m.faces.size(); ++f) {
+    const auto& face = m.faces[f];
+    if (face.v.size() != 3) continue;
+    for (int k = 0; k < 3; ++k) {
+      if (face.v[k] == a && face.v[(k + 1) % 3] == b) { f1 = static_cast<int>(f); k1 = k; }
+      if (face.v[k] == b && face.v[(k + 1) % 3] == a) { f2 = static_cast<int>(f); k2 = k; }
+    }
+  }
+  if (f1 < 0 || f2 < 0) return fail(msg, "Turn needs an edge between two triangles");
+  PolyMesh::Face A = m.faces[f1], B = m.faces[f2];
+  int c = A.v[(k1 + 2) % 3], d = B.v[(k2 + 2) % 3];
+  bool uv = A.uv.size() == 3 && B.uv.size() == 3;
+  auto uvOf = [&](const PolyMesh::Face& f, int v) { return f.uv[cornerOf(f, v)]; };
+  PolyMesh::Face t1 = A, t2 = A;
+  t1.v = std::vector<int>{a, d, c};
+  t2.v = std::vector<int>{d, b, c};
+  if (uv) {
+    t1.uv = std::vector<int>{uvOf(A, a), uvOf(B, d), uvOf(A, c)};
+    t2.uv = std::vector<int>{uvOf(B, d), uvOf(A, b), uvOf(A, c)};
+  } else {
+    t1.uv.clear();
+    t2.uv.clear();
+  }
+  m.faces[f1] = t1;
+  m.faces[f2] = t2;
+  sel.edges = {edgeKey(c, d)};
+  return true;
+}
+
+bool opWeldPairs(PolyMesh& m, PolySelection& sel, const json& pairs, std::string* msg) {
+  int n = static_cast<int>(m.positions.size());
+  std::vector<int> target(n);
+  for (int i = 0; i < n; ++i) target[i] = i;
+  bool any = false;
+  for (const auto& p : pairs) {
+    if (!p.is_array() || p.size() != 2) continue;
+    int from = p[0].get<int>(), to = p[1].get<int>();
+    if (from < 0 || to < 0 || from >= n || to >= n || from == to) continue;
+    target[from] = to;
+    any = true;
+  }
+  if (!any) return fail(msg, "Nothing to weld");
+  // Resolve chains (a -> b -> c).
+  for (int i = 0; i < n; ++i)
+    for (int guard = 0; target[target[i]] != target[i] && guard < n; ++guard) target[i] = target[target[i]];
+  mergeVerticesInto(m, sel, target);
+  return true;
+}
+
+bool opDetachElement(PolyMesh& m, PolySelection& sel, std::string* msg) {
+  std::vector<int> faces = selectedFaces(m, sel);
+  if (faces.empty()) return fail(msg, "Select polygons to detach");
+  std::vector<char> in(m.faces.size(), 0);
+  for (int f : faces) in[f] = 1;
+  std::vector<char> usedOutside(m.positions.size(), 0);
+  for (size_t f = 0; f < m.faces.size(); ++f)
+    if (!in[f])
+      for (int v : m.faces[f].v) usedOutside[v] = 1;
+  std::map<int, int> copy;
+  for (int f : faces)
+    for (int& v : m.faces[f].v)
+      if (usedOutside[v]) {
+        auto it = copy.find(v);
+        if (it == copy.end()) it = copy.emplace(v, m.addVertex(m.positions[v])).first;
+        v = it->second;
+      }
+  return true;
+}
+
+bool opCreateFace(PolyMesh& m, PolySelection& sel, const json& verts, std::string* msg) {
+  PolyMesh::Face f;
+  int n = static_cast<int>(m.positions.size());
+  for (const auto& v : verts) {
+    int i = v.get<int>();
+    if (i < 0 || i >= n) return fail(msg, "Invalid vertex");
+    if (!f.v.empty() && f.v.back() == i) continue;
+    f.v.push_back(i);
+  }
+  while (f.v.size() > 1 && f.v.front() == f.v.back()) f.v.pop_back();
+  std::vector<int> u = f.v;
+  sortUnique(u);
+  if (u.size() < 3 || u.size() != f.v.size()) return fail(msg, "A polygon needs three or more different vertices");
+  // Wind the new polygon opposite to neighbours that share its edges.
+  std::set<std::pair<int, int>> existing;
+  for (const auto& face : m.faces)
+    for (size_t k = 0; k < face.v.size(); ++k) existing.insert({face.v[k], face.v[(k + 1) % face.v.size()]});
+  int same = 0, opposite = 0;
+  for (size_t k = 0; k < f.v.size(); ++k) {
+    int a = f.v[k], b = f.v[(k + 1) % f.v.size()];
+    if (existing.count({a, b})) ++same;
+    if (existing.count({b, a})) ++opposite;
+  }
+  if (same > opposite) std::reverse(f.v.begin(), f.v.end());
+  f.smoothGroups = 0;
+  m.faces.push_back(f);
+  ensureFaceUvs(m);
+  sel.faces = {static_cast<int>(m.faces.size()) - 1};
+  return true;
+}
+
+bool opInsertVertexInFace(PolyMesh& m, PolySelection& sel, int face, const Vec3& p, std::string* msg) {
+  if (face < 0 || face >= static_cast<int>(m.faces.size())) return fail(msg, "Pick a polygon");
+  PolyMesh::Face f = m.faces[face];
+  int nv = m.addVertex(p);
+  size_t n = f.v.size();
+  bool uv = f.uv.size() == n;
+  int cuv = -1;
+  if (uv) {
+    Vec2 c;
+    for (int t : f.uv) c += m.uvs[t];
+    cuv = m.addUv(c / static_cast<float>(n));
+  }
+  for (size_t k = 0; k < n; ++k) {
+    PolyMesh::Face t = f;
+    t.v = std::vector<int>{f.v[k], f.v[(k + 1) % n], nv};
+    if (uv) t.uv = std::vector<int>{f.uv[k], f.uv[(k + 1) % n], cuv};
+    if (k == 0) m.faces[face] = t;
+    else m.faces.push_back(t);
+  }
+  sel.verts = {nv};
+  return true;
+}
+
 bool opDeleteSelected(PolyMesh& m, PolySelection& sel, std::string* msg) {
   std::vector<int> faces;
   if (sel.level == PolyFace || sel.level == PolyElement) {
@@ -1929,6 +2069,28 @@ bool runPolyOp(PolyMesh& m, PolySelection& sel, const json& op, std::string* msg
     }
     ensureFaceUvs(m);
     sel.verts = apexes;
+    sel.normalize();
+    ok = true;
+  } else if (name == "turnEdge") {
+    ok = opTurnEdge(m, sel, i("a", -1), i("b", -1), msg);
+  } else if (name == "weldPairs") {
+    ok = opWeldPairs(m, sel, op.value("pairs", json::array()), msg);
+  } else if (name == "detachElement") {
+    ok = opDetachElement(m, sel, msg);
+  } else if (name == "createFace") {
+    ok = opCreateFace(m, sel, op.value("verts", json::array()), msg);
+  } else if (name == "insertVertexInFace") {
+    ok = opInsertVertexInFace(m, sel, i("face", -1), jsonVec3(op, "point", Vec3()), msg);
+  } else if (name == "hideUnselected") {
+    if (sel.level == PolyVertex) {
+      for (size_t v = 0; v < m.positions.size(); ++v)
+        if (!sel.hasVert(static_cast<int>(v))) sel.hiddenVerts.push_back(static_cast<int>(v));
+    } else {
+      std::vector<int> keep = facesFromSelection(m, sel);
+      std::sort(keep.begin(), keep.end());
+      for (size_t f = 0; f < m.faces.size(); ++f)
+        if (!std::binary_search(keep.begin(), keep.end(), static_cast<int>(f))) sel.hiddenFaces.push_back(static_cast<int>(f));
+    }
     sel.normalize();
     ok = true;
   } else if (name == "connectVerts") {

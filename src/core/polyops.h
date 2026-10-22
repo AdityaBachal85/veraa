@@ -77,7 +77,8 @@ std::vector<float> softSelectionWeights(const PolyMesh& m, const PolySelection& 
 //   relax {amount, iterations, keepBoundary}, slice {point[3], normal[3], selectedOnly, split},
 //   cut {face, a, b} (a and b are vertex indices of the face), insertLoop {a, b, t},
 //   transform {matrix[16] (row-major object-space), soft {enabled, falloff, pinch, bubble}},
-//   moveVerts {verts[], deltas[] (xyz triplets)}
+//   moveVerts {verts[], deltas[] (xyz triplets)}, turnEdge {a, b}, weldPairs {pairs: [[from, to], ...]},
+//   detachElement, createFace {verts[]}, insertVertexInFace {face, point[3]}, hideUnselected
 bool runPolyOp(PolyMesh& m, PolySelection& sel, const json& op, std::string* msg = nullptr);
 
 // Building blocks (also used directly by modifiers and tools).
@@ -101,6 +102,8 @@ std::vector<std::vector<Vec3>> edgeChains(const PolyMesh& m, const std::vector<u
                                           std::vector<bool>* closedOut = nullptr);
 // Assigns smoothing groups so faces meeting at less than angleDeg are smoothed together.
 void autoSmooth(PolyMesh& m, const std::vector<int>* faces, float angleDeg);
+// Triangulation of one polygon as corner indices (3 per triangle; handles concave polygons).
+std::vector<int> faceTriangles(const PolyMesh& m, const PolyMesh::Face& f);
 // Signed volume (for closed meshes) via triangulation.
 double meshVolume(const PolyMesh& m);
 // Per-vertex weights a sub-object selection passes up the modifier stack: empty at object
