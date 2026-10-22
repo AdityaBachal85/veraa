@@ -14,6 +14,7 @@ add_library(veraa_core STATIC
   renderobjects.cpp
   rendersettings.cpp
   photometry.cpp
+  motionhook.cpp
 )
 target_include_directories(veraa_core
   PUBLIC

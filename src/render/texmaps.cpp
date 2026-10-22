@@ -58,8 +58,6 @@ inline float smooth01(float t) {
   return t * t * (3.0f - 2.0f * t);
 }
 
-inline Vec3 vabs(const Vec3& v) { return {std::fabs(v.x), std::fabs(v.y), std::fabs(v.z)}; }
-
 float fractalNoise(const Vec3& p, int type, float levels) {
   // type: 0 regular, 1 fractal, 2 turbulence. Returns [0, 1].
   if (type == 0) return clampf(perlinNoise(p.x, p.y, p.z) * 0.5f + 0.5f, 0.0f, 1.0f);
@@ -313,7 +311,7 @@ class GradientMap : public MapNode {
     Vec2 uv;
     float scale;
     coords_.apply(sc, uv, scale);
-    float t = radial_ ? 1.0f - std::min(1.0f, length(Vec2(uv.x - 0.5f, uv.y - 0.5f)) * 2.0f) : uv.y;
+    float t = radial_ ? 1.0f - std::min(1.0f, std::sqrt((uv.x - 0.5f) * (uv.x - 0.5f) + (uv.y - 0.5f) * (uv.y - 0.5f)) * 2.0f) : uv.y;
     if (noise_ > 0.0f) t += noise_ * perlinNoise(uv.x / noiseSize_ * 4.0f, uv.y / noiseSize_ * 4.0f, 0.37f);
     t = clampf(t, 0.0f, 1.0f);
     // Color 3 at the bottom (t = 0), color 1 at the top, like the classic Gradient map.

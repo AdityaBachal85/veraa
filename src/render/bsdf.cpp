@@ -87,31 +87,36 @@ Vec3 Lobe::fresnelAt(float c) const {
   return tint;
 }
 
+static_assert(std::is_trivially_copyable<Lobe>::value, "Lobe is copied as raw bytes");
+
 Lobe* Bsdf::add(const Lobe& l) {
   if (count_ >= kMaxLobes) return nullptr;
-  if (isBlack(l.weight) && l.kind != LobeKind::GgxRefract) return nullptr;
-  lobes_[count_] = l;
-  return &lobes_[count_++];
+  if (veraa::isBlack(l.weight) && l.kind != LobeKind::GgxRefract) return nullptr;
+  Lobe* dst = new (&storage_[count_ * sizeof(Lobe)]) Lobe(l);
+  ++count_;
+  return dst;
 }
 
 void Bsdf::scale(const Vec3& s) {
-  for (int i = 0; i < count_; ++i) lobes_[i].weight *= s;
+  Lobe* L = lobes();
+  for (int i = 0; i < count_; ++i) L[i].weight *= s;
 }
 
 void Bsdf::append(const Bsdf& other, const Vec3& s, bool flipped) {
-  if (isBlack(s)) return;
+  if (veraa::isBlack(s)) return;
   for (int i = 0; i < other.count_ && count_ < kMaxLobes; ++i) {
-    Lobe l = other.lobes_[i];
+    Lobe l = other.lobes()[i];
     l.weight *= s;
     if (flipped) l.flipped = !l.flipped;
-    if (isBlack(l.weight)) continue;
-    lobes_[count_++] = l;
+    if (veraa::isBlack(l.weight)) continue;
+    new (&storage_[count_ * sizeof(Lobe)]) Lobe(l);
+    ++count_;
   }
 }
 
 bool Bsdf::hasSubsurface() const {
   for (int i = 0; i < count_; ++i)
-    if (lobes_[i].kind == LobeKind::Subsurface) return true;
+    if (lobes()[i].kind == LobeKind::Subsurface) return true;
   return false;
 }
 
@@ -120,9 +125,11 @@ void Bsdf::finalize(const Vec3& wo) {
   float sum = 0.0f, diffuseLike = 0.0f;
   albedo_ = Vec3(0.0f);
   nonDelta_ = false;
+  Lobe* L = lobes();
   for (int i = 0; i < count_; ++i) {
-    const Lobe& l = lobes_[i];
+    Lobe& l = L[i];
     Vec3 woL = clampUpper(l.frame.toLocal(wo));
+    l.woL = woL;
     Vec3 a = l.weight;
     switch (l.kind) {
       case LobeKind::Sheen: a *= 0.25f; break;
@@ -140,13 +147,13 @@ void Bsdf::finalize(const Vec3& wo) {
   }
   // Sample reflections a bit more often than their energy suggests; they carry sharp detail.
   for (int i = 0; i < count_; ++i) {
-    LobeKind k = lobes_[i].kind;
+    LobeKind k = L[i].kind;
     if ((k == LobeKind::GgxReflect || k == LobeKind::SpecularReflect) && est[i] > 0.0f)
       est[i] = std::max(est[i], 0.15f * diffuseLike);
     sum += est[i];
   }
   totalSelect_ = sum;
-  for (int i = 0; i < count_; ++i) lobes_[i].select = sum > 0.0f ? est[i] / sum : 0.0f;
+  for (int i = 0; i < count_; ++i) L[i].select = sum > 0.0f ? est[i] / sum : 0.0f;
   albedo_ = clampColor(albedo_, 0.0f, 1.0f);
 }
 
@@ -221,10 +228,11 @@ Vec3 Bsdf::evalLobe(const Lobe& l, const Vec3& woL, const Vec3& wiIn, float& pdf
 BsdfEval Bsdf::eval(const Vec3& wo, const Vec3& wi, int geomSide) const {
   BsdfEval e;
   for (auto& f : e.f) f = Vec3(0.0f);
+  const Lobe* L = lobes();
   for (int i = 0; i < count_; ++i) {
-    const Lobe& l = lobes_[i];
+    const Lobe& l = L[i];
     if (isDelta(l.kind) || l.select <= 0.0f) continue;
-    Vec3 woL = clampUpper(l.frame.toLocal(wo));
+    const Vec3& woL = l.woL;
     Vec3 wiL = l.frame.toLocal(wi);
     if (geomSide != 0 && (wiL.z > 0.0f) != (geomSide > 0)) continue;
     float pdf = 0.0f;
@@ -240,21 +248,22 @@ bool Bsdf::sample(const Vec3& wo, float uLobe, float u1, float u2, BsdfSample& s
   if (isBlack()) return false;
   int idx = -1;
   float cdf = 0.0f, uRest = 0.0f;
+  const Lobe* L = lobes();
   for (int i = 0; i < count_; ++i) {
-    float next = cdf + lobes_[i].select;
+    float next = cdf + L[i].select;
     if (uLobe < next || i == count_ - 1) {
-      if (lobes_[i].select <= 0.0f) continue;
+      if (L[i].select <= 0.0f) continue;
       idx = i;
-      uRest = clampf((uLobe - cdf) / lobes_[i].select, 0.0f, 0.99999f);
+      uRest = clampf((uLobe - cdf) / L[i].select, 0.0f, 0.99999f);
       break;
     }
     cdf = next;
   }
   if (idx < 0) return false;
-  const Lobe& l = lobes_[idx];
+  const Lobe& l = L[idx];
   s.lobe = idx;
   s.category = l.category;
-  Vec3 woL = clampUpper(l.frame.toLocal(wo));
+  Vec3 woL = l.woL;
   Vec3 wiL;
   auto finishDelta = [&](const Vec3& w, const Vec3& weight, bool transmission) {
     Vec3 wl = w;

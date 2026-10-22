@@ -115,6 +115,9 @@ struct LightBuildResult {
   int sunSkyModel = 0;
   Vec3 sunGroundAlbedo{0.2f, 0.2f, 0.2f};
   Vec3 sunFilter{1, 1, 1};
+  bool sunInvisible = false;
+  float sunCos = 1.0f;          // cosine of the sun disk's angular radius
+  Vec3 sunColor;                // irradiance color of the sun at the ground
   // Dome light (replaces the environment for lighting).
   bool hasDome = false;
   std::string domeTexture;

@@ -42,8 +42,6 @@ void defineAdvancedRenderSettings(ParamBlock& p) {
   p.addBool("caustics", "Refractive caustics", false);
   p.addFloat("clampDirect", "Clamp direct (0 = off)", 0.0, 0.0, 1e7, 1.0, 1);
   p.addFloat("giMultiplier", "GI multiplier", 1.0, 0.0, 100.0, 0.05);
-  p.addBool("lightCache", "Light cache for secondary bounces", false);
-  p.addFloat("lightCacheCellSize", "Light cache cell size (cm)", 5.0, 0.01, 1e5, 0.5);
 
   p.beginGroup("Exposure");
   p.addEnum("exposureControl", "Exposure control", {"None", "Physical (EV100)"}, 0);

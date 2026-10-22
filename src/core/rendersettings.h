@@ -25,7 +25,7 @@ const std::vector<RenderElementInfo>& renderElementInfos();
 //  Sampler:     samplerType (0 progressive, 1 bucket), minSamples, noiseThreshold (0 = off),
 //               bucketSize, renderRegion, regionX0, regionY0, regionX1, regionY1 (0..1 of the
 //               image, top-left origin), renderSelected (string: comma separated node ids)
-//  GI:          caustics, clampDirect, giMultiplier, lightCache, lightCacheCellSize
+//  GI:          caustics, clampDirect, giMultiplier
 //  Exposure:    exposureControl (0 none, 1 physical EV100), ev100, whiteBalanceK
 //  Atmosphere:  fogOn, fogType (0 uniform, 1 height), fogColor, fogDistance, fogHeight,
 //               fogFalloff, fogAnisotropy, fogAffectBackground, fogEmission

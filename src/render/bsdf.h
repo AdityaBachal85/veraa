@@ -5,6 +5,8 @@
 #pragma once
 
 #include <cstdint>
+#include <new>
+#include <type_traits>
 
 #include "common.h"
 
@@ -44,8 +46,8 @@ struct Lobe {
   Vec3 etaRgb;          // per-channel refraction IOR (dispersion); zero when unused
   float orenA = 1.0f, orenB = 0.0f;
   bool flipped = false;   // Two-sided back material: light from the back side
-  bool causticBlock = false;
   float select = 0.0f;  // sampling probability (set by Bsdf::finalize)
+  Vec3 woL;             // view direction in the lobe frame (set by Bsdf::finalize)
 
   // Fresnel reflectance at a microfacet cosine.
   Vec3 fresnelAt(float cosI) const;
@@ -77,8 +79,8 @@ class Bsdf {
   bool empty() const { return count_ == 0; }
   int count() const { return count_; }
   Lobe* add(const Lobe& l);
-  Lobe& lobe(int i) { return lobes_[i]; }
-  const Lobe& lobe(int i) const { return lobes_[i]; }
+  Lobe& lobe(int i) { return lobes()[i]; }
+  const Lobe& lobe(int i) const { return lobes()[i]; }
   // Multiplies every lobe weight (layering, blending).
   void scale(const Vec3& s);
   // Appends another BSDF's lobes multiplied by s.
@@ -100,7 +102,10 @@ class Bsdf {
 
  private:
   Vec3 evalLobe(const Lobe& l, const Vec3& woL, const Vec3& wiL, float& pdf) const;
-  Lobe lobes_[kMaxLobes];
+  Lobe* lobes() { return reinterpret_cast<Lobe*>(storage_); }
+  const Lobe* lobes() const { return reinterpret_cast<const Lobe*>(storage_); }
+  // Raw storage: lobes are copied in by add(), so building a BSDF does not initialize all slots.
+  alignas(Lobe) unsigned char storage_[kMaxLobes * sizeof(Lobe)];
   int count_ = 0;
   bool nonDelta_ = false;
   float totalSelect_ = 0.0f;

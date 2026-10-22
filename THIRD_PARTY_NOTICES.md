@@ -10,6 +10,7 @@ Veraa uses the following open-source components. Each is used under its own lice
 | oneAPI Threading Building Blocks (TBB) | Used by Embree and Open Image Denoise | Apache License 2.0 | https://github.com/oneapi-src/oneTBB |
 | nlohmann/json 3.11.3 | Scene files | MIT | https://github.com/nlohmann/json |
 | stb_image / stb_image_write (Sean Barrett) | Texture loading, image saving | Public domain / MIT | https://github.com/nothings/stb |
+| TinyEXR 1.0.9 (Syoyo Fujita), includes OpenEXR-derived code (ILM) | OpenEXR loading and saving | BSD 3-Clause | https://github.com/syoyo/tinyexr |
 | Microsoft Visual C++ runtime (Windows builds) | C++ runtime DLLs | Microsoft Visual Studio redistributable terms | https://learn.microsoft.com/cpp/windows/redistributing-visual-cpp-files |
 | Sample HDRI from Poly Haven | Sample scenes | CC0 | https://polyhaven.com/ |
 

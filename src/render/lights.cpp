@@ -439,6 +439,9 @@ LightBuildResult collectLights(const Scene& scene, TextureCache& cache, std::vec
         R.sunSkyModel = p.getInt("skyModel");
         R.sunGroundAlbedo = p.getColor("groundAlbedo");
         R.sunFilter = p.getColor("filterColor");
+        R.sunInvisible = p.getBool("invisible");
+        R.sunCos = l.cosSun;
+        R.sunColor = E;
       }
       if (maxComponent(E) > 0.0f) R.lights.push_back(std::move(l));
       continue;
