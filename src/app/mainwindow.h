@@ -36,6 +36,8 @@ class MainWindow : public QMainWindow {
   CommandPanel* commandPanel() { return commandPanel_; }
 
   bool openFile(const QString& path);
+  // Clones the selection in place; asks for Clone Options when interactive.
+  void cloneSelection(bool askOptions);
   void render();
   MaterialEditor* materialEditor();
   RenderSetupDialog* renderSetup();

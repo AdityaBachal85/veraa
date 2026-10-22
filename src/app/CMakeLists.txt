@@ -7,6 +7,7 @@ add_executable(Veraa
   theme.cpp
   icons.cpp
   document.cpp
+  editorstate.cpp
   viewcamera.cpp
   glscene.cpp
   gizmo.cpp

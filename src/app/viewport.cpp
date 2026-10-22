@@ -1,12 +1,16 @@
 #include "viewport.h"
 
 #include <QDateTime>
+#include <QDragEnterEvent>
+#include <QMimeData>
 #include <QMenu>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
 #include <QWheelEvent>
 
+#include "dialogs.h"
+#include "materialeditor.h"
 #include "theme.h"
 
 namespace veraa {
@@ -39,6 +43,7 @@ Viewport::Viewport(SceneDocument* doc, EditorState* state, ViewType type, QWidge
   cam_.center = Vec3(0, 0, isOrthoAxisView(type) && type != ViewType::Top ? 60.0f : 0.0f);
   setMouseTracking(true);
   setFocusPolicy(Qt::StrongFocus);
+  setAcceptDrops(true);
   setMinimumSize(120, 90);
   auto repaint = [this] { update(); };
   connect(doc_, &SceneDocument::nodesChanged, this, repaint);
@@ -176,7 +181,7 @@ uint32_t Viewport::createCameraFromView() {
 
 void Viewport::initializeGL() {
   initializeOpenGLFunctions();
-  gl_ = std::make_unique<GlScene>(this);
+  gl_ = std::make_unique<GlScene>(static_cast<QOpenGLFunctions_3_3_Core*>(this));
   if (!gl_->init(&glError_)) qWarning("Viewport shader error: %s", qPrintable(glError_));
 }
 
@@ -604,6 +609,7 @@ void Viewport::beginTransformDrag(GizmoHandle h, float px, float py, bool cloneF
   TransformTool tool = state_->tool();
   QString label = tool == TransformTool::Move ? tr("Move") : tool == TransformTool::Rotate ? tr("Rotate") : tr("Scale");
   doc_->beginEdit(cloneFirst ? tr("Clone") : label);
+  cloneDrag_ = cloneFirst;
   if (cloneFirst) doc_->cloneSelected(true);
   setupGizmo();
   dragCenter_ = gizmo_.origin;
@@ -654,6 +660,33 @@ void Viewport::updateTransformDrag(float px, float py) {
 
 void Viewport::endTransformDrag() {
   drag_ = Drag::None;
+  if (cloneDrag_) {
+    // Like 3ds Max: after a Shift+drag clone, ask how many copies to make.
+    cloneDrag_ = false;
+    Scene& scene = doc_->scene();
+    Node* first = dragStart_.empty() ? nullptr : scene.findNode(dragStart_[0].id);
+    CloneOptionsDialog dlg(first ? QString::fromStdString(first->name) : QString(), true, this);
+    if (dlg.exec() != QDialog::Accepted) {
+      dragStart_.clear();
+      doc_->cancelEdit();
+      update();
+      return;
+    }
+    if (first && dragStart_.size() == 1 && !dlg.name().isEmpty()) first->name = dlg.name().toStdString();
+    QVector<uint32_t> created;
+    for (const auto& s : dragStart_) created.push_back(s.id);
+    for (int k = 2; k <= dlg.copies(); ++k)
+      for (const auto& s : dragStart_) {
+        Node* src = scene.findNode(s.id);
+        if (!src) continue;
+        Vec3 delta = src->transform.position - s.xf.position;
+        auto copy = src->clone();
+        copy->transform.position = s.xf.position + delta * static_cast<float>(k);
+        created.push_back(scene.addNode(std::move(copy))->id);
+      }
+    doc_->notifyStructureChanged();
+    doc_->setSelection(created);
+  }
   dragStart_.clear();
   doc_->endEdit();
   update();
@@ -1075,6 +1108,33 @@ void Viewport::leaveEvent(QEvent*) {
     hot_ = GizmoHandle::None;
     update();
   }
+}
+
+void Viewport::dragEnterEvent(QDragEnterEvent* e) {
+  if (e->mimeData()->hasFormat(kMaterialMime)) e->acceptProposedAction();
+}
+
+void Viewport::dragMoveEvent(QDragMoveEvent* e) {
+  if (!e->mimeData()->hasFormat(kMaterialMime)) return;
+  updateCamera();
+  uint32_t hit = pick(static_cast<float>(e->position().x()), static_cast<float>(e->position().y()));
+  Node* n = doc_->scene().findNode(hit);
+  if (n && n->kind() == ObjectKind::Geometry) e->acceptProposedAction();
+  else e->ignore();
+}
+
+void Viewport::dropEvent(QDropEvent* e) {
+  if (!e->mimeData()->hasFormat(kMaterialMime)) return;
+  uint32_t matId = e->mimeData()->data(kMaterialMime).toUInt();
+  updateCamera();
+  uint32_t hit = pick(static_cast<float>(e->position().x()), static_cast<float>(e->position().y()));
+  Node* n = doc_->scene().findNode(hit);
+  if (!n || n->kind() != ObjectKind::Geometry || !doc_->scene().findMaterial(matId)) return;
+  doc_->beginEdit(tr("Assign Material"));
+  n->materialId = matId;
+  doc_->notifyNodeChanged(n, ChangeMaterial);
+  doc_->endEdit();
+  e->acceptProposedAction();
 }
 
 void Viewport::simulateMouse(QEvent::Type type, QPointF pos, Qt::MouseButton button, Qt::MouseButtons buttons,

@@ -23,6 +23,9 @@ namespace veraa {
 
 class ParamForm;
 
+// MIME type for dragging a material id from the Material Editor.
+inline constexpr const char* kMaterialMime = "application/x-veraa-material";
+
 // Renders material swatches on a background thread.
 class PreviewRenderer : public QObject {
   Q_OBJECT

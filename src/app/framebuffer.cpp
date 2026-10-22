@@ -1,6 +1,8 @@
 #include "framebuffer.h"
 
 #include <QApplication>
+
+#include <algorithm>
 #include <QComboBox>
 #include <QDateTime>
 #include <QDockWidget>

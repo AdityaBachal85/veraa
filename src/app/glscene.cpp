@@ -1,6 +1,8 @@
 #include "glscene.h"
 
 #include <QMatrix4x4>
+#include <QOpenGLContext>
+#include <QOpenGLFunctions>
 
 #include "scene.h"
 
@@ -198,7 +200,8 @@ void GlScene::drawWire(const Node& node, uint64_t stamp, const Mat4& viewProj, c
   lineProg_.bind();
   lineProg_.setUniformValue("uMVP", toQt(viewProj * node.worldMatrix()));
   gl_->glBindVertexArray(m.wireVao);
-  gl_->glVertexAttrib4f(1, color.redF(), color.greenF(), color.blueF(), color.alphaF());
+  QOpenGLContext::currentContext()->functions()->glVertexAttrib4f(1, color.redF(), color.greenF(), color.blueF(),
+                                                                  color.alphaF());
   gl_->glDrawElements(GL_LINES, m.wireCount, GL_UNSIGNED_INT, nullptr);
   gl_->glBindVertexArray(0);
   lineProg_.release();

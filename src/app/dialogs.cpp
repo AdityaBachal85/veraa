@@ -4,6 +4,9 @@
 #include <QDialogButtonBox>
 #include <QDoubleSpinBox>
 #include <QFormLayout>
+#include <QGroupBox>
+#include <QRadioButton>
+#include <QSpinBox>
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QLabel>
@@ -100,6 +103,44 @@ ObjImportOptions ObjImportDialog::options() const {
   o.scale = static_cast<float>(scale_->value());
   return o;
 }
+
+CloneOptionsDialog::CloneOptionsDialog(const QString& defaultName, bool showCopies, QWidget* parent)
+    : QDialog(parent) {
+  setWindowTitle(tr("Clone Options"));
+  setWindowFlag(Qt::WindowContextHelpButtonHint, false);
+  auto* v = new QVBoxLayout(this);
+  auto* objBox = new QGroupBox(tr("Object"), this);
+  auto* ov = new QVBoxLayout(objBox);
+  auto* copy = new QRadioButton(tr("Copy"), objBox);
+  copy->setChecked(true);
+  auto* instance = new QRadioButton(tr("Instance"), objBox);
+  auto* reference = new QRadioButton(tr("Reference"), objBox);
+  instance->setEnabled(false);
+  reference->setEnabled(false);
+  instance->setToolTip(tr("Instances are planned for a later version"));
+  reference->setToolTip(tr("References are planned for a later version"));
+  ov->addWidget(copy);
+  ov->addWidget(instance);
+  ov->addWidget(reference);
+  v->addWidget(objBox);
+  auto* form = new QFormLayout;
+  if (showCopies) {
+    copies_ = new QSpinBox(this);
+    copies_->setRange(1, 1000);
+    copies_->setValue(1);
+    form->addRow(tr("Number of copies:"), copies_);
+  }
+  name_ = new QLineEdit(defaultName, this);
+  form->addRow(tr("Name:"), name_);
+  v->addLayout(form);
+  auto* box = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
+  v->addWidget(box);
+  connect(box, &QDialogButtonBox::accepted, this, &QDialog::accept);
+  connect(box, &QDialogButtonBox::rejected, this, &QDialog::reject);
+}
+
+int CloneOptionsDialog::copies() const { return copies_ ? copies_->value() : 1; }
+QString CloneOptionsDialog::name() const { return name_->text().trimmed(); }
 
 ObjectPropertiesDialog::ObjectPropertiesDialog(SceneDocument* doc, Node* node, QWidget* parent) : QDialog(parent) {
   setWindowTitle(tr("Object Properties"));

@@ -103,8 +103,8 @@ class SceneBuilder:
 
 def cornell_box():
     s = SceneBuilder()
-    s.settings = {"width": 800, "height": 800, "samples": 512, "maxDepth": 12, "envMode": 0,
-                  "envColor": [0, 0, 0], "camera": "Camera", "exposure": 0.0}
+    s.settings = {"width": 800, "height": 800, "samples": 256, "maxDepth": 12, "envMode": 0,
+                  "envColor": [0, 0, 0], "camera": "Camera", "exposure": 0.6}
     white = s.material("White", diffuse=[0.73, 0.73, 0.73])
     red = s.material("Red", diffuse=[0.63, 0.065, 0.05])
     green = s.material("Green", diffuse=[0.14, 0.45, 0.091])
@@ -123,7 +123,7 @@ def cornell_box():
 
 def living_room():
     s = SceneBuilder()
-    s.settings = {"width": 1280, "height": 720, "samples": 512, "maxDepth": 8, "clampIndirect": 10,
+    s.settings = {"width": 1280, "height": 720, "samples": 128, "maxDepth": 8, "clampIndirect": 10,
                   "envMode": 3, "skyTurbidity": 3.0, "exposure": 1.4, "camera": "Camera",
                   "groundColor": [0.25, 0.27, 0.22]}
     wall = s.material("Wall paint", diffuse=[0.82, 0.8, 0.76], roughness=0.3)
@@ -229,7 +229,7 @@ def living_room():
 
 def product_shot():
     s = SceneBuilder()
-    s.settings = {"width": 1280, "height": 720, "samples": 512, "maxDepth": 12, "envMode": 2,
+    s.settings = {"width": 1280, "height": 720, "samples": 256, "maxDepth": 12, "envMode": 2,
                   "hdriPath": "../assets/hdri/royal_esplanade_1k.hdr", "hdriIntensity": 0.8,
                   "hdriRotation": 0.0, "envVisible": False, "backgroundColor": [0.04, 0.042, 0.048],
                   "exposure": 0.0, "camera": "Camera"}
@@ -267,7 +267,7 @@ def product_shot():
             invisible=True)
     s.light("RectLight", "RimLight", (150, 170, 130), target=(0, 0, 40), width=60, length=140, intensity=6,
             invisible=True)
-    s.camera("Camera", (10, -245, 115), (4, 0, 46), 40)
+    s.camera("Camera", (12, -345, 150), (4, 0, 32), 40)
     s.save("product_shot.veraa")
 
 

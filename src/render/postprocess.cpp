@@ -64,10 +64,16 @@ std::mutex& oidnMutex() {
 oidn::DeviceRef* oidnDevice() {
   static oidn::DeviceRef device;
   static bool ok = [] {
-    device = oidn::newDevice();
-    device.commit();
-    const char* msg = nullptr;
-    return device.getError(msg) == oidn::Error::None;
+    // Prefer the fastest device (a GPU when available), but fall back to the CPU if the
+    // GPU backend cannot start (missing driver, unsupported card, ...).
+    for (int attempt = 0; attempt < 2; ++attempt) {
+      device = attempt == 0 ? oidn::newDevice() : oidn::newDevice(oidn::DeviceType::CPU);
+      if (!device) continue;
+      device.commit();
+      const char* msg = nullptr;
+      if (device.getError(msg) == oidn::Error::None) return true;
+    }
+    return false;
   }();
   return ok ? &device : nullptr;
 }

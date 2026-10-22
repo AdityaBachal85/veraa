@@ -1,6 +1,7 @@
 // One 3D viewport (Top / Front / Left / Perspective / ...), drawn with OpenGL 3.3.
 #pragma once
 
+#include <QEvent>
 #include <QOpenGLFunctions_3_3_Core>
 #include <QOpenGLWidget>
 #include <QPoint>
@@ -65,6 +66,9 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
   void mouseDoubleClickEvent(QMouseEvent* e) override;
   void wheelEvent(QWheelEvent* e) override;
   void leaveEvent(QEvent* e) override;
+  void dragEnterEvent(QDragEnterEvent* e) override;
+  void dragMoveEvent(QDragMoveEvent* e) override;
+  void dropEvent(QDropEvent* e) override;
 
  private:
   enum class Drag { None, Pan, Orbit, ZoomDrag, Region, Gizmo, Create };
@@ -119,6 +123,7 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
   std::vector<StartXf> dragStart_;
   Vec3 dragCenter_;
   Vec3 dragDisplay_;  // value shown in the overlay during a drag
+  bool cloneDrag_ = false;
 
   // Creation state.
   int createStage_ = 0;  // 0 idle, 1 footprint drag, 2 height

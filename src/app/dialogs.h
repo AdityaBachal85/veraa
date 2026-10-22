@@ -10,6 +10,7 @@ class QCheckBox;
 class QDoubleSpinBox;
 class QLineEdit;
 class QListWidget;
+class QSpinBox;
 
 namespace veraa {
 
@@ -34,6 +35,19 @@ class ObjImportDialog : public QDialog {
   QCheckBox* yUp_;
   QCheckBox* materials_;
   QDoubleSpinBox* scale_;
+};
+
+// Clone Options (Ctrl+V, and after Shift+drag with the Move tool).
+class CloneOptionsDialog : public QDialog {
+  Q_OBJECT
+ public:
+  CloneOptionsDialog(const QString& defaultName, bool showCopies, QWidget* parent = nullptr);
+  int copies() const;
+  QString name() const;
+
+ private:
+  QSpinBox* copies_ = nullptr;
+  QLineEdit* name_;
 };
 
 class ObjectPropertiesDialog : public QDialog {

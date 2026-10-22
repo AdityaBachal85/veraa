@@ -4,7 +4,7 @@
  "renderSettings": {
   "width": 1280,
   "height": 720,
-  "samples": 512,
+  "samples": 128,
   "maxDepth": 8,
   "clampIndirect": 10,
   "envMode": 3,

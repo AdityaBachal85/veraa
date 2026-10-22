@@ -161,7 +161,9 @@ class PreethamSky {
     float gamma = std::acos(clampf(dot(d, sun_), -1.0f, 1.0f));
     float Y = zY_ * Y_(cosT, gamma) / normY_;
     float x = zx_ * x_(cosT, gamma) / normx_;
-    float y = zy_ * y_(cosT, gamma) / normy_;
+    // Preetham's chromaticities sit slightly below the white point (a magenta cast near the
+    // horizon); a small shift toward green makes the horizon neutral, as in real skies.
+    float y = zy_ * y_(cosT, gamma) / normy_ + 0.012f;
     Vec3 c = xyYToLinearSrgb(x, y, Y);
     return vmax(c, Vec3(0.0f));
   }
@@ -264,7 +266,7 @@ void Environment::build(const Scene& scene, TextureCache& cache, const Vec3* sun
       modelSun = normalize(modelSun);
     }
     PreethamSky sky(modelSun, turbidity);
-    const int w = 512, h = 256;
+    const int w = 256, h = 128;
     std::vector<float> rgb(static_cast<size_t>(w) * h * 3, 0.0f);
     double eRaw = 0.0;
     for (int y = 0; y < h / 2; ++y)

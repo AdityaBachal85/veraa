@@ -261,6 +261,65 @@ static void testProgressive() {
   CHECK(rgba.size() == 96u * 96u * 4u);
 }
 
+// Image textures: a two-color diffuse map and an opacity map with a transparent left half.
+static void testTextures() {
+  auto dir = std::filesystem::temp_directory_path() / "veraa_tex_test";
+  std::filesystem::create_directories(dir);
+  const int n = 32;
+  std::vector<uint8_t> colorTex(n * n * 4), alphaTex(n * n * 4);
+  for (int y = 0; y < n; ++y)
+    for (int x = 0; x < n; ++x) {
+      uint8_t* c = &colorTex[(y * n + x) * 4];
+      bool left = x < n / 2;
+      c[0] = left ? 255 : 0;
+      c[1] = left ? 0 : 255;
+      c[2] = 0;
+      c[3] = 255;
+      uint8_t* a = &alphaTex[(y * n + x) * 4];
+      a[0] = a[1] = a[2] = 255;
+      a[3] = left ? 0 : 255;
+    }
+  std::string colorPath = (dir / "color.png").u8string(), alphaPath = (dir / "alpha.png").u8string();
+  CHECK(writePng(colorPath, n, n, colorTex));
+  CHECK(writePng(alphaPath, n, n, alphaTex));
+
+  for (int variant = 0; variant < 2; ++variant) {
+    Scene s;
+    baseSettings(s, 32, 64, 4);
+    s.renderSettings.setColor("envColor", Vec3(1.0f));
+    Material* m = s.createMaterial("Textured");
+    if (variant == 0) {
+      m->params.setColor("diffuse", Vec3(1.0f));
+      m->params.setString("diffuseMap", colorPath);
+    } else {
+      m->params.setColor("diffuse", Vec3(0.0f));
+      m->params.setString("opacityMap", alphaPath);
+    }
+    Node* plane = s.createNode("Plane");
+    plane->materialId = m->id;
+    Renderer r;
+    CHECK(r.setScene(s));
+    CHECK(r.warnings().empty());
+    r.setView(topDownView(100.0f));
+    r.renderBlocking();
+    std::vector<float> hdr;
+    r.resolveHdr(hdr);
+    auto px = [&](int x, int y) {
+      const float* p = &hdr[(static_cast<size_t>(y) * 32 + x) * 3];
+      return Vec3(p[0], p[1], p[2]);
+    };
+    Vec3 left = px(8, 16), right = px(24, 16);
+    if (variant == 0) {
+      CHECK(left.x > 3 * left.y);   // red half
+      CHECK(right.y > 3 * right.x); // green half
+    } else {
+      CHECK(left.x > 0.95f);        // cut out: the white environment shows through
+      CHECK(right.x < 0.05f);       // black opaque half
+    }
+  }
+  std::filesystem::remove_all(dir);
+}
+
 static void testMaterialPreview() {
   Material m;
   m.params.setColor("diffuse", Vec3(0.8f, 0.1f, 0.1f));
@@ -280,6 +339,7 @@ int main() {
   testEnvironmentSampling();
   testSceneFileRender();
   testProgressive();
+  testTextures();
   testMaterialPreview();
   std::printf("Denoiser available: %s\n", Renderer::denoiserAvailable() ? "yes" : "no");
   if (g_failures) {

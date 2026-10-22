@@ -4,7 +4,7 @@
  "renderSettings": {
   "width": 800,
   "height": 800,
-  "samples": 512,
+  "samples": 256,
   "maxDepth": 12,
   "envMode": 0,
   "envColor": [
@@ -13,7 +13,7 @@
    0
   ],
   "camera": "Camera",
-  "exposure": 0.0
+  "exposure": 0.6
  },
  "materials": [
   {

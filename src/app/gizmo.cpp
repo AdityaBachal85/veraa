@@ -96,6 +96,8 @@ GizmoHandle Gizmo::hitTest(const ViewCamera& cam, float px, float py) const {
     for (int a = 0; a < 3; ++a) {
       Vec3 u, v;
       makeBasis(axes[a], u, v);
+      // Rings seen edge-on collapse to lines; let face-on rings win ambiguous clicks.
+      float penalty = std::fabs(dot(axes[a], cam.forward())) < 0.15f ? 3.0f : 0.0f;
       float lx = 0, ly = 0;
       bool havePrev = false;
       for (int i = 0; i <= kRingSegments; ++i) {
@@ -106,7 +108,7 @@ GizmoHandle Gizmo::hitTest(const ViewCamera& cam, float px, float py) const {
         float sx, sy;
         if (!cam.project(p, sx, sy)) { havePrev = false; continue; }
         if (havePrev && front) {
-          float d = distToSegment(px, py, lx, ly, sx, sy);
+          float d = distToSegment(px, py, lx, ly, sx, sy) + penalty;
           if (d < best) { best = d; hit = axisHandles[a]; }
         }
         lx = sx; ly = sy; havePrev = true;

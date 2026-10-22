@@ -6,6 +6,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QMimeData>
 #include <QPainter>
 #include <QPushButton>
 #include <QScrollArea>
@@ -20,6 +21,30 @@ namespace veraa {
 
 namespace {
 constexpr int kSlotSize = 96;
+
+// Same pixmap for normal and selected states (no blue selection tint over the swatch).
+QIcon slotIcon(const QImage& img) {
+  QPixmap pm = QPixmap::fromImage(img.scaled(kSlotSize, kSlotSize, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+  QIcon icon;
+  icon.addPixmap(pm, QIcon::Normal);
+  icon.addPixmap(pm, QIcon::Selected);
+  return icon;
+}
+
+// Sample slots that can be dragged onto objects in a viewport.
+class SlotList : public QListWidget {
+ public:
+  using QListWidget::QListWidget;
+
+ protected:
+  QMimeData* mimeData(const QList<QListWidgetItem*>& items) const override {
+    if (items.isEmpty()) return nullptr;
+    auto* mime = new QMimeData;
+    mime->setData(kMaterialMime, QByteArray::number(items.first()->data(Qt::UserRole).toUInt()));
+    return mime;
+  }
+  QStringList mimeTypes() const override { return {kMaterialMime}; }
+};
 constexpr int kPreviewSize = 160;
 constexpr int kPreviewSamples = 48;
 
@@ -98,7 +123,10 @@ MaterialEditor::MaterialEditor(SceneDocument* doc, QWidget* parent) : QDialog(pa
   auto* left = new QWidget(split);
   auto* lv = new QVBoxLayout(left);
   lv->setContentsMargins(0, 0, 0, 0);
-  slots_ = new QListWidget(left);
+  slots_ = new SlotList(left);
+  slots_->setDragEnabled(true);
+  slots_->setDragDropMode(QAbstractItemView::DragOnly);
+  slots_->setToolTip(tr("Drag a material onto an object in a viewport to assign it"));
   slots_->setViewMode(QListView::IconMode);
   slots_->setIconSize(QSize(kSlotSize, kSlotSize));
   slots_->setGridSize(QSize(kSlotSize + 18, kSlotSize + 30));
@@ -167,8 +195,7 @@ MaterialEditor::MaterialEditor(SceneDocument* doc, QWidget* parent) : QDialog(pa
     images_[id] = img;
     for (int i = 0; i < slots_->count(); ++i)
       if (slots_->item(i)->data(Qt::UserRole).toUInt() == id)
-        slots_->item(i)->setIcon(QIcon(QPixmap::fromImage(img.scaled(kSlotSize, kSlotSize, Qt::KeepAspectRatio,
-                                                                     Qt::SmoothTransformation))));
+        slots_->item(i)->setIcon(slotIcon(img));
     if (id == currentId_) bigPreview_->setPixmap(QPixmap::fromImage(img));
   });
 
@@ -281,7 +308,7 @@ void MaterialEditor::rebuildSlots() {
       auto* it = new QListWidgetItem(QString::fromStdString(m->name), slots_);
       it->setData(Qt::UserRole, m->id);
       QImage img = images_.value(m->id, placeholder(kSlotSize));
-      it->setIcon(QIcon(QPixmap::fromImage(img.scaled(kSlotSize, kSlotSize))));
+      it->setIcon(slotIcon(img));
       it->setTextAlignment(Qt::AlignHCenter | Qt::AlignTop);
       requestPreview(m->id);
     }

@@ -1,6 +1,7 @@
 // Auto-generated editors for a ParamBlock, grouped into collapsible rollouts like 3ds Max.
 #pragma once
 
+#include <QFrame>
 #include <QPushButton>
 #include <QWidget>
 
@@ -12,7 +13,6 @@
 class QVBoxLayout;
 class QFormLayout;
 class QToolButton;
-class QFrame;
 
 namespace veraa {
 

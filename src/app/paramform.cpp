@@ -209,7 +209,10 @@ void ParamForm::refresh() {
 void ParamForm::rebuild() {
   refreshers_.clear();
   while (QLayoutItem* item = layout_->takeAt(0)) {
-    if (item->widget()) item->widget()->deleteLater();
+    if (QWidget* w = item->widget()) {
+      w->hide();  // deleteLater runs later; don't let old rollouts show through meanwhile
+      w->deleteLater();
+    }
     delete item;
   }
   if (!block_) return;
@@ -219,12 +222,14 @@ void ParamForm::rebuild() {
     if (std::find(groups.begin(), groups.end(), d.group) == groups.end()) groups.push_back(d.group);
 
   for (const std::string& group : groups) {
+    bool any = false;
+    for (const ParamDef& d : block_->defs())
+      any |= d.group == group && !exclude_.contains(QString::fromStdString(d.key));
+    if (!any) continue;
     auto* roll = new Rollout(QString::fromStdString(group), this);
     QFormLayout* form = roll->form();
-    int rows = 0;
     for (const ParamDef& d : block_->defs()) {
       if (d.group != group || exclude_.contains(QString::fromStdString(d.key))) continue;
-      ++rows;
       const std::string key = d.key;
       QString label = QString::fromStdString(d.label);
       QWidget* field = nullptr;
@@ -357,10 +362,6 @@ void ParamForm::rebuild() {
       }
       if (!d.tooltip.empty()) field->setToolTip(QString::fromStdString(d.tooltip));
       form->addRow(label + ":", field);
-    }
-    if (rows == 0) {
-      roll->deleteLater();
-      continue;
     }
     layout_->addWidget(roll);
   }

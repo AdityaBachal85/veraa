@@ -163,6 +163,7 @@ void CommandPanel::setCategory(int c) {
 void CommandPanel::rebuildTypeButtons() {
   for (QAbstractButton* b : typeGroup_->buttons()) {
     typeGroup_->removeButton(b);
+    b->hide();
     b->deleteLater();
   }
   std::vector<std::string> types;
