@@ -159,7 +159,10 @@ void MainWindow::createActions() {
           [this](const QString& t) { redoAct_->setToolTip(t.isEmpty() ? tr("Redo") : tr("Redo %1").arg(t)); });
 
   deleteAct_ = act(tr("&Delete"), QKeySequence::Delete, icons::trash());
-  connect(deleteAct_, &QAction::triggered, this, [this] { doc_->deleteSelected(); });
+  connect(deleteAct_, &QAction::triggered, this, [this] {
+    if (auto tool = state_->viewportToolShared(); tool && tool->deleteSelection()) return;
+    doc_->deleteSelected();
+  });
   cloneAct_ = act(tr("&Clone"), QKeySequence("Ctrl+V"));
   connect(cloneAct_, &QAction::triggered, this, [this] { cloneSelection(true); });
   selectAllAct_ = act(tr("Select &All"), QKeySequence("Ctrl+A"));
@@ -457,8 +460,8 @@ void MainWindow::createMenus() {
       n->object = std::move(poly);
       n->modifiers.clear();
     }
+    doc_->notifyStructureChanged();  // first: panels drop references to the replaced objects
     doc_->notifyNodesChanged(ids, ChangeGeometry);
-    doc_->notifyStructureChanged();
     doc_->endEdit();
   });
   tools->addSeparator();
@@ -734,9 +737,14 @@ void MainWindow::cloneSelection(bool askOptions) {
     if (nodes.size() > 1) dlg.setWindowTitle(tr("Clone Options (%1 objects)").arg(nodes.size()));
     if (dlg.exec() != QDialog::Accepted) return;
     name = dlg.name();
+    cloneMode_ = dlg.mode();
   }
+  CloneOptionsDialog::Mode mode = CloneOptionsDialog::Copy;
+  if (askOptions) mode = static_cast<CloneOptionsDialog::Mode>(cloneMode_);
   doc_->beginEdit(tr("Clone"));
+  QVector<uint32_t> sources = doc_->selection();
   QVector<uint32_t> ids = doc_->cloneSelected(true);
+  for (int i = 0; i < ids.size() && i < sources.size(); ++i) applyCloneMode(doc_->scene(), sources[i], ids[i], mode);
   if (ids.size() == 1 && !name.isEmpty())
     if (Node* n = doc_->scene().findNode(ids[0])) {
       n->name = name.toStdString();
@@ -846,6 +854,9 @@ void MainWindow::showContextMenu(Viewport* vp, const QPoint& pos) {
       for (QAction* t : a->menu()->actions())
         if (t->text() == tr("Convert to Editable Poly") || t->text() == tr("Convert to Editable Spline"))
           menu.addAction(t);
+  // Feature modules mark actions for this menu with the "quadMenu" property.
+  for (QAction* t : findChildren<QAction*>())
+    if (t->property("quadMenu").toBool() && t->isVisible()) menu.addAction(t);
   menu.addAction(materialEditorAct_);
   bool hasSel = !doc_->selection().isEmpty();
   cloneAct_->setEnabled(hasSel);

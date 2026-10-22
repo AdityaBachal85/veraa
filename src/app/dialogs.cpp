@@ -115,10 +115,12 @@ CloneOptionsDialog::CloneOptionsDialog(const QString& defaultName, bool showCopi
   copy->setChecked(true);
   auto* instance = new QRadioButton(tr("Instance"), objBox);
   auto* reference = new QRadioButton(tr("Reference"), objBox);
-  instance->setEnabled(false);
-  reference->setEnabled(false);
-  instance->setToolTip(tr("Instances are planned for a later version"));
-  reference->setToolTip(tr("References are planned for a later version"));
+  instance->setObjectName("clone_instance");
+  reference->setObjectName("clone_reference");
+  instance->setToolTip(tr("Shares the object and its modifiers: editing one changes all"));
+  reference->setToolTip(tr("Shares the base object; modifiers are separate"));
+  instance_ = instance;
+  reference_ = reference;
   ov->addWidget(copy);
   ov->addWidget(instance);
   ov->addWidget(reference);
@@ -141,6 +143,28 @@ CloneOptionsDialog::CloneOptionsDialog(const QString& defaultName, bool showCopi
 
 int CloneOptionsDialog::copies() const { return copies_ ? copies_->value() : 1; }
 QString CloneOptionsDialog::name() const { return name_->text().trimmed(); }
+
+CloneOptionsDialog::Mode CloneOptionsDialog::mode() const {
+  if (instance_ && instance_->isChecked()) return Instance;
+  if (reference_ && reference_->isChecked()) return Reference;
+  return Copy;
+}
+
+void applyCloneMode(Scene& scene, uint32_t sourceId, uint32_t cloneId, CloneOptionsDialog::Mode mode) {
+  if (mode == CloneOptionsDialog::Copy) return;
+  Node* src = scene.findNode(sourceId);
+  Node* dst = scene.findNode(cloneId);
+  if (!src || !dst) return;
+  dst->object = src->object;
+  if (mode == CloneOptionsDialog::Instance) {
+    dst->modifiers = src->modifiers;
+  } else {
+    dst->modifiers.clear();
+    for (const auto& m : src->modifiers)
+      if (m) dst->modifiers.push_back(m->clone());
+  }
+  dst->invalidate();
+}
 
 ObjectPropertiesDialog::ObjectPropertiesDialog(SceneDocument* doc, Node* node, QWidget* parent) : QDialog(parent) {
   setWindowTitle(tr("Object Properties"));

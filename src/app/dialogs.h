@@ -10,6 +10,7 @@ class QCheckBox;
 class QDoubleSpinBox;
 class QLineEdit;
 class QListWidget;
+class QRadioButton;
 class QSpinBox;
 
 namespace veraa {
@@ -41,14 +42,23 @@ class ObjImportDialog : public QDialog {
 class CloneOptionsDialog : public QDialog {
   Q_OBJECT
  public:
+  // Copy: independent; Instance: shares object and modifiers; Reference: shares the base
+  // object, modifiers are separate copies.
+  enum Mode { Copy = 0, Instance = 1, Reference = 2 };
   CloneOptionsDialog(const QString& defaultName, bool showCopies, QWidget* parent = nullptr);
   int copies() const;
   QString name() const;
+  Mode mode() const;
 
  private:
   QSpinBox* copies_ = nullptr;
   QLineEdit* name_;
+  QRadioButton* instance_ = nullptr;
+  QRadioButton* reference_ = nullptr;
 };
+
+// Makes `cloneId` (a copy of `sourceId`) an instance or reference of the source.
+void applyCloneMode(Scene& scene, uint32_t sourceId, uint32_t cloneId, CloneOptionsDialog::Mode mode);
 
 class ObjectPropertiesDialog : public QDialog {
   Q_OBJECT

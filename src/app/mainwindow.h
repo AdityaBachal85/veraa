@@ -67,6 +67,7 @@ class MainWindow : public QMainWindow {
   void closeEvent(QCloseEvent* e) override;
 
  private:
+  int cloneMode_ = 0;  // last Clone Options choice (CloneOptionsDialog::Mode)
   void createActions();
   void createMenus();
   void createToolBar();

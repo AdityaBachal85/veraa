@@ -53,7 +53,8 @@ static void testPrimitives() {
     TriMesh t = triangulate(m);
     CHECK(!t.empty());
     CHECK(t.normals.size() == t.positions.size());
-    if (type != "Plane") {
+    // The teapot is a set of patches (spout and handle pass into the body), so it is not closed.
+    if (type != "Plane" && type != "Teapot") {
       double vol = signedVolume(t);
       if (vol <= 0) std::printf("  %s has inward-facing faces (volume %f)\n", type.c_str(), vol);
       CHECK(vol > 0);

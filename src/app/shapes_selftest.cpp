@@ -355,19 +355,20 @@ void testShapes(MainWindow& w) {
 
   // 15. CV Curve by clicks (right-click ends) and a Quad Patch by dragging.
   st->setCreateType("CVCurve");
-  click(top, c + QPointF(-200, -150));
-  moveTo(top, c + QPointF(-200, -150), c + QPointF(-140, -190));
-  click(top, c + QPointF(-140, -190));
-  moveTo(top, c + QPointF(-140, -190), c + QPointF(-80, -140));
-  click(top, c + QPointF(-80, -140));
-  click(top, c + QPointF(-80, -140), Qt::RightButton);
+  // Offsets stay well inside the viewport (and clear of its label menu) at any layout size.
+  click(top, c + QPointF(-160, -40));
+  moveTo(top, c + QPointF(-160, -40), c + QPointF(-110, -80));
+  click(top, c + QPointF(-110, -80));
+  moveTo(top, c + QPointF(-110, -80), c + QPointF(-60, -40));
+  click(top, c + QPointF(-60, -40));
+  click(top, c + QPointF(-60, -40), Qt::RightButton);
   st->setCreateType({});
   Node* cvn = lastNodeOfType(s, "CVCurve");
   auto* cvo = cvn ? dynamic_cast<NurbsCurveObject*>(cvn->object.get()) : nullptr;
   check(cvo && cvo->points.size() == 3, "CV Curve created with three CVs");
   check(cvn && cvn->isShapeResult() && !cvn->shapeLines().empty(), "CV Curve draws as a spline");
   st->setCreateType("QuadPatch");
-  drag(top, c + QPointF(150, -200), c + QPointF(230, -140));
+  drag(top, c + QPointF(120, -80), c + QPointF(200, -30));
   st->setCreateType({});
   Node* qp = lastNodeOfType(s, "QuadPatch");
   check(qp && qp->object->params.getFloat("width") > 10 && !qp->mesh().empty(), "Quad Patch sized by dragging");

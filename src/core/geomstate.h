@@ -2,6 +2,7 @@
 #pragma once
 
 #include <cstdint>
+#include <vector>
 
 #include "mesh.h"
 #include "shape.h"
@@ -23,6 +24,10 @@ struct GeomState {
   // modifiers that turn splines into meshes.
   int shapeSteps = 6;
   bool shapeOptimize = true;
+  // Sub-object selection passed up the stack (per mesh vertex, 0..1). Empty = whole mesh.
+  // Set by Editable Poly sub-object levels and the selection modifiers; deformers only move
+  // selected vertices (weighted for soft selections).
+  std::vector<float> selWeights;
 };
 
 }  // namespace veraa

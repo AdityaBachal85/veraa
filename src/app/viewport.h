@@ -133,6 +133,7 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
   Vec3 dragCenter_;
   Vec3 dragDisplay_;  // value shown in the overlay during a drag
   bool cloneDrag_ = false;
+  QVector<uint32_t> cloneSources_;  // originals of a Shift+drag clone, in drag order
 
   // Creation state.
   int createStage_ = 0;  // 0 idle, 1 footprint drag, 2 height

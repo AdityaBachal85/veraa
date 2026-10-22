@@ -21,6 +21,13 @@ add_library(veraa_core STATIC
   material.cpp
   scene.cpp
   obj_import.cpp
+  polyselect.cpp
+  polyops.cpp
+  polymods.cpp
+  meshmods.cpp
+  csg.cpp
+  extprims.cpp
+  grouphead.cpp
   shape.cpp
   registry.cpp
   expression.cpp

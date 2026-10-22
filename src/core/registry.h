@@ -11,7 +11,10 @@ void registerBuiltinSceneModules();   // called once, when the first Scene is cr
 
 // Module register functions.
 void registerPrimitiveTypes();      // primitives.cpp: Standard Primitives, Chamfer Box
+void registerExtendedPrimitiveTypes();  // extprims.cpp: Teapot, Hedra, Torus Knot, ChamferCyl, ...
 void registerCoreObjectTypes();     // object.cpp: Editable Poly/Spline, lights, camera
+void registerCompoundObjectTypes(); // csg.cpp: Boolean
+void registerGroupObjectTypes();    // grouphead.cpp: group head helper
 void registerCoreModifierTypes();   // modifier.cpp: Bend, Taper, Twist, Noise, Smooth, ...
 void registerAnimationModule();     // animation.cpp: keyframe tracks, controllers, constraints
 void registerRiggingTypes();        // rigging.cpp: Bones, IK chains, Skin, Morpher, Path Deform
@@ -25,5 +28,7 @@ void registerShapeModifierTypes();  // shape_modifiers.cpp: Extrude, Lathe, Swee
 void registerCompoundTypes();       // compound.cpp: Loft, Scatter, Connect, ShapeMerge, Terrain, Conform, BlobMesh
 void registerPatchGridTypes();      // patch_nurbs.cpp: Quad Patch, Tri Patch (NURBS curves: via registerShapeTypes)
 void registerAecTypes();            // aec_*.cpp: Doors, Windows, Wall, Railing, Foliage, Stairs
+void registerPolyModifierTypes();   // polymods.cpp: Edit Poly, Poly/Mesh/Vol. Select, Turn to Poly
+void registerMeshModifierTypes();   // meshmods.cpp: FFDs, Symmetry, Slice, Optimize, Unwrap UVW, ...
 
 }  // namespace veraa

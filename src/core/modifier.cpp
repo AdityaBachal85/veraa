@@ -8,6 +8,26 @@
 
 namespace veraa {
 
+void Modifier::applyWithSelection(GeomState& st) const {
+  if (st.selWeights.empty() || st.selWeights.size() != st.mesh.positions.size()) {
+    st.selWeights.clear();
+    apply(st.mesh);
+    return;
+  }
+  std::vector<Vec3> before = st.mesh.positions;
+  size_t faces = st.mesh.faces.size();
+  apply(st.mesh);
+  if (st.mesh.positions.size() != before.size() || st.mesh.faces.size() != faces) {
+    st.selWeights.clear();
+    return;
+  }
+  for (size_t i = 0; i < before.size(); ++i) {
+    float w = st.selWeights[i];
+    if (w <= 0.0f) st.mesh.positions[i] = before[i];
+    else if (w < 1.0f) st.mesh.positions[i] = lerp(before[i], st.mesh.positions[i], w);
+  }
+}
+
 json Modifier::toJson() const {
   json j{{"type", type()}, {"enabled", enabled}, {"params", params.toJson()}};
   if (!displayName.empty()) j["name"] = displayName;
