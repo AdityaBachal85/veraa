@@ -92,6 +92,11 @@ class AnimController : public QObject {
   // ---- Editing animation data ----
   // Runs fn as one undoable step without Auto Key reacting, then re-evaluates the scene.
   void editAnimation(const QString& label, const std::function<void()>& fn);
+  // The same as a begin/end pair, for edits spanning several events (dragging keys).
+  void beginAnimationEdit(const QString& label);
+  void endAnimationEdit();
+  // Applies live changes during an animation edit (re-evaluates without recording undo).
+  void previewAnimation();
   // Re-evaluates the animation at the current frame and refreshes views.
   void refresh();
   // Ghosting (viewport display of the selection at nearby frames).

@@ -352,15 +352,28 @@ void AnimController::setKeys() {
 }
 
 void AnimController::editAnimation(const QString& label, const std::function<void()>& fn) {
+  beginAnimationEdit(label);
+  fn();
+  endAnimationEdit();
+}
+
+void AnimController::beginAnimationEdit(const QString& label) {
   doc_->commitSoftEdit();
   doc_->beginEdit(label);
   ++suppress_;
-  fn();
+}
+
+void AnimController::endAnimationEdit() {
   if (Animation* anim = animation()) anim->touch();
   applyFrame(frame());
   doc_->endEdit();
   --suppress_;
   Q_EMIT animationChanged();
+}
+
+void AnimController::previewAnimation() {
+  if (Animation* anim = animation()) anim->touch();
+  applyFrame(frame());
 }
 
 void AnimController::onCommit(const json& before) {
@@ -398,9 +411,18 @@ void AnimController::onCommit(const json& before) {
       for (size_t i = 0; i < n.modifiers.size() && same; ++i)
         same = n.modifiers[i] && o->modifiers[i] && n.modifiers[i]->type() == o->modifiers[i]->type() &&
                n.modifiers[i]->params.toJson() == o->modifiers[i]->params.toJson();
-    if (same) continue;
-    // Modifier params only when the stack itself did not change.
     std::vector<std::string> paths = anim->animatablePaths(s, n.id);
+    if (same) {
+      // Only constraint and custom attribute values (kept in the animation data) can differ.
+      paths.erase(std::remove_if(paths.begin(), paths.end(),
+                                 [](const std::string& p) {
+                                   auto k = ValuePath::parse(p).kind;
+                                   return k != ValuePath::Kind::Constraint && k != ValuePath::Kind::Custom;
+                                 }),
+                  paths.end());
+      if (paths.empty()) continue;
+    }
+    // Modifier params only when the stack itself did not change.
     if (n.modifiers.size() != o->modifiers.size())
       paths.erase(std::remove_if(paths.begin(), paths.end(),
                                  [](const std::string& p) { return ValuePath::parse(p).kind == ValuePath::Kind::ModifierParam; }),
