@@ -1,16 +1,28 @@
 #include "modifier.h"
 
+#include <algorithm>
+#include <atomic>
 #include <unordered_map>
+
+#include "registry.h"
 
 namespace veraa {
 
 json Modifier::toJson() const {
-  return json{{"type", type()}, {"enabled", enabled}, {"params", params.toJson()}};
+  json j{{"type", type()}, {"enabled", enabled}, {"params", params.toJson()}};
+  if (!displayName.empty()) j["name"] = displayName;
+  return j;
 }
 
 void Modifier::fromJson(const json& j) {
   enabled = j.value("enabled", true);
+  displayName = j.value("name", std::string());
   if (j.contains("params")) params.fromJson(j["params"]);
+}
+
+void Modifier::touch() {
+  static std::atomic<uint64_t> counter{1};
+  revision_ = ++counter;
 }
 
 namespace {
@@ -323,30 +335,78 @@ class NormalModifier : public ModifierBase<NormalModifier> {
 
 }  // namespace
 
-std::unique_ptr<Modifier> createModifier(const std::string& type) {
-  if (type == "Bend") return std::make_unique<BendModifier>();
-  if (type == "Taper") return std::make_unique<TaperModifier>();
-  if (type == "Twist") return std::make_unique<TwistModifier>();
-  if (type == "Noise") return std::make_unique<NoiseModifier>();
-  if (type == "Smooth") return std::make_unique<SmoothModifier>();
-  if (type == "Shell") return std::make_unique<ShellModifier>();
-  if (type == "Push") return std::make_unique<PushModifier>();
-  if (type == "UVWMap") return std::make_unique<UvwMapModifier>();
-  if (type == "Mirror") return std::make_unique<MirrorModifier>();
-  if (type == "Normal") return std::make_unique<NormalModifier>();
+void registerCoreModifierTypes() {
+  auto add = [](const char* type, const char* name, const char* category, std::function<std::unique_ptr<Modifier>()> f) {
+    registerModifierType({type, name, category, true, false, std::move(f)});
+  };
+  add("Bend", "Bend", "Parametric Deformers", [] { return std::make_unique<BendModifier>(); });
+  add("Taper", "Taper", "Parametric Deformers", [] { return std::make_unique<TaperModifier>(); });
+  add("Twist", "Twist", "Parametric Deformers", [] { return std::make_unique<TwistModifier>(); });
+  add("Noise", "Noise", "Parametric Deformers", [] { return std::make_unique<NoiseModifier>(); });
+  add("Push", "Push", "Parametric Deformers", [] { return std::make_unique<PushModifier>(); });
+  add("Shell", "Shell", "Parametric Deformers", [] { return std::make_unique<ShellModifier>(); });
+  add("Mirror", "Mirror", "Parametric Deformers", [] { return std::make_unique<MirrorModifier>(); });
+  add("Smooth", "Smooth (Subdivide)", "Subdivision Surfaces", [] { return std::make_unique<SmoothModifier>(); });
+  add("Normal", "Normal", "Mesh Editing", [] { return std::make_unique<NormalModifier>(); });
+  add("UVWMap", "UVW Map", "UV Coordinates", [] { return std::make_unique<UvwMapModifier>(); });
+}
+
+namespace {
+
+std::vector<ModifierTypeInfo>& modRegistry() {
+  static std::vector<ModifierTypeInfo> types;
+  return types;
+}
+
+void ensureBuiltinModifiers() {
+  static bool done = false;
+  if (done) return;
+  done = true;
+  registerBuiltinModifierTypes();
+}
+
+}  // namespace
+
+void registerModifierType(ModifierTypeInfo info) {
+  auto& reg = modRegistry();
+  for (auto& t : reg)
+    if (t.type == info.type) {
+      t = std::move(info);
+      return;
+    }
+  reg.push_back(std::move(info));
+}
+
+const std::vector<ModifierTypeInfo>& modifierTypeInfos() {
+  ensureBuiltinModifiers();
+  return modRegistry();
+}
+
+const ModifierTypeInfo* findModifierType(const std::string& type) {
+  for (const auto& t : modifierTypeInfos())
+    if (t.type == type) return &t;
   return nullptr;
 }
 
+std::unique_ptr<Modifier> createModifier(const std::string& type) {
+  const ModifierTypeInfo* info = findModifierType(type);
+  return info && info->create ? info->create() : nullptr;
+}
+
 const std::vector<std::string>& modifierTypes() {
-  static const std::vector<std::string> types = {"Bend", "Mirror", "Noise", "Normal", "Push",
-                                                 "Shell", "Smooth", "Taper", "Twist", "UVWMap"};
+  static std::vector<std::string> types;
+  std::vector<const ModifierTypeInfo*> sorted;
+  for (const auto& t : modifierTypeInfos()) sorted.push_back(&t);
+  std::sort(sorted.begin(), sorted.end(),
+            [](const ModifierTypeInfo* a, const ModifierTypeInfo* b) { return a->displayName < b->displayName; });
+  types.clear();
+  for (const auto* t : sorted) types.push_back(t->type);
   return types;
 }
 
 std::string modifierDisplayName(const std::string& type) {
-  if (type == "UVWMap") return "UVW Map";
-  if (type == "Smooth") return "Smooth (Subdivide)";
-  return type;
+  const ModifierTypeInfo* info = findModifierType(type);
+  return info && !info->displayName.empty() ? info->displayName : type;
 }
 
 PolyMesh subdivideCatmullClark(const PolyMesh& in) {

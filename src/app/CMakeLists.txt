@@ -2,27 +2,9 @@ find_package(Qt6 6.4 REQUIRED COMPONENTS Widgets OpenGL OpenGLWidgets)
 
 set(CMAKE_AUTOMOC ON)
 
-add_executable(Veraa
-  main.cpp
-  theme.cpp
-  icons.cpp
-  document.cpp
-  editorstate.cpp
-  viewcamera.cpp
-  glscene.cpp
-  gizmo.cpp
-  viewport.cpp
-  viewportpanel.cpp
-  paramform.cpp
-  commandpanel.cpp
-  sceneexplorer.cpp
-  materialeditor.cpp
-  rendersetup.cpp
-  framebuffer.cpp
-  dialogs.cpp
-  mainwindow.cpp
-  selftest.cpp
-)
+# Every .cpp in this folder is part of the app, so feature modules only add files.
+file(GLOB VERAA_APP_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp ${CMAKE_CURRENT_SOURCE_DIR}/*.h)
+add_executable(Veraa ${VERAA_APP_SOURCES})
 
 set_target_properties(Veraa PROPERTIES
   WIN32_EXECUTABLE ON

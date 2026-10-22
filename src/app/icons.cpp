@@ -302,6 +302,55 @@ QIcon lights() {
   });
 }
 
+QIcon shapes() {
+  return make([](QPainter& p) {
+    p.setPen(pen(QColor(0x7f, 0xd0, 0xf0), 1.8));
+    p.setBrush(Qt::NoBrush);
+    QPainterPath path(QPointF(3, 18));
+    path.cubicTo(QPointF(6, 4), QPointF(12, 22), QPointF(21, 5));
+    p.drawPath(path);
+    p.setPen(pen(kInk, 1.2));
+    p.setBrush(kInk);
+    for (QPointF k : {QPointF(3, 18), QPointF(21, 5)}) p.drawRect(QRectF(k.x() - 1.5, k.y() - 1.5, 3, 3));
+  });
+}
+
+QIcon helpers() {
+  return make([](QPainter& p) {
+    p.setPen(pen(QColor(0x60, 0xd0, 0x70), 1.4));
+    p.setBrush(Qt::NoBrush);
+    p.drawRect(QRectF(5, 5, 14, 14));
+    p.drawLine(QPointF(12, 2), QPointF(12, 22));
+    p.drawLine(QPointF(2, 12), QPointF(22, 12));
+  });
+}
+
+QIcon spaceWarps() {
+  return make([](QPainter& p) {
+    p.setPen(pen(QColor(0xa0, 0xa8, 0xf0), 1.6));
+    p.setBrush(Qt::NoBrush);
+    for (int i = 0; i < 3; ++i) {
+      QPainterPath w(QPointF(3, 6 + i * 6));
+      w.cubicTo(QPointF(8, 2 + i * 6), QPointF(14, 10 + i * 6), QPointF(21, 6 + i * 6));
+      p.drawPath(w);
+    }
+  });
+}
+
+QIcon systems() {
+  return make([](QPainter& p) {
+    p.setPen(pen(kInk, 1.4));
+    p.setBrush(QColor(0x90, 0x90, 0x90));
+    p.drawEllipse(QRectF(7, 7, 10, 10));
+    for (int i = 0; i < 8; ++i) {
+      double a = i * 3.14159265 / 4;
+      p.drawLine(QPointF(12 + 5 * std::cos(a), 12 + 5 * std::sin(a)), QPointF(12 + 9 * std::cos(a), 12 + 9 * std::sin(a)));
+    }
+    p.setBrush(QColor(0x30, 0x30, 0x30));
+    p.drawEllipse(QRectF(10, 10, 4, 4));
+  });
+}
+
 QIcon cameras() {
   return make([](QPainter& p) {
     p.setPen(pen(kInk, 1.3));

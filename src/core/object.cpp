@@ -1,9 +1,11 @@
 #include "object.h"
 
+#include <algorithm>
+#include <atomic>
 #include <cstring>
 #include <unordered_map>
 
-#include "primitives.h"
+#include "registry.h"
 
 namespace veraa {
 
@@ -15,8 +17,12 @@ void SceneObject::fromJson(const json& j) {
   if (j.contains("params")) params.fromJson(j["params"]);
 }
 
-json EditablePolyObject::toJson() const {
-  json j = SceneObject::toJson();
+void SceneObject::touch() {
+  static std::atomic<uint64_t> counter{1};
+  revision_ = ++counter;
+}
+
+json polyMeshToJson(const PolyMesh& mesh) {
   json p = json::array(), t = json::array(), f = json::array();
   for (const auto& v : mesh.positions) { p.push_back(v.x); p.push_back(v.y); p.push_back(v.z); }
   for (const auto& v : mesh.uvs) { t.push_back(v.x); t.push_back(v.y); }
@@ -27,15 +33,12 @@ json EditablePolyObject::toJson() const {
     if (face.smoothGroups != 1) jf["s"] = face.smoothGroups;
     f.push_back(std::move(jf));
   }
-  j["mesh"] = json{{"p", std::move(p)}, {"t", std::move(t)}, {"f", std::move(f)}};
-  return j;
+  return json{{"p", std::move(p)}, {"t", std::move(t)}, {"f", std::move(f)}};
 }
 
-void EditablePolyObject::fromJson(const json& j) {
-  SceneObject::fromJson(j);
-  mesh.clear();
-  if (!j.contains("mesh")) return;
-  const json& m = j["mesh"];
+PolyMesh polyMeshFromJson(const json& m) {
+  PolyMesh mesh;
+  if (!m.is_object()) return mesh;
   if (m.contains("p")) {
     const json& p = m["p"];
     for (size_t i = 0; i + 2 < p.size(); i += 3)
@@ -56,6 +59,73 @@ void EditablePolyObject::fromJson(const json& j) {
     }
   }
   if (!mesh.isValid()) mesh.clear();
+  return mesh;
+}
+
+json bezierShapeToJson(const BezierShape& shape) {
+  json splines = json::array();
+  for (const auto& s : shape.splines) {
+    json knots = json::array();
+    for (const auto& k : s.knots)
+      knots.push_back(json{{"p", vec3ToJson(k.p)}, {"in", vec3ToJson(k.in)}, {"out", vec3ToJson(k.out)},
+                           {"type", static_cast<int>(k.type)}});
+    splines.push_back(json{{"closed", s.closed}, {"knots", std::move(knots)}});
+  }
+  return splines;
+}
+
+BezierShape bezierShapeFromJson(const json& j) {
+  BezierShape shape;
+  if (!j.is_array()) return shape;
+  for (const auto& js : j) {
+    Spline s;
+    s.closed = js.value("closed", false);
+    if (js.contains("knots"))
+      for (const auto& jk : js["knots"]) {
+        Knot k;
+        k.p = vec3FromJson(jk.value("p", json()));
+        k.in = vec3FromJson(jk.value("in", json()), k.p);
+        k.out = vec3FromJson(jk.value("out", json()), k.p);
+        k.type = static_cast<KnotType>(std::clamp(jk.value("type", 0), 0, 3));
+        s.knots.push_back(k);
+      }
+    shape.splines.push_back(std::move(s));
+  }
+  return shape;
+}
+
+json EditablePolyObject::toJson() const {
+  json j = SceneObject::toJson();
+  j["mesh"] = polyMeshToJson(mesh);
+  return j;
+}
+
+void EditablePolyObject::fromJson(const json& j) {
+  SceneObject::fromJson(j);
+  mesh = j.contains("mesh") ? polyMeshFromJson(j["mesh"]) : PolyMesh();
+}
+
+void ShapeObject::addShapeParams(ParamBlock& p) {
+  p.beginGroup("Rendering");
+  p.addBool("renderInRenderer", "Enable In Renderer", false);
+  p.addBool("renderInViewport", "Enable In Viewport", false);
+  p.addFloat("thickness", "Thickness", 1.0, 0.0, 1e6, 0.1);
+  p.addInt("sides", "Sides", 12, 3, 100);
+  p.addFloat("angle", "Angle", 0.0, -360.0, 360.0, 1.0, 1);
+  p.beginGroup("Interpolation");
+  p.addInt("steps", "Steps", 6, 0, 100);
+  p.addBool("optimize", "Optimize", true);
+}
+
+json EditableSplineObject::toJson() const {
+  json j = SceneObject::toJson();
+  j["shape"] = bezierShapeToJson(shape);
+  return j;
+}
+
+void EditableSplineObject::fromJson(const json& j) {
+  SceneObject::fromJson(j);
+  shape = j.contains("shape") ? bezierShapeFromJson(j["shape"]) : BezierShape();
 }
 
 namespace {
@@ -154,33 +224,95 @@ float CameraObject::verticalFovDeg(float aspect) const {
   return degrees(2.0f * std::atan(std::tan(h * 0.5f) / std::max(aspect, 1e-6f)));
 }
 
-std::unique_ptr<SceneObject> createObject(const std::string& type) {
-  if (auto p = createPrimitive(type)) return p;
-  if (type == "EditablePoly") return std::make_unique<EditablePolyObject>();
-  if (type == "OmniLight") return std::make_unique<OmniLight>();
-  if (type == "SpotLight") return std::make_unique<SpotLight>();
-  if (type == "RectLight") return std::make_unique<RectLight>();
-  if (type == "SphereLight") return std::make_unique<SphereLight>();
-  if (type == "SunLight") return std::make_unique<SunLight>();
-  if (type == "Camera") return std::make_unique<CameraObject>();
+namespace {
+
+std::vector<ObjectTypeInfo>& registry() {
+  static std::vector<ObjectTypeInfo> types;
+  return types;
+}
+
+void ensureBuiltins() {
+  static bool done = false;
+  if (done) return;
+  done = true;
+  registerBuiltinObjectTypes();
+}
+
+}  // namespace
+
+void registerCoreObjectTypes() {
+  registerObjectType({"EditablePoly", "Editable Poly", "", "", [] { return std::make_unique<EditablePolyObject>(); }});
+  registerObjectType(
+      {"EditableSpline", "Editable Spline", "", "", [] { return std::make_unique<EditableSplineObject>(); }});
+  const char* lights = "Lights";
+  const char* std = "Standard";
+  registerObjectType({"RectLight", "Plane Light", lights, std, [] { return std::make_unique<RectLight>(); }});
+  registerObjectType({"SphereLight", "Sphere Light", lights, std, [] { return std::make_unique<SphereLight>(); }});
+  registerObjectType({"OmniLight", "Omni", lights, std, [] { return std::make_unique<OmniLight>(); }});
+  registerObjectType({"SpotLight", "Spot", lights, std, [] { return std::make_unique<SpotLight>(); }});
+  registerObjectType({"SunLight", "Sun", lights, std, [] { return std::make_unique<SunLight>(); }});
+  registerObjectType({"Camera", "Camera", "Cameras", std, [] { return std::make_unique<CameraObject>(); }});
+}
+
+void registerObjectType(ObjectTypeInfo info) {
+  auto& reg = registry();
+  for (auto& t : reg)
+    if (t.type == info.type) {
+      t = std::move(info);
+      return;
+    }
+  reg.push_back(std::move(info));
+}
+
+const std::vector<ObjectTypeInfo>& objectTypes() {
+  ensureBuiltins();
+  return registry();
+}
+
+const ObjectTypeInfo* findObjectType(const std::string& type) {
+  for (const auto& t : objectTypes())
+    if (t.type == type) return &t;
   return nullptr;
 }
 
-const std::vector<std::string>& geometryTypes() { return primitiveTypes(); }
+std::vector<const ObjectTypeInfo*> objectTypesIn(const std::string& category, const std::string& subcategory) {
+  std::vector<const ObjectTypeInfo*> out;
+  for (const auto& t : objectTypes())
+    if (t.category == category && (subcategory.empty() || t.subcategory == subcategory)) out.push_back(&t);
+  return out;
+}
+
+std::vector<std::string> objectSubcategories(const std::string& category) {
+  std::vector<std::string> out;
+  for (const auto& t : objectTypes())
+    if (t.category == category && std::find(out.begin(), out.end(), t.subcategory) == out.end())
+      out.push_back(t.subcategory);
+  return out;
+}
+
+std::unique_ptr<SceneObject> createObject(const std::string& type) {
+  const ObjectTypeInfo* info = findObjectType(type);
+  return info && info->create ? info->create() : nullptr;
+}
+
+const std::vector<std::string>& geometryTypes() {
+  static std::vector<std::string> types;
+  types.clear();
+  for (const auto* t : objectTypesIn("Geometry"))
+    if (t->subcategory == "Standard Primitives" || t->subcategory == "Extended Primitives") types.push_back(t->type);
+  return types;
+}
 
 const std::vector<std::string>& lightTypes() {
-  static const std::vector<std::string> types = {"RectLight", "SphereLight", "OmniLight", "SpotLight", "SunLight"};
+  static std::vector<std::string> types;
+  types.clear();
+  for (const auto* t : objectTypesIn("Lights")) types.push_back(t->type);
   return types;
 }
 
 std::string objectDisplayName(const std::string& type) {
-  static const std::unordered_map<std::string, std::string> names = {
-      {"ChamferBox", "Chamfer Box"}, {"GeoSphere", "GeoSphere"},   {"EditablePoly", "Editable Poly"},
-      {"OmniLight", "Omni"},         {"SpotLight", "Spot"},         {"RectLight", "Plane Light"},
-      {"SphereLight", "Sphere Light"}, {"SunLight", "Sun"},
-  };
-  auto it = names.find(type);
-  return it == names.end() ? type : it->second;
+  const ObjectTypeInfo* info = findObjectType(type);
+  return info && !info->displayName.empty() ? info->displayName : type;
 }
 
 void weldVertices(PolyMesh& mesh) {

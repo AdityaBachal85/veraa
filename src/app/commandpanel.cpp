@@ -93,9 +93,11 @@ QWidget* CommandPanel::buildCreateTab() {
 
   auto* cats = new QHBoxLayout;
   cats->setSpacing(2);
-  const QIcon catIcons[3] = {icons::geometry(), icons::lights(), icons::cameras()};
-  const QString catTips[3] = {tr("Geometry"), tr("Lights"), tr("Cameras")};
-  for (int i = 0; i < 3; ++i) {
+  const QIcon catIcons[7] = {icons::geometry(), icons::shapes(),  icons::lights(), icons::cameras(),
+                             icons::helpers(),  icons::spaceWarps(), icons::systems()};
+  const QString catTips[7] = {tr("Geometry"), tr("Shapes"),      tr("Lights"), tr("Cameras"),
+                              tr("Helpers"),  tr("Space Warps"), tr("Systems")};
+  for (int i = 0; i < 7; ++i) {
     auto* b = new QToolButton(content);
     b->setIcon(catIcons[i]);
     b->setIconSize(QSize(22, 22));
@@ -108,6 +110,14 @@ QWidget* CommandPanel::buildCreateTab() {
   }
   cats->addStretch();
   v->addLayout(cats);
+
+  subCombo_ = new QComboBox(content);
+  v->addWidget(subCombo_);
+  connect(subCombo_, &QComboBox::currentTextChanged, this, [this](const QString& sub) {
+    if (sub == subcategory_) return;
+    subcategory_ = sub;
+    rebuildTypeButtons();
+  });
 
   auto* typeRoll = new Rollout(tr("Object Type"), content);
   auto* grid = new QWidget(typeRoll->body());
@@ -154,9 +164,27 @@ QWidget* CommandPanel::buildCreateTab() {
   return scrollWrap(content, this);
 }
 
+namespace {
+const char* const kCategories[7] = {"Geometry", "Shapes", "Lights", "Cameras", "Helpers", "Space Warps", "Systems"};
+
+int categoryIndexOf(const QString& type) {
+  const ObjectTypeInfo* info = findObjectType(type.toStdString());
+  if (!info) return -1;
+  for (int i = 0; i < 7; ++i)
+    if (info->category == kCategories[i]) return i;
+  return -1;
+}
+}  // namespace
+
 void CommandPanel::setCategory(int c) {
   category_ = c;
-  for (int i = 0; i < 3; ++i) catButtons_[i]->setChecked(i == c);
+  for (int i = 0; i < 7; ++i) catButtons_[i]->setChecked(i == c);
+  QSignalBlocker block(subCombo_);
+  subCombo_->clear();
+  for (const std::string& sub : objectSubcategories(kCategories[c]))
+    subCombo_->addItem(QString::fromStdString(sub.empty() ? std::string("Standard") : sub));
+  subCombo_->setVisible(subCombo_->count() > 0);
+  subcategory_ = subCombo_->currentText();
   rebuildTypeButtons();
 }
 
@@ -167,9 +195,11 @@ void CommandPanel::rebuildTypeButtons() {
     b->deleteLater();
   }
   std::vector<std::string> types;
-  if (category_ == 0) types = geometryTypes();
-  else if (category_ == 1) types = lightTypes();
-  else types = {"Camera"};
+  std::string sub = subcategory_ == "Standard" ? std::string() : subcategory_.toStdString();
+  for (const ObjectTypeInfo* t : objectTypesIn(kCategories[category_]))
+    if (t->subcategory == sub || (sub.empty() && t->subcategory == "Standard") ||
+        QString::fromStdString(t->subcategory) == subcategory_)
+      types.push_back(t->type);
   int i = 0;
   for (const auto& t : types) {
     auto* b = new QPushButton(display(t), typeGrid_->parentWidget());
@@ -197,11 +227,12 @@ void CommandPanel::syncCreate() {
   }
   if (!ct.isEmpty()) {
     // Jump to the category of the active creation type.
-    int cat = ct == "Camera" ? 2 : (std::find(lightTypes().begin(), lightTypes().end(), ct.toStdString()) !=
-                                            lightTypes().end()
-                                        ? 1
-                                        : 0);
-    if (cat != category_) setCategory(cat);
+    int cat = categoryIndexOf(ct);
+    if (cat >= 0 && cat != category_) setCategory(cat);
+    if (const ObjectTypeInfo* info = findObjectType(ct.toStdString())) {
+      QString sub = QString::fromStdString(info->subcategory.empty() ? std::string("Standard") : info->subcategory);
+      if (sub != subcategory_ && subCombo_->findText(sub) >= 0) subCombo_->setCurrentText(sub);
+    }
     showCreate();
   }
   // Parameters of the object being (or just) created.

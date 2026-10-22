@@ -199,7 +199,10 @@ void SceneDocument::notifyRenderSettingsChanged() { Q_EMIT renderSettingsChanged
 uint64_t SceneDocument::geometryStamp(uint32_t nodeId) const {
   auto it = geomVersion_.find(nodeId);
   uint64_t v = it == geomVersion_.end() ? 0 : it->second;
-  return (epoch_ << 32) ^ v;
+  // Include the node's own evaluation stamp so instances refresh when another instance changes.
+  const Node* n = scene_.findNode(nodeId);
+  uint64_t g = n ? n->geometryStamp() : 0;
+  return (((epoch_ << 32) ^ v) * 1000003ull) ^ g;
 }
 
 Node* SceneDocument::createNode(const QString& type) {

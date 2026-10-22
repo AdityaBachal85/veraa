@@ -8,6 +8,8 @@ add_library(veraa_core STATIC
   material.cpp
   scene.cpp
   obj_import.cpp
+  shape.cpp
+  registry.cpp
 )
 target_include_directories(veraa_core
   PUBLIC

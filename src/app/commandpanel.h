@@ -46,9 +46,11 @@ class CommandPanel : public QTabWidget {
   SceneDocument* doc_;
   EditorState* state_;
 
-  // Create tab.
-  int category_ = 0;  // 0 geometry, 1 lights, 2 cameras
-  QToolButton* catButtons_[3] = {};
+  // Create tab: categories are the object registry's categories (Geometry, Shapes, Lights, ...).
+  int category_ = 0;
+  QString subcategory_;
+  QToolButton* catButtons_[7] = {};
+  QComboBox* subCombo_ = nullptr;
   QGridLayout* typeGrid_ = nullptr;
   QButtonGroup* typeGroup_ = nullptr;
   Rollout* nameRollout_ = nullptr;

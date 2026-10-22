@@ -18,6 +18,7 @@ inline QColor gridMajor() { return QColor(0x6a, 0x6a, 0x6a); }
 inline QColor gridAxis() { return QColor(0x1c, 0x1c, 0x1c); }
 inline QColor activeBorder() { return QColor(0xf5, 0xc5, 0x18); }
 inline QColor selection() { return QColor(0xff, 0xff, 0xff); }
+inline QColor frozen() { return QColor(0x80, 0x80, 0x80); }
 inline QColor accent() { return QColor(0x4f, 0x9b, 0xe0); }
 inline QColor axisX() { return QColor(0xe0, 0x40, 0x40); }
 inline QColor axisY() { return QColor(0x4c, 0xc8, 0x4c); }

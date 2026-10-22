@@ -1,6 +1,7 @@
 // Main window: menus, toolbar, viewports, command panel, scene explorer and status bar.
 #pragma once
 
+#include <QHash>
 #include <QMainWindow>
 #include <QPointer>
 
@@ -13,6 +14,8 @@ class QActionGroup;
 class QDoubleSpinBox;
 class QLabel;
 class QMenu;
+class QToolBar;
+class QVBoxLayout;
 
 namespace veraa {
 
@@ -44,6 +47,21 @@ class MainWindow : public QMainWindow {
   FrameBufferWindow* frameBuffer();
   // The view the renderer should use (render camera, or the active viewport).
   RenderView renderView(QString* name) const;
+
+  // ---- Extension API (see extension.h) ----
+  // Finds or creates a menu by path, e.g. "Tools" or "Create/Shapes". Top-level menus keep the
+  // 3ds Max order: File, Edit, Tools, Group, Views, Create, Modifiers, Animation, Graph Editors,
+  // Rendering, Customize, Scripting, Help.
+  QMenu* menuAt(const QString& path);
+  QToolBar* mainToolBar() const { return mainToolBar_; }
+  // Adds a widget between the viewports and the status bar (time slider, track bar, ...).
+  void addBelowViewports(QWidget* w);
+  void addCommandPanelTab(QWidget* page, const QIcon& icon, const QString& title);
+  QLabel* promptLabel() const { return prompt_; }
+  // Registers an action under a stable id for the hotkey editor and UI customization.
+  void registerCommand(const QString& id, QAction* action);
+  QAction* command(const QString& id) const { return commands_.value(id); }
+  const QHash<QString, QAction*>& commands() const { return commands_; }
 
  protected:
   void closeEvent(QCloseEvent* e) override;
@@ -84,6 +102,9 @@ class MainWindow : public QMainWindow {
       *cameraFromViewAct_;
   QActionGroup *toolGroup_, *axisGroup_;
   QMenu* recentMenu_ = nullptr;
+  QToolBar* mainToolBar_ = nullptr;
+  QVBoxLayout* centralLayout_ = nullptr;
+  QHash<QString, QAction*> commands_;
 
   QLabel* prompt_ = nullptr;
   QLabel* typeInLabel_ = nullptr;

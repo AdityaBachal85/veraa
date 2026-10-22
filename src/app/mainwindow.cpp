@@ -22,6 +22,7 @@
 
 #include "commandpanel.h"
 #include "dialogs.h"
+#include "extension.h"
 #include "framebuffer.h"
 #include "icons.h"
 #include "materialeditor.h"
@@ -50,6 +51,7 @@ MainWindow::MainWindow() {
   cv->setSpacing(0);
   viewports_ = new ViewportPanel(doc_, state_, central);
   cv->addWidget(viewports_, 1);
+  centralLayout_ = cv;
   setCentralWidget(central);
 
   createActions();
@@ -93,6 +95,9 @@ MainWindow::MainWindow() {
     edgedAct_->setChecked(vp->edgedFaces());
   });
   connect(viewports_, &ViewportPanel::contextMenuRequested, this, &MainWindow::showContextMenu);
+
+  // Feature modules add their menus, toolbars and panels (see extension.h).
+  runAppExtensions(*this);
 
   resize(1600, 950);
   QSettings s = appSettings();
@@ -333,8 +338,68 @@ void MainWindow::createActions() {
   });
 }
 
+namespace {
+const char* const kTopMenus[] = {"&File",       "&Edit",          "&Tools",     "&Group",     "&Views",
+                                 "&Create",     "&Modifiers",     "&Animation", "&Graph Editors",
+                                 "&Rendering",  "C&ustomize",     "&Scripting", "&Help"};
+
+QString plainMenuTitle(QString t) { return t.remove('&'); }
+
+// Modifiers menu groups in 3ds Max order; unknown categories follow alphabetically.
+const char* const kModifierCategories[] = {
+    "Selection Modifiers",  "Patch/Spline Editing", "Mesh Editing",         "Conversion",
+    "Animation",            "Cloth",                "Hair and Fur",         "UV Coordinates",
+    "Cache Tools",          "Subdivision Surfaces", "Free Form Deformers",  "Parametric Deformers",
+    "Surface",              "NURBS Editing",        "Radiosity",            "Cameras",
+    "Rendering"};
+
+// Create menu sections: (category, title used when the category has no subcategories).
+const char* const kCreateCategories[] = {"Geometry", "Shapes", "Lights", "Cameras", "Helpers", "Space Warps",
+                                         "Systems"};
+}  // namespace
+
+QMenu* MainWindow::menuAt(const QString& path) {
+  QStringList parts = path.split('/', Qt::SkipEmptyParts);
+  if (parts.isEmpty()) return nullptr;
+  QMenu* menu = nullptr;
+  for (QAction* a : menuBar()->actions())
+    if (a->menu() && plainMenuTitle(a->text()) == plainMenuTitle(parts[0])) menu = a->menu();
+  if (!menu) {
+    // Unknown top-level menu: insert before Help.
+    QAction* help = nullptr;
+    for (QAction* a : menuBar()->actions())
+      if (a->menu() && plainMenuTitle(a->text()) == "Help") help = a;
+    menu = new QMenu(parts[0], menuBar());
+    menuBar()->insertMenu(help, menu);
+  }
+  for (int i = 1; i < parts.size(); ++i) {
+    QMenu* sub = nullptr;
+    for (QAction* a : menu->actions())
+      if (a->menu() && plainMenuTitle(a->text()) == plainMenuTitle(parts[i])) sub = a->menu();
+    if (!sub) sub = menu->addMenu(parts[i]);
+    menu = sub;
+  }
+  return menu;
+}
+
+void MainWindow::addBelowViewports(QWidget* w) {
+  w->setParent(centralWidget());
+  centralLayout_->addWidget(w, 0);
+}
+
+void MainWindow::addCommandPanelTab(QWidget* page, const QIcon& icon, const QString& title) {
+  commandPanel_->addTab(page, icon, QString());
+  commandPanel_->setTabToolTip(commandPanel_->count() - 1, title);
+}
+
+void MainWindow::registerCommand(const QString& id, QAction* action) {
+  action->setObjectName(id);
+  commands_.insert(id, action);
+}
+
 void MainWindow::createMenus() {
-  QMenu* file = menuBar()->addMenu(tr("&File"));
+  for (const char* title : kTopMenus) menuBar()->addMenu(tr(title));
+  QMenu* file = menuAt("File");
   file->addAction(newAct_);
   file->addAction(openAct_);
   recentMenu_ = file->addMenu(tr("Open &Recent"));
@@ -346,7 +411,7 @@ void MainWindow::createMenus() {
   file->addSeparator();
   file->addAction(exitAct_);
 
-  QMenu* edit = menuBar()->addMenu(tr("&Edit"));
+  QMenu* edit = menuAt("Edit");
   edit->addAction(undoAct_);
   edit->addAction(redoAct_);
   edit->addSeparator();
@@ -370,7 +435,7 @@ void MainWindow::createMenus() {
   edit->addSeparator();
   edit->addAction(propertiesAct_);
 
-  QMenu* tools = menuBar()->addMenu(tr("&Tools"));
+  QMenu* tools = menuAt("Tools");
   tools->addAction(selectByNameAct_);
   tools->addAction(cloneAct_);
   tools->addSeparator();
@@ -398,38 +463,68 @@ void MainWindow::createMenus() {
   tools->addSeparator();
   tools->addAction(materialEditorAct_);
 
-  QMenu* create = menuBar()->addMenu(tr("&Create"));
-  auto addCreate = [this](QMenu* m, const std::vector<std::string>& types) {
-    for (const auto& t : types) {
-      QString type = QString::fromStdString(t);
-      m->addAction(QString::fromStdString(objectDisplayName(t)), this, [this, type] {
+  // Create and Modifiers menus list every registered type; rebuilt when opened.
+  QMenu* create = menuAt("Create");
+  connect(create, &QMenu::aboutToShow, this, [this, create] {
+    create->clear();
+    auto addType = [this](QMenu* m, const ObjectTypeInfo* t) {
+      QString type = QString::fromStdString(t->type);
+      QString name = QString::fromStdString(t->displayName);
+      m->addAction(name, this, [this, type, name] {
         state_->setCreateType(type);
         commandPanel_->showCreate();
-        prompt_->setText(tr("Click and drag in a viewport to create a %1")
-                             .arg(QString::fromStdString(objectDisplayName(type.toStdString()))));
+        prompt_->setText(tr("Click and drag in a viewport to create a %1").arg(name));
       });
+    };
+    for (const char* cat : kCreateCategories) {
+      std::vector<std::string> subs = objectSubcategories(cat);
+      if (subs.empty()) continue;
+      if (std::string(cat) != "Geometry") create->addSeparator();
+      for (const std::string& sub : subs) {
+        QString title = sub.empty() || std::string(cat) != "Geometry" ? QString::fromStdString(cat)
+                                                                     : QString::fromStdString(sub);
+        if (std::string(cat) != "Geometry" && subs.size() > 1 && !sub.empty())
+          title = QString::fromStdString(cat) + " - " + QString::fromStdString(sub);
+        QMenu* m = create->addMenu(title);
+        for (const ObjectTypeInfo* t : objectTypesIn(cat, sub)) addType(m, t);
+      }
     }
-  };
-  addCreate(create->addMenu(icons::geometry(), tr("Standard Primitives")), geometryTypes());
-  addCreate(create->addMenu(icons::lights(), tr("Lights")), lightTypes());
-  addCreate(create->addMenu(icons::cameras(), tr("Cameras")), {"Camera"});
+  });
 
-  QMenu* mods = menuBar()->addMenu(tr("&Modifiers"));
-  for (const auto& t : modifierTypes()) {
-    QString type = QString::fromStdString(t);
-    mods->addAction(QString::fromStdString(modifierDisplayName(t)), this, [this, type] {
-      commandPanel_->addModifier(type);
-    });
-  }
+  QMenu* mods = menuAt("Modifiers");
+  connect(mods, &QMenu::aboutToShow, this, [this, mods] {
+    mods->clear();
+    std::vector<std::string> cats(std::begin(kModifierCategories), std::end(kModifierCategories));
+    std::vector<std::string> extra;
+    for (const auto& t : modifierTypeInfos())
+      if (std::find(cats.begin(), cats.end(), t.category) == cats.end() &&
+          std::find(extra.begin(), extra.end(), t.category) == extra.end())
+        extra.push_back(t.category);
+    std::sort(extra.begin(), extra.end());
+    cats.insert(cats.end(), extra.begin(), extra.end());
+    for (const auto& cat : cats) {
+      std::vector<const ModifierTypeInfo*> list;
+      for (const auto& t : modifierTypeInfos())
+        if (t.category == cat) list.push_back(&t);
+      if (list.empty()) continue;
+      std::sort(list.begin(), list.end(),
+                [](const ModifierTypeInfo* a, const ModifierTypeInfo* b) { return a->displayName < b->displayName; });
+      QMenu* m = mods->addMenu(QString::fromStdString(cat.empty() ? std::string("Other") : cat));
+      for (const ModifierTypeInfo* t : list) {
+        QString type = QString::fromStdString(t->type);
+        m->addAction(QString::fromStdString(t->displayName), this, [this, type] { commandPanel_->addModifier(type); });
+      }
+    }
+  });
 
-  QMenu* rendering = menuBar()->addMenu(tr("&Rendering"));
+  QMenu* rendering = menuAt("Rendering");
   rendering->addAction(renderAct_);
   rendering->addAction(renderSetupAct_);
   rendering->addAction(frameBufferAct_);
   rendering->addSeparator();
   rendering->addAction(materialEditorAct_);
 
-  QMenu* views = menuBar()->addMenu(tr("&Views"));
+  QMenu* views = menuAt("Views");
   views->addAction(undoViewAct_);
   views->addSeparator();
   for (const char* k : {"view_P", "view_U", "view_T", "view_B", "view_F", "view_L", "view_C"})
@@ -444,7 +539,7 @@ void MainWindow::createMenus() {
   views->addAction(zoomExtAllAct_);
   views->addAction(maximizeAct_);
 
-  QMenu* help = menuBar()->addMenu(tr("&Help"));
+  QMenu* help = menuAt("Help");
   QAction* keys = help->addAction(tr("&Keyboard Shortcuts"), this, [this] { showShortcutsDialog(this); });
   keys->setShortcut(QKeySequence::HelpContents);
   addAction(keys);
@@ -463,6 +558,7 @@ void MainWindow::createMenus() {
 
 void MainWindow::createToolBar() {
   QToolBar* tb = addToolBar(tr("Main Toolbar"));
+  mainToolBar_ = tb;
   tb->setObjectName("MainToolbar");
   tb->setIconSize(QSize(22, 22));
   tb->setMovable(false);
@@ -509,16 +605,9 @@ void MainWindow::createDocks() {
   addDockWidget(Qt::LeftDockWidgetArea, left);
   resizeDocks({left, right}, {230, 290}, Qt::Horizontal);
 
-  QMenu* windows = menuBar()->addMenu(tr("&Windows"));
-  windows->addAction(left->toggleViewAction());
-  windows->addAction(right->toggleViewAction());
-  // Keep Help last.
-  QList<QAction*> top = menuBar()->actions();
-  if (top.size() >= 2) {
-    QAction* helpMenu = top[top.size() - 2];
-    menuBar()->removeAction(helpMenu);
-    menuBar()->addAction(helpMenu);
-  }
+  QMenu* showUi = menuAt("Customize/Show UI");
+  showUi->addAction(left->toggleViewAction());
+  showUi->addAction(right->toggleViewAction());
 }
 
 void MainWindow::createStatusBar() {

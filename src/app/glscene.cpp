@@ -177,7 +177,7 @@ void GlScene::drawShaded(const Node& node, uint64_t stamp, const Mat4& viewProj,
                          const Vec3& viewDir, bool ortho, const QColor& color, float alpha) {
   GpuMesh& m = meshFor(node, stamp);
   if (!m.triCount) return;
-  Mat4 model = node.worldMatrix();
+  Mat4 model = node.objectWorldMatrix();
   QMatrix4x4 qModel = toQt(model);
   meshProg_.bind();
   meshProg_.setUniformValue("uMVP", toQt(viewProj * model));
@@ -198,7 +198,7 @@ void GlScene::drawWire(const Node& node, uint64_t stamp, const Mat4& viewProj, c
   GpuMesh& m = meshFor(node, stamp);
   if (!m.wireCount) return;
   lineProg_.bind();
-  lineProg_.setUniformValue("uMVP", toQt(viewProj * node.worldMatrix()));
+  lineProg_.setUniformValue("uMVP", toQt(viewProj * node.objectWorldMatrix()));
   gl_->glBindVertexArray(m.wireVao);
   QOpenGLContext::currentContext()->functions()->glVertexAttrib4f(1, color.redF(), color.greenF(), color.blueF(),
                                                                   color.alphaF());

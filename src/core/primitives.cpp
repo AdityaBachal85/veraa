@@ -532,24 +532,21 @@ class PlaneObject : public Primitive {
 
 }  // namespace
 
-std::unique_ptr<SceneObject> createPrimitive(const std::string& type) {
-  if (type == "Box") return std::make_unique<BoxObject>();
-  if (type == "ChamferBox") return std::make_unique<ChamferBoxObject>();
-  if (type == "Sphere") return std::make_unique<SphereObject>();
-  if (type == "GeoSphere") return std::make_unique<GeoSphereObject>();
-  if (type == "Cylinder") return std::make_unique<CylinderObject>();
-  if (type == "Cone") return std::make_unique<ConeObject>();
-  if (type == "Tube") return std::make_unique<TubeObject>();
-  if (type == "Torus") return std::make_unique<TorusObject>();
-  if (type == "Pyramid") return std::make_unique<PyramidObject>();
-  if (type == "Plane") return std::make_unique<PlaneObject>();
-  return nullptr;
-}
-
-const std::vector<std::string>& primitiveTypes() {
-  static const std::vector<std::string> types = {"Box",  "Sphere", "Cylinder", "Torus",   "Cone",
-                                                 "Tube", "Pyramid", "Plane",   "GeoSphere", "ChamferBox"};
-  return types;
+void registerPrimitiveTypes() {
+  auto add = [](const char* type, const char* name, const char* sub, std::function<std::unique_ptr<SceneObject>()> f) {
+    registerObjectType({type, name, "Geometry", sub, std::move(f)});
+  };
+  const char* standard = "Standard Primitives";
+  add("Box", "Box", standard, [] { return std::make_unique<BoxObject>(); });
+  add("Cone", "Cone", standard, [] { return std::make_unique<ConeObject>(); });
+  add("Sphere", "Sphere", standard, [] { return std::make_unique<SphereObject>(); });
+  add("GeoSphere", "GeoSphere", standard, [] { return std::make_unique<GeoSphereObject>(); });
+  add("Cylinder", "Cylinder", standard, [] { return std::make_unique<CylinderObject>(); });
+  add("Tube", "Tube", standard, [] { return std::make_unique<TubeObject>(); });
+  add("Torus", "Torus", standard, [] { return std::make_unique<TorusObject>(); });
+  add("Pyramid", "Pyramid", standard, [] { return std::make_unique<PyramidObject>(); });
+  add("Plane", "Plane", standard, [] { return std::make_unique<PlaneObject>(); });
+  add("ChamferBox", "Chamfer Box", "Extended Primitives", [] { return std::make_unique<ChamferBoxObject>(); });
 }
 
 }  // namespace veraa

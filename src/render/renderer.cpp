@@ -212,7 +212,11 @@ bool Renderer::Impl::build(const Scene& scene, std::string* error) {
   };
 
   for (const auto& node : scene.nodes) {
-    if (node->kind() != ObjectKind::Geometry || node->hidden || !node->renderable) continue;
+    ObjectKind kind = node->kind();
+    if (kind != ObjectKind::Geometry && kind != ObjectKind::Shape) continue;
+    if (!scene.isNodeRenderable(*node)) continue;
+    // Splines render only with "Enable In Renderer" (they may show a tube in viewports only).
+    if (node->isShapeResult() && !(node->object && node->object->params.getBool("renderInRenderer"))) continue;
     const TriMesh& tm = node->triMesh();
     if (tm.empty()) continue;
 
@@ -225,7 +229,7 @@ bool Renderer::Impl::build(const Scene& scene, std::string* error) {
       materials.push_back(MaterialData::fromColor(node->wireColor));
     }
 
-    Mat4 M = node->worldMatrix();
+    Mat4 M = node->objectWorldMatrix();
     Mat4 Minv = M.inverse();
     bool mirrored = M.determinant3x3() < 0.0f;
     size_t nv = tm.positions.size();

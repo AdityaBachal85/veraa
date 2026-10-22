@@ -52,6 +52,8 @@ Viewport::Viewport(SceneDocument* doc, EditorState* state, ViewType type, QWidge
   connect(doc_, &SceneDocument::materialsChanged, this, repaint);
   connect(doc_, &SceneDocument::renderSettingsChanged, this, repaint);
   connect(state_, &EditorState::toolChanged, this, repaint);
+  connect(state_, &EditorState::redrawRequested, this, repaint);
+  connect(state_, &EditorState::viewportToolChanged, this, repaint);
   connect(state_, &EditorState::showGridChanged, this, repaint);
   connect(state_, &EditorState::createTypeChanged, this, [this](const QString&) {
     if (createStage_ > 0) cancelInteraction();
@@ -213,12 +215,40 @@ void Viewport::paintGL() {
     glDepthMask(GL_TRUE);
     LineBatch brackets;
     const Scene& scene = doc_->scene();
+    LineBatch shapes;
     for (const auto& up : scene.nodes) {
       const Node& n = *up;
-      if (n.hidden || n.kind() != ObjectKind::Geometry) continue;
+      ObjectKind kind = n.kind();
+      if ((kind != ObjectKind::Geometry && kind != ObjectKind::Shape) || !scene.isNodeVisible(n)) continue;
       bool sel = doc_->isSelected(n.id);
+      bool frozen = scene.isNodeFrozen(n);
+      QColor wire = frozen ? theme::frozen() : qcolor(n.wireColor);
+      if (kind == ObjectKind::Shape || n.isShapeResult()) {
+        // Splines draw as lines; a viewport-renderable spline also shows its tube below.
+        Mat4 m = n.objectWorldMatrix();
+        QColor c = sel ? theme::selection() : wire;
+        for (const auto& line : n.shapeLines())
+          for (size_t i = 1; i < line.size(); ++i) shapes.line(m.transformPoint(line[i - 1]), m.transformPoint(line[i]), c);
+        if (n.triMesh().empty()) continue;
+      }
+      if (n.displayAsBox) {
+        Mat4 m = n.objectWorldMatrix();
+        const Aabb& lb = n.triMesh().bounds;
+        if (lb.valid()) {
+          QColor c = sel ? theme::selection() : wire;
+          for (int e = 0; e < 12; ++e) {
+            static const int edges[12][2] = {{0, 1}, {2, 3}, {4, 5}, {6, 7}, {0, 2}, {1, 3},
+                                             {4, 6}, {5, 7}, {0, 4}, {1, 5}, {2, 6}, {3, 7}};
+            auto corner = [&](int i) {
+              return m.transformPoint(Vec3((i & 1) ? lb.hi.x : lb.lo.x, (i & 2) ? lb.hi.y : lb.lo.y,
+                                           (i & 4) ? lb.hi.z : lb.lo.z));
+            };
+            shapes.line(corner(edges[e][0]), corner(edges[e][1]), c);
+          }
+        }
+        continue;
+      }
       uint64_t stamp = doc_->geometryStamp(n.id);
-      QColor wire = qcolor(n.wireColor);
       if (shading_ == ShadingMode::Shaded) {
         Vec3 c = n.wireColor;
         if (const Material* m = scene.findMaterial(n.materialId)) {
@@ -228,6 +258,7 @@ void Viewport::paintGL() {
           if (maxComponent(refr) > 0.3f) c = lerp(c, Vec3(0.75f, 0.85f, 0.9f), 0.6f);
           c = vmax(c, Vec3(0.04f));
         }
+        if (frozen) c = Vec3(0.45f);
         glEnable(GL_POLYGON_OFFSET_FILL);
         glPolygonOffset(1.0f, 1.0f);
         gl_->drawShaded(n, stamp, vp, cam_.eye(), cam_.forward(), cam_.orthographic(), qcolor(c));
@@ -238,8 +269,11 @@ void Viewport::paintGL() {
         gl_->drawWire(n, stamp, vp, sel ? theme::selection() : wire);
       }
     }
+    gl_->drawBatch(shapes, vp);
     LineBatch icons;
     drawIcons(icons);
+    for (const auto& d : state_->decorators()) d->drawLines(*this, icons);
+    if (auto tool = state_->viewportToolShared()) tool->drawLines(*this, icons);
     gl_->drawBatch(icons, vp);
     glDisable(GL_DEPTH_TEST);
     gl_->drawBatch(brackets, vp);
@@ -262,6 +296,8 @@ void Viewport::paintGL() {
 
   QPainter p(this);
   drawOverlay(p);
+  for (const auto& d : state_->decorators()) d->drawOverlay(*this, p);
+  if (auto tool = state_->viewportToolShared()) tool->drawOverlay(*this, p);
 }
 
 void Viewport::drawGrid(LineBatch& b) {
@@ -325,9 +361,11 @@ void Viewport::drawGrid(LineBatch& b) {
 }
 
 void Viewport::drawBrackets(LineBatch& b, const Node& n) {
-  const Aabb& lb = n.triMesh().bounds;
+  Aabb lb = n.triMesh().bounds;
+  for (const auto& line : n.shapeLines())
+    for (const auto& p : line) lb.expand(p);
   if (!lb.valid()) return;
-  Mat4 m = n.worldMatrix();
+  Mat4 m = n.objectWorldMatrix();
   Vec3 e = lb.extent() * 0.22f;
   QColor c = theme::selection();
   for (int i = 0; i < 8; ++i) {
@@ -353,7 +391,7 @@ void Viewport::drawIcons(LineBatch& b) {
   };
   for (const auto& up : scene.nodes) {
     const Node& n = *up;
-    if (n.hidden || n.kind() == ObjectKind::Geometry) continue;
+    if (!scene.isNodeVisible(n) || n.kind() == ObjectKind::Geometry || n.kind() == ObjectKind::Shape) continue;
     if (cam_.type == ViewType::Camera && n.id == cam_.cameraNodeId) continue;
     bool sel = doc_->isSelected(n.id);
     QColor col = sel ? theme::selection() : qcolor(n.wireColor);
@@ -521,6 +559,7 @@ void Viewport::drawOverlay(QPainter& p) {
 // Picking and gizmo
 
 bool Viewport::gizmoAvailable() const {
+  if (const ViewportTool* tool = state_->viewportTool(); tool && !tool->allowsGizmo()) return false;
   return state_->tool() != TransformTool::Select && !doc_->selection().isEmpty() && !state_->creating() &&
          createStage_ == 0;
 }
@@ -531,8 +570,8 @@ void Viewport::setupGizmo() {
   auto sel = doc_->selectedNodes();
   if (sel.size() == 1 && state_->tool() != TransformTool::Move) {
     // Rotate and scale work in the object's local axes.
-    Mat4 m = Mat4::fromEulerDeg(sel[0]->transform.rotation);
-    for (int i = 0; i < 3; ++i) axes[i] = m.column(i);
+    Mat4 m = sel[0]->worldMatrix();
+    for (int i = 0; i < 3; ++i) axes[i] = normalize(m.column(i));
   }
   Vec3 origin = drag_ == Drag::Gizmo && state_->tool() != TransformTool::Move ? dragCenter_ : doc_->selectionCenter();
   gizmo_.setup(cam_, state_->tool(), origin, axes);
@@ -542,23 +581,47 @@ uint32_t Viewport::pick(float px, float py, float* depthOut) const {
   Ray ray = cam_.rayAt(px, py);
   uint32_t best = 0;
   float bestT = kInfinity;
-  for (const auto& up : doc_->scene().nodes) {
+  const Scene& scene = doc_->scene();
+  for (const auto& up : scene.nodes) {
     const Node& n = *up;
-    if (n.hidden) continue;
-    if (n.kind() == ObjectKind::Geometry) {
-      Mat4 inv = n.worldMatrix().inverse();
-      Ray local{inv.transformPoint(ray.o), inv.transformDir(ray.d)};
-      float t = intersectTriMesh(n.triMesh(), local);
-      if (t > 0 && t < bestT) {
-        bestT = t;
-        best = n.id;
+    if (!scene.isNodeVisible(n) || scene.isNodeFrozen(n)) continue;
+    if (!state_->selectionFilterAccepts(n)) continue;
+    ObjectKind kind = n.kind();
+    if (kind == ObjectKind::Geometry || kind == ObjectKind::Shape) {
+      Mat4 m = n.objectWorldMatrix();
+      if (!n.triMesh().empty()) {
+        Mat4 inv = m.inverse();
+        Ray local{inv.transformPoint(ray.o), inv.transformDir(ray.d)};
+        float t = intersectTriMesh(n.triMesh(), local);
+        if (t > 0 && t < bestT) {
+          bestT = t;
+          best = n.id;
+        }
       }
+      // Splines: pick within a few pixels of their lines.
+      for (const auto& line : n.shapeLines())
+        for (size_t i = 1; i < line.size(); ++i) {
+          float ax, ay, bx, by, da, db;
+          Vec3 wa = m.transformPoint(line[i - 1]), wb = m.transformPoint(line[i]);
+          if (!cam_.project(wa, ax, ay, &da) || !cam_.project(wb, bx, by, &db)) continue;
+          float vx = bx - ax, vy = by - ay, len2 = vx * vx + vy * vy;
+          float u = len2 > 0 ? clampf(((px - ax) * vx + (py - ay) * vy) / len2, 0.0f, 1.0f) : 0.0f;
+          float dist = std::hypot(ax + vx * u - px, ay + vy * u - py);
+          if (dist > 5.0f) continue;
+          Vec3 wp = lerp(wa, wb, u);
+          float t = cam_.orthographic() ? dot(wp - ray.o, ray.d) : length(wp - ray.o);
+          if (t < bestT) {
+            bestT = t;
+            best = n.id;
+          }
+        }
     } else {
       if (cam_.type == ViewType::Camera && n.id == cam_.cameraNodeId) continue;
+      Vec3 wp = n.worldPosition();
       float sx, sy, depth;
-      if (!cam_.project(n.transform.position, sx, sy, &depth)) continue;
+      if (!cam_.project(wp, sx, sy, &depth)) continue;
       if (std::hypot(sx - px, sy - py) < 12.0f) {
-        float t = cam_.orthographic() ? dot(n.transform.position - ray.o, ray.d) : depth;
+        float t = cam_.orthographic() ? dot(wp - ray.o, ray.d) : depth;
         if (t < bestT) {
           bestT = t;
           best = n.id;
@@ -573,16 +636,28 @@ uint32_t Viewport::pick(float px, float py, float* depthOut) const {
 QVector<uint32_t> Viewport::regionPick(const QRect& r) const {
   QVector<uint32_t> out;
   QRectF rf(r);
-  for (const auto& up : doc_->scene().nodes) {
+  const Scene& scene = doc_->scene();
+  for (const auto& up : scene.nodes) {
     const Node& n = *up;
-    if (n.hidden) continue;
-    if (n.kind() != ObjectKind::Geometry) {
+    if (!scene.isNodeVisible(n) || scene.isNodeFrozen(n)) continue;
+    if (!state_->selectionFilterAccepts(n)) continue;
+    if (n.kind() != ObjectKind::Geometry && n.kind() != ObjectKind::Shape) {
       float sx, sy;
-      if (cam_.project(n.transform.position, sx, sy) && rf.contains(sx, sy)) out.push_back(n.id);
+      if (cam_.project(n.worldPosition(), sx, sy) && rf.contains(sx, sy)) out.push_back(n.id);
+      continue;
+    }
+    Mat4 m = n.objectWorldMatrix();
+    bool shapeHit = false;
+    for (const auto& line : n.shapeLines())
+      for (const auto& p : line) {
+        float sx, sy;
+        if (!shapeHit && cam_.project(m.transformPoint(p), sx, sy) && rf.contains(sx, sy)) shapeHit = true;
+      }
+    if (shapeHit) {
+      out.push_back(n.id);
       continue;
     }
     const TriMesh& t = n.triMesh();
-    Mat4 m = n.worldMatrix();
     size_t count = t.wirePositions.size();
     size_t step = std::max<size_t>(1, count / 4000);
     bool hit = false;
@@ -614,44 +689,56 @@ void Viewport::beginTransformDrag(GizmoHandle h, float px, float py, bool cloneF
   setupGizmo();
   dragCenter_ = gizmo_.origin;
   dragStart_.clear();
-  for (Node* n : doc_->selectedNodes()) dragStart_.push_back({n->id, n->transform});
+  for (Node* n : doc_->selectedNodes()) dragStart_.push_back({n->id, n->transform, n->worldPosition()});
   gizmoDrag_.begin(cam_, gizmo_, h, px, py);
   if (tool != TransformTool::Rotate) state_->setConstraint(h);
   drag_ = Drag::Gizmo;
 }
 
 void Viewport::updateTransformDrag(float px, float py) {
+  // Drags work in world space; results are written back into each node's local transform so
+  // linked children move correctly.
   Scene& scene = doc_->scene();
   QVector<uint32_t> ids;
   TransformTool tool = state_->tool();
   if (tool == TransformTool::Move) {
     Vec3 d = gizmoDrag_.translation(cam_, px, py);
+    Vec3 snapped;
+    if (!dragStart_.empty() && state_->snapPoint(*this, px, py, dragStart_[0].worldPos + d, snapped))
+      d = snapped - dragStart_[0].worldPos;
     dragDisplay_ = d;
     for (const auto& s : dragStart_)
       if (Node* n = scene.findNode(s.id)) {
-        n->transform.position = s.xf.position + d;
+        n->transform = s.xf;
+        n->setWorldPosition(s.worldPos + d);
         ids.push_back(s.id);
       }
   } else if (tool == TransformTool::Rotate) {
     Vec3 axis;
     float angle = gizmoDrag_.rotation(cam_, px, py, axis);
+    angle = state_->snapAngle(angle);
     dragDisplay_ = Vec3(degrees(angle), 0, 0);
     Mat4 r = Mat4::rotateAxis(axis, angle);
     bool multi = dragStart_.size() > 1;
     for (const auto& s : dragStart_)
       if (Node* n = scene.findNode(s.id)) {
-        n->transform.rotation = eulerDegFromMatrix(r * Mat4::fromEulerDeg(s.xf.rotation));
-        if (multi) n->transform.position = dragCenter_ + r.transformDir(s.xf.position - dragCenter_);
+        n->transform = s.xf;
+        Vec3 localAxis = normalize(n->parentWorldMatrix().inverse().transformDir(axis));
+        Mat4 rl = Mat4::rotateAxis(localAxis, angle);
+        n->transform.rotation = eulerDegFromMatrix(rl * Mat4::fromEulerDeg(s.xf.rotation));
+        if (multi) n->setWorldPosition(dragCenter_ + r.transformDir(s.worldPos - dragCenter_));
         ids.push_back(s.id);
       }
   } else if (tool == TransformTool::Scale) {
     Vec3 f = gizmoDrag_.scaling(cam_, px, py);
+    f = state_->snapPercent(f);
     dragDisplay_ = f * 100.0f;
     bool multi = dragStart_.size() > 1;
     for (const auto& s : dragStart_)
       if (Node* n = scene.findNode(s.id)) {
+        n->transform = s.xf;
         n->transform.scale = s.xf.scale * f;
-        if (multi) n->transform.position = dragCenter_ + (s.xf.position - dragCenter_) * f;
+        if (multi) n->setWorldPosition(dragCenter_ + (s.worldPos - dragCenter_) * f);
         ids.push_back(s.id);
       }
   }
@@ -693,6 +780,10 @@ void Viewport::endTransformDrag() {
 }
 
 bool Viewport::cancelInteraction() {
+  if (auto tool = state_->viewportToolShared(); tool && tool->cancel()) {
+    update();
+    return true;
+  }
   if (createStage_ > 0) {
     createStage_ = 0;
     createNode_ = 0;
@@ -728,6 +819,8 @@ bool Viewport::constructionHit(float px, float py, Vec3& hit) const {
   float t = dot(p0 - r.o, n) / denom;
   if (!cam_.orthographic() && t < 0) return false;
   hit = r.o + r.d * t;
+  Vec3 snapped;
+  if (state_->snapPoint(*this, px, py, hit, snapped)) hit = snapped;
   return true;
 }
 
@@ -930,6 +1023,13 @@ void Viewport::mousePressEvent(QMouseEvent* e) {
     return;
   }
 
+  // An active viewport tool (sub-object editing, custom creation, ...) sees clicks first.
+  if (e->button() != Qt::MiddleButton && drag_ == Drag::None)
+    if (auto tool = state_->viewportToolShared(); tool && tool->mousePress(*this, e)) {
+      update();
+      return;
+    }
+
   if (e->button() == Qt::MiddleButton) {
     pushViewHistory();
     if ((e->modifiers() & Qt::AltModifier) && (e->modifiers() & Qt::ControlModifier)) drag_ = Drag::ZoomDrag;
@@ -950,7 +1050,16 @@ void Viewport::mousePressEvent(QMouseEvent* e) {
         finishCreate();
         return;
       }
-      if (createStage_ == 0) createPress(px, py);
+      if (createStage_ == 0) {
+        if (CreationToolFactory factory = creationToolFor(state_->createType())) {
+          auto tool = factory();
+          state_->setViewportTool(tool);
+          if (tool) tool->mousePress(*this, e);
+          update();
+          return;
+        }
+        createPress(px, py);
+      }
     }
     return;
   }
@@ -996,6 +1105,13 @@ void Viewport::mouseMoveEvent(QMouseEvent* e) {
   if ((pos - pressPos_).manhattanLength() > 3) moved_ = true;
   updateCamera();
 
+  if (drag_ == Drag::None)
+    if (auto tool = state_->viewportToolShared(); tool && tool->mouseMove(*this, e)) {
+      lastPos_ = pos;
+      update();
+      return;
+    }
+
   switch (drag_) {
     case Drag::Pan:
       cam_.pan(static_cast<float>(delta.x()), static_cast<float>(delta.y()));
@@ -1035,6 +1151,11 @@ void Viewport::mouseMoveEvent(QMouseEvent* e) {
 
 void Viewport::mouseReleaseEvent(QMouseEvent* e) {
   float px = static_cast<float>(e->position().x()), py = static_cast<float>(e->position().y());
+  if (drag_ == Drag::None && e->button() != Qt::MiddleButton)
+    if (auto tool = state_->viewportToolShared(); tool && tool->mouseRelease(*this, e)) {
+      update();
+      return;
+    }
   switch (drag_) {
     case Drag::Gizmo:
       if (e->button() == Qt::LeftButton) endTransformDrag();
@@ -1084,11 +1205,24 @@ void Viewport::mouseReleaseEvent(QMouseEvent* e) {
 }
 
 void Viewport::mouseDoubleClickEvent(QMouseEvent* e) {
+  if (e->button() != Qt::MiddleButton)
+    if (auto tool = state_->viewportToolShared(); tool && tool->mouseDoubleClick(*this, e)) {
+      update();
+      return;
+    }
   if (e->button() == Qt::MiddleButton) {
     zoomExtents(false);
     return;
   }
   QOpenGLWidget::mouseDoubleClickEvent(e);
+}
+
+void Viewport::keyPressEvent(QKeyEvent* e) {
+  if (auto tool = state_->viewportToolShared(); tool && tool->keyPress(*this, e)) {
+    update();
+    return;
+  }
+  QOpenGLWidget::keyPressEvent(e);
 }
 
 void Viewport::wheelEvent(QWheelEvent* e) {

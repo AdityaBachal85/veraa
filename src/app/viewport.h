@@ -45,6 +45,13 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
   // Creates a camera node matching this (perspective) view; returns its id or 0.
   uint32_t createCameraFromView();
 
+  // Helpers for viewport tools: picking and construction-plane hits in widget pixels.
+  uint32_t pickNode(float px, float py, float* depth = nullptr) const { return pick(px, py, depth); }
+  QVector<uint32_t> pickNodesInRect(const QRect& r) const { return regionPick(r); }
+  bool hitConstructionPlane(float px, float py, Vec3& hit) const { return constructionHit(px, py, hit); }
+  SceneDocument* document() const { return doc_; }
+  EditorState* editorState() const { return state_; }
+
   // Simulated input for the self test.
   void simulateMouse(QEvent::Type type, QPointF pos, Qt::MouseButton button, Qt::MouseButtons buttons,
                      Qt::KeyboardModifiers mods = Qt::NoModifier);
@@ -65,6 +72,7 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
   void mouseReleaseEvent(QMouseEvent* e) override;
   void mouseDoubleClickEvent(QMouseEvent* e) override;
   void wheelEvent(QWheelEvent* e) override;
+  void keyPressEvent(QKeyEvent* e) override;
   void leaveEvent(QEvent* e) override;
   void dragEnterEvent(QDragEnterEvent* e) override;
   void dragMoveEvent(QDragMoveEvent* e) override;
@@ -119,6 +127,7 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
   struct StartXf {
     uint32_t id;
     Transform xf;
+    Vec3 worldPos;
   };
   std::vector<StartXf> dragStart_;
   Vec3 dragCenter_;
