@@ -31,6 +31,12 @@ class MeshBuilder {
   }
   // Open-ended or capped cylinder between a and b.
   void cylinder(const Vec3& a, const Vec3& b, float radius, int sides, bool caps, int matId);
+  // Capped cylinder whose radius goes from r0 at a to r1 at b (r1 = 0 makes a cone).
+  void cone(const Vec3& a, const Vec3& b, float r0, float r1, int sides, int matId);
+  // Closed UV sphere.
+  void sphere(const Vec3& center, float radius, int segments, int matId);
+  // Two-sided quad (front and back faces), for leaves and thin panels.
+  void quad2(const Vec3& a, const Vec3& b, const Vec3& c, const Vec3& d, int matId);
 
  private:
   PolyMesh& m_;
@@ -39,5 +45,7 @@ class MeshBuilder {
 
 // Planar UV of point p for a face with normal n (dominant-axis projection), scaled.
 Vec2 boxUv(const Vec3& p, const Vec3& n, float scale);
+// Replaces every face's UVs with box-mapped ones (real-world scale).
+void boxMapUvs(PolyMesh& m, float scale);
 
 }  // namespace veraa

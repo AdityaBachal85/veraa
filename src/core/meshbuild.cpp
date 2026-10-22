@@ -66,4 +66,75 @@ void MeshBuilder::cylinder(const Vec3& a, const Vec3& b, float radius, int sides
   }
 }
 
+void MeshBuilder::cone(const Vec3& a, const Vec3& b, float r0, float r1, int sides, int matId) {
+  sides = std::max(3, sides);
+  Vec3 axis = b - a;
+  float len = length(axis);
+  if (len < 1e-6f || (r0 <= 0.0f && r1 <= 0.0f)) return;
+  Vec3 d = axis / len, u, w;
+  makeBasis(d, u, w);
+  int base = static_cast<int>(m_.positions.size());
+  bool apex = r1 <= 1e-6f;
+  for (int k = 0; k < sides; ++k) {
+    float t = kTwoPi * k / sides;
+    m_.addVertex(a + (u * std::cos(t) + w * std::sin(t)) * r0);
+  }
+  if (apex) {
+    int tip = m_.addVertex(b);
+    for (int k = 0; k < sides; ++k) faceBoxUv({base + k, base + (k + 1) % sides, tip}, matId, 1u);
+  } else {
+    for (int k = 0; k < sides; ++k) {
+      float t = kTwoPi * k / sides;
+      m_.addVertex(b + (u * std::cos(t) + w * std::sin(t)) * r1);
+    }
+    for (int k = 0; k < sides; ++k) {
+      int kn = (k + 1) % sides;
+      faceBoxUv({base + k, base + kn, base + sides + kn, base + sides + k}, matId, 1u);
+    }
+    std::vector<int> top;
+    for (int k = 0; k < sides; ++k) top.push_back(base + sides + k);
+    faceBoxUv(top, matId, 0u);
+  }
+  std::vector<int> bottom;
+  for (int k = sides - 1; k >= 0; --k) bottom.push_back(base + k);
+  faceBoxUv(bottom, matId, 0u);
+}
+
+void MeshBuilder::sphere(const Vec3& c, float radius, int segments, int matId) {
+  int seg = std::max(4, segments), rings = std::max(2, seg / 2);
+  int top = m_.addVertex(c + Vec3(0, 0, radius));
+  int first = static_cast<int>(m_.positions.size());
+  for (int r = 1; r < rings; ++r) {
+    float phi = kPi * r / rings;
+    for (int k = 0; k < seg; ++k) {
+      float t = kTwoPi * k / seg;
+      m_.addVertex(c + Vec3(std::sin(phi) * std::cos(t), std::sin(phi) * std::sin(t), std::cos(phi)) * radius);
+    }
+  }
+  int bottom = m_.addVertex(c - Vec3(0, 0, radius));
+  auto V = [&](int r, int k) { return first + (r - 1) * seg + (k % seg); };
+  for (int k = 0; k < seg; ++k) faceBoxUv({top, V(1, k), V(1, k + 1)}, matId, 1u);
+  for (int r = 1; r + 1 < rings; ++r)
+    for (int k = 0; k < seg; ++k) faceBoxUv({V(r, k), V(r + 1, k), V(r + 1, k + 1), V(r, k + 1)}, matId, 1u);
+  for (int k = 0; k < seg; ++k) faceBoxUv({V(rings - 1, k), bottom, V(rings - 1, k + 1)}, matId, 1u);
+}
+
+void MeshBuilder::quad2(const Vec3& a, const Vec3& b, const Vec3& c, const Vec3& d, int matId) {
+  int i0 = m_.addVertex(a), i1 = m_.addVertex(b), i2 = m_.addVertex(c), i3 = m_.addVertex(d);
+  int t0 = m_.addUv(Vec2(0, 0)), t1 = m_.addUv(Vec2(1, 0)), t2 = m_.addUv(Vec2(1, 1)), t3 = m_.addUv(Vec2(0, 1));
+  // Faceted: the two sides share vertices, so smoothing them together would cancel the normals.
+  m_.addFace({i0, i1, i2, i3}, {t0, t1, t2, t3}, 0u, matId);
+  m_.addFace({i3, i2, i1, i0}, {t3, t2, t1, t0}, 0u, matId);
+}
+
+void boxMapUvs(PolyMesh& m, float scale) {
+  m.uvs.clear();
+  for (auto& f : m.faces) {
+    Vec3 n = m.faceNormal(f);
+    n = length2(n) > 0 ? normalize(n) : Vec3(0, 0, 1);
+    f.uv.clear();
+    for (int v : f.v) f.uv.push_back(m.addUv(boxUv(m.positions[v], n, scale)));
+  }
+}
+
 }  // namespace veraa

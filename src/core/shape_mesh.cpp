@@ -551,61 +551,18 @@ PolyMesh sweepSection(const BezierShape& path, int pathSteps, bool pathOptimize,
   Aabb box = contoursBounds(section);
 
   for (const Spline& sp : path.splines) {
-    std::vector<Vec3> P = sp.polyline(pathSteps, pathOptimize);
-    // Drop duplicate consecutive points.
-    std::vector<Vec3> pts;
-    for (const auto& p : P)
-      if (pts.empty() || length2(p - pts.back()) > 1e-12f) pts.push_back(p);
-    bool closed = sp.closed && pts.size() > 2;
-    if (closed && length2(pts.front() - pts.back()) < 1e-12f) pts.pop_back();
-    int M = static_cast<int>(pts.size());
+    PathFrames F = pathFrames(sp.polyline(pathSteps, pathOptimize), sp.closed, opt.banking);
+    int M = static_cast<int>(F.P.size());
     if (M < 2) continue;
-    int segCount = closed ? M : M - 1;
-    std::vector<Vec3> dir(segCount);
-    for (int j = 0; j < segCount; ++j) dir[j] = normalize(pts[(j + 1) % M] - pts[j]);
-    std::vector<Vec3> T(M), R(M), U(M), bend(M);
-    std::vector<float> miter(M, 1.0f);
-    for (int i = 0; i < M; ++i) {
-      bool hasPrev = closed || i > 0, hasNext = closed || i < M - 1;
-      Vec3 a = hasPrev ? dir[(i + segCount - 1) % segCount] : dir[0];
-      Vec3 b = hasNext ? dir[i % segCount] : dir[segCount - 1];
-      Vec3 t = a + b;
-      T[i] = length2(t) > 1e-12f ? normalize(t) : b;
-      if (hasPrev && hasNext) {
-        miter[i] = 1.0f / std::max(0.25f, dot(b, T[i]));
-        Vec3 bd = b - a;
-        bd = bd - T[i] * dot(bd, T[i]);
-        bend[i] = length2(bd) > 1e-12f ? normalize(bd) : Vec3();
-      }
-    }
-    Vec3 up(0, 0, 1);
-    for (int i = 0; i < M; ++i) {
-      Vec3 r;
-      if (i == 0 || !opt.banking) {
-        r = cross(T[i], up);
-        if (length2(r) < 1e-10f) r = i > 0 ? R[i - 1] : cross(T[i], Vec3(1, 0, 0));
-      } else {
-        r = R[i - 1] - T[i] * dot(R[i - 1], T[i]);
-      }
-      R[i] = normalize(r);
-      U[i] = cross(R[i], T[i]);
-    }
-    float pathLen = 0;
-    std::vector<float> vAlong(M, 0.0f);
-    for (int i = 1; i < M; ++i) vAlong[i] = vAlong[i - 1] + length(pts[i] - pts[i - 1]);
-    pathLen = vAlong.back() + (closed ? length(pts[0] - pts[M - 1]) : 0.0f);
-
+    bool closed = F.closed;
+    int segCount = F.segments();
     std::vector<int> base(section.size());
     for (size_t c = 0; c < section.size(); ++c) {
       const auto& sec = section[c].pts;
       int n = static_cast<int>(sec.size());
       base[c] = static_cast<int>(m.positions.size());
       for (int i = 0; i < M; ++i)
-        for (int k = 0; k < n; ++k) {
-          Vec3 q = R[i] * sec[k].x + U[i] * sec[k].y;
-          if (miter[i] != 1.0f && length2(bend[i]) > 0) q += bend[i] * (dot(q, bend[i]) * (miter[i] - 1.0f));
-          m.addVertex(pts[i] + q);
-        }
+        for (int k = 0; k < n; ++k) m.addVertex(F.place(i, sec[k]));
       bool secClosed = section[c].closed;
       int edges = secClosed ? n : n - 1;
       std::vector<int> bits = edgeSmoothBits(sec, secClosed, opt.smoothSection ? 30.0f : 0.0f);
@@ -623,7 +580,7 @@ PolyMesh sweepSection(const BezierShape& path, int pathSteps, bool pathOptimize,
       int ringsUv = closed ? M + 1 : M;
       if (opt.generateUVs)
         for (int i = 0; i < ringsUv; ++i) {
-          float vv = (i < M ? vAlong[i] : pathLen) * vScale;
+          float vv = (i < M ? F.dist[i] : F.length) * vScale;
           for (int k = 0; k <= n; ++k) m.addUv(Vec2(u[k], vv));
         }
       for (int i = 0; i < segCount; ++i) {
@@ -633,8 +590,8 @@ PolyMesh sweepSection(const BezierShape& path, int pathSteps, bool pathOptimize,
           std::vector<int> f = {base[c] + i1 * n + k, base[c] + i1 * n + k1, base[c] + i * n + k1, base[c] + i * n + k};
           std::vector<int> t;
           if (opt.generateUVs)
-            t = std::vector<int>{uvBase + (i + 1) * (n + 1) + k, uvBase + (i + 1) * (n + 1) + k + 1, uvBase + i * (n + 1) + k + 1,
-                 uvBase + i * (n + 1) + k};
+            t = std::vector<int>{uvBase + (i + 1) * (n + 1) + k, uvBase + (i + 1) * (n + 1) + k + 1,
+                                 uvBase + i * (n + 1) + k + 1, uvBase + i * (n + 1) + k};
           m.addFace(std::move(f), std::move(t), 1u << (bits[k] * 3 + pathBit(i)), 2);
         }
       }
@@ -650,6 +607,97 @@ PolyMesh sweepSection(const BezierShape& path, int pathSteps, bool pathOptimize,
     }
   }
   return m;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Shared helpers
+
+std::vector<int> contourSmoothBits(const std::vector<Vec2>& pts, bool closed, float sharpDeg) {
+  return edgeSmoothBits(pts, closed, sharpDeg);
+}
+
+void capContours(PolyMesh& m, const std::vector<Contour2D>& contours, const std::function<int(int, int)>& vertexOf,
+                 bool reverse, int matId, uint32_t smooth, bool uvs) {
+  std::vector<IndexedRegion> regions = closedRegions(contours);
+  auto pos2d = [&](int c, int k) { return contours[c].pts[k]; };
+  addCaps(m, contours, regions, vertexOf, pos2d, reverse, matId, smooth, uvs, contoursBounds(contours));
+}
+
+int PathFrames::segments() const {
+  int M = static_cast<int>(P.size());
+  return M < 2 ? 0 : (closed ? M : M - 1);
+}
+
+Vec3 PathFrames::place(int i, const Vec2& q2) const {
+  Vec3 q = R[i] * q2.x + U[i] * q2.y;
+  if (miter[i] != 1.0f && length2(bend[i]) > 0) q += bend[i] * (dot(q, bend[i]) * (miter[i] - 1.0f));
+  return P[i] + q;
+}
+
+PathFrames pathFrames(const std::vector<Vec3>& polyline, bool closedIn, bool banking) {
+  PathFrames F;
+  // Drop duplicate consecutive points.
+  for (const auto& p : polyline)
+    if (F.P.empty() || length2(p - F.P.back()) > 1e-12f) F.P.push_back(p);
+  F.closed = closedIn && F.P.size() > 2;
+  if (F.closed && length2(F.P.front() - F.P.back()) < 1e-12f) F.P.pop_back();
+  int M = static_cast<int>(F.P.size());
+  if (M < 2) {
+    F.P.clear();
+    return F;
+  }
+  const auto& pts = F.P;
+  bool closed = F.closed;
+  int segCount = F.segments();
+  std::vector<Vec3> dir(segCount);
+  for (int j = 0; j < segCount; ++j) dir[j] = normalize(pts[(j + 1) % M] - pts[j]);
+  F.T.resize(M);
+  F.R.resize(M);
+  F.U.resize(M);
+  F.bend.assign(M, Vec3());
+  F.miter.assign(M, 1.0f);
+  for (int i = 0; i < M; ++i) {
+    bool hasPrev = closed || i > 0, hasNext = closed || i < M - 1;
+    Vec3 a = hasPrev ? dir[(i + segCount - 1) % segCount] : dir[0];
+    Vec3 b = hasNext ? dir[i % segCount] : dir[segCount - 1];
+    Vec3 t = a + b;
+    F.T[i] = length2(t) > 1e-12f ? normalize(t) : b;
+    if (hasPrev && hasNext) {
+      F.miter[i] = 1.0f / std::max(0.25f, dot(b, F.T[i]));
+      Vec3 bd = b - a;
+      bd = bd - F.T[i] * dot(bd, F.T[i]);
+      F.bend[i] = length2(bd) > 1e-12f ? normalize(bd) : Vec3();
+    }
+  }
+  Vec3 up(0, 0, 1);
+  for (int i = 0; i < M; ++i) {
+    Vec3 r;
+    if (i == 0 || !banking) {
+      r = cross(F.T[i], up);
+      if (length2(r) < 1e-10f) r = i > 0 ? F.R[i - 1] : cross(F.T[i], Vec3(1, 0, 0));
+    } else {
+      r = F.R[i - 1] - F.T[i] * dot(F.R[i - 1], F.T[i]);
+    }
+    F.R[i] = normalize(r);
+    F.U[i] = cross(F.R[i], F.T[i]);
+  }
+  // A closed path transported around the loop may come back rotated: spread the correction.
+  if (closed && banking) {
+    Vec3 back = F.R[M - 1] - F.T[0] * dot(F.R[M - 1], F.T[0]);
+    if (length2(back) > 1e-12f) {
+      back = normalize(back);
+      float ang = std::atan2(dot(cross(back, F.R[0]), F.T[0]), dot(back, F.R[0]));
+      for (int i = 1; i < M; ++i) {
+        float a = ang * static_cast<float>(i) / M;
+        F.R[i] = normalize(Mat4::rotateAxis(F.T[i], a).transformDir(F.R[i]));
+        F.U[i] = cross(F.R[i], F.T[i]);
+      }
+    }
+  }
+  F.dist.assign(M, 0.0f);
+  for (int i = 1; i < M; ++i) F.dist[i] = F.dist[i - 1] + length(pts[i] - pts[i - 1]);
+  F.length = F.dist.back() + (closed ? length(pts[0] - pts[M - 1]) : 0.0f);
+  return F;
 }
 
 }  // namespace veraa

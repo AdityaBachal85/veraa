@@ -2,6 +2,8 @@
 // sweep (a cross-section along a path). Used by the shape modifiers, TextPlus and AEC objects.
 #pragma once
 
+#include <cstdint>
+#include <functional>
 #include <vector>
 
 #include "mesh.h"
@@ -71,5 +73,28 @@ struct SweepOptions {
 // Sweeps a closed or open cross-section (contours in its XY plane) along every spline of path.
 PolyMesh sweepSection(const BezierShape& path, int pathSteps, bool pathOptimize,
                       const std::vector<Contour2D>& section, const SweepOptions& opt);
+
+// ---- Helpers shared with compound and AEC objects ----
+
+// Frames along a path polyline: a section point (x, y) maps to P + R x + U y, stretched at
+// corners so straight runs keep their thickness (miter joints).
+struct PathFrames {
+  std::vector<Vec3> P, T, R, U, bend;
+  std::vector<float> miter;  // corner stretch along `bend`
+  std::vector<float> dist;   // distance along the path at each point
+  float length = 0.0f;
+  bool closed = false;
+  int segments() const;
+  Vec3 place(int i, const Vec2& q) const;
+};
+// banking: frames follow the path's turns (parallel transport); otherwise they stay level.
+PathFrames pathFrames(const std::vector<Vec3>& polyline, bool closed, bool banking);
+
+// Smoothing-group bit index (0..2) per contour edge; runs break at corners sharper than sharpDeg.
+std::vector<int> contourSmoothBits(const std::vector<Vec2>& pts, bool closed, float sharpDeg);
+
+// Caps the closed contours (holes allowed) whose vertices already exist in m.
+void capContours(PolyMesh& m, const std::vector<Contour2D>& contours, const std::function<int(int, int)>& vertexOf,
+                 bool reverse, int matId, uint32_t smooth, bool uvs);
 
 }  // namespace veraa
