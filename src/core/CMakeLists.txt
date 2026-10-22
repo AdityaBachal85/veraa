@@ -11,6 +11,7 @@ add_library(veraa_core STATIC
   polyselect.cpp
   polyops.cpp
   polymods.cpp
+  meshmods.cpp
   shape.cpp
   registry.cpp
 )

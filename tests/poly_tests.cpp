@@ -3,11 +3,13 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <functional>
 #include <map>
 #include <string>
 
 #include "modifier.h"
 #include "object.h"
+#include "meshmods.h"
 #include "polymods.h"
 #include "polyops.h"
 #include "scene.h"
@@ -761,8 +763,232 @@ static void testStackModifiers() {
   CHECK(h->mesh().faces.size() == 4);
 }
 
+static PolyMesh withModifier(const PolyMesh& in, const std::string& type, const json& params = json::object(),
+                             const std::function<void(Modifier&)>& setup = nullptr) {
+  auto mod = createModifier(type);
+  if (!mod) {
+    std::printf("  missing modifier %s\n", type.c_str());
+    ++g_failures;
+    return in;
+  }
+  for (auto it = params.begin(); it != params.end(); ++it) mod->params.setNumber(it.key(), it.value().get<double>());
+  if (setup) setup(*mod);
+  GeomState st;
+  st.mesh = in;
+  mod->applyState(st);
+  return st.mesh;
+}
+
+static void testMeshModifiers() {
+  // FFD 2x2x2: moving the four top control points up by 50 raises the top by 50.
+  {
+    FfdModifier ffd(FfdModifier::Fixed2);
+    PolyMesh m = box100();
+    PolyMesh warm = m;
+    ffd.apply(warm);  // fits the lattice
+    for (int i = 0; i < ffd.pointCount(); ++i)
+      if (ffd.restPoint(i).z > 50.0f) ffd.setOffset(i, Vec3(0, 0, 50));
+    ffd.apply(m);
+    CHECK_NEAR(m.bounds().hi.z, 150.0, 1e-3);
+    CHECK_NEAR(m.bounds().lo.z, 0.0, 1e-3);
+    CHECK(ffd.latticeEdges().size() == 12);
+    // One corner of a 4x4x4 lattice only moves nearby vertices.
+    FfdModifier f4(FfdModifier::Fixed4);
+    PolyMesh g = buildObject("Box", {{"widthSegs", 4}, {"lengthSegs", 4}, {"heightSegs", 4}});
+    PolyMesh gw = g;
+    f4.apply(gw);
+    f4.setOffset(0, Vec3(-30, 0, 0));
+    PolyMesh gd = g;
+    f4.apply(gd);
+    CHECK(gd.bounds().lo.x < g.bounds().lo.x - 10.0f);
+    int moved = 0;
+    for (size_t v = 0; v < g.positions.size(); ++v)
+      if (length(gd.positions[v] - g.positions[v]) > 1e-3f) ++moved;
+    CHECK(moved > 0 && moved < static_cast<int>(g.positions.size()));
+    // Offsets survive JSON.
+    FfdModifier copy(FfdModifier::Fixed4);
+    copy.fromJson(f4.toJson());
+    CHECK(length(copy.offset(0) - Vec3(-30, 0, 0)) < 1e-4f);
+    // FFD(cyl): moving the outer ring of the top outward widens the top.
+    FfdModifier fc(FfdModifier::Cylinder);
+    PolyMesh c = buildObject("Cylinder");
+    PolyMesh cw = c;
+    fc.apply(cw);
+    for (int i = 0; i < fc.pointCount(); ++i) {
+      Vec3 r = fc.restPoint(i) - fc.latticeBounds().center();
+      if (fc.restPoint(i).z > fc.latticeBounds().center().z) fc.setOffset(i, Vec3(r.x, r.y, 0) * 0.5f);
+    }
+    PolyMesh cd = c;
+    fc.apply(cd);
+    CHECK(cd.bounds().extent().x > c.bounds().extent().x + 1.0f);
+  }
+  // Symmetry: half of the box mirrored back is still a closed 100-cube.
+  {
+    PolyMesh m = withModifier(box100(), "Symmetry", {{"axis", 0}});
+    CHECK(isClosedManifold(m));
+    CHECK_NEAR(meshVolume(m), 1e6, 5.0);
+    CHECK(m.faces.size() == 10);
+    // Offset mirror plane: the kept side is x in [20, 50], mirrored to [-10, 20].
+    PolyMesh o = withModifier(box100(), "Symmetry", {{"axis", 0}, {"offset", 20.0}});
+    CHECK(isClosedManifold(o));
+    CHECK_NEAR(o.bounds().lo.x, -10.0, 1e-3);
+    CHECK_NEAR(meshVolume(o), 60.0 * 100.0 * 100.0, 5.0);
+  }
+  // Slice: remove top cuts the box in half; refine keeps it closed.
+  {
+    PolyMesh r = withModifier(box100(), "Slice", {{"mode", 0}});
+    CHECK(isClosedManifold(r) && r.faces.size() == 10);
+    PolyMesh t = withModifier(box100(), "Slice", {{"mode", 2}});
+    CHECK_NEAR(t.bounds().hi.z, 50.0, 1e-3);
+    PolyMesh capped = withModifier(t, "CapHoles");
+    CHECK(isClosedManifold(capped));
+    CHECK_NEAR(meshVolume(capped), 5e5, 5.0);
+    PolyMesh rot = withModifier(box100(), "Slice", {{"mode", 3}, {"rotX", 45.0}});
+    CHECK(rot.faces.size() == 4);  // the diagonal plane keeps top, front and two side triangles
+  }
+  // Chamfer modifier rounds all 90-degree edges: 26 faces, closed.
+  {
+    PolyMesh c = withModifier(box100(), "Chamfer", {{"amount", 5.0}});
+    CHECK(isClosedManifold(c));
+    CHECK(c.faces.size() == 26);
+  }
+  // Optimize (quadric decimation) reaches the face budget and stays closed.
+  {
+    PolyMesh s = buildObject("Sphere", {{"segments", 48}});
+    size_t tris = s.triangleCount();
+    PolyMesh d = withModifier(s, "Optimize", {{"percent", 25.0}});
+    CHECK(d.faces.size() <= tris / 4 + 2);
+    CHECK(d.faces.size() >= tris / 4 - 2);
+    CHECK(isClosedManifold(d));
+    double v0 = meshVolume(s), v1 = meshVolume(d);
+    CHECK(std::fabs(v1 - v0) / v0 < 0.1);
+    PolyMesh d2 = decimateMesh(s, 100, true);
+    CHECK(d2.faces.size() <= 100 && d2.faces.size() >= 90);
+    CHECK(isClosedManifold(d2));
+  }
+  // Lattice: 12 struts (closed cylinders) and 8 joints.
+  {
+    PolyMesh l = withModifier(box100(), "Lattice", {{"strutSides", 6}, {"jointType", 1}});
+    CHECK(isClosedManifold(l));
+    CHECK(l.faces.size() == 12 * (6 + 2) + 8 * 8);
+  }
+  // Deformers.
+  {
+    PolyMesh sph = withModifier(box100(), "Spherify", {{"percent", 100.0}});
+    Vec3 c = sph.bounds().center();
+    float r0 = length(sph.positions[0] - c), r1 = length(sph.positions[5] - c);
+    CHECK(std::fabs(r0 - r1) < 1e-3f);
+    PolyMesh sk = withModifier(box100(), "Skew", {{"amount", 30.0}});
+    CHECK_NEAR(sk.bounds().hi.x, 80.0, 1e-3);
+    PolyMesh st = withModifier(box100(), "Stretch", {{"stretch", 1.0}});
+    CHECK(st.bounds().extent().z > 150.0f);
+    PolyMesh grid = buildObject("Plane", {{"widthSegs", 20}, {"lengthSegs", 20}});
+    PolyMesh rp = withModifier(grid, "Ripple", {{"amp1", 5.0}, {"amp2", 5.0}, {"wavelength", 30.0}});
+    CHECK(rp.bounds().extent().z > 1.0f);
+    PolyMesh wv = withModifier(grid, "Wave", {{"amp1", 5.0}, {"amp2", 5.0}, {"wavelength", 30.0}});
+    CHECK(wv.bounds().extent().z > 1.0f);
+    PolyMesh ml = withModifier(box100(), "Melt", {{"amount", 100.0}});
+    CHECK(ml.bounds().extent().z < 99.0f && ml.bounds().extent().x > 100.0f);
+    PolyMesh sq = withModifier(buildObject("Cylinder"), "Squeeze", {{"squeeze", 0.5}});
+    CHECK(sq.bounds().extent().x <= buildObject("Cylinder").bounds().extent().x + 1e-3f);
+    PolyMesh dn = withModifier(grid, "Displace", {{"strength", 20.0}, {"noiseSize", 10.0}});
+    CHECK(dn.bounds().extent().z > 0.5f);
+    PolyMesh rl = withModifier(grid, "Relax", {{"amount", 1.0}, {"iterations", 5}});
+    CHECK(rl.positions.size() == grid.positions.size());
+  }
+  // Topology modifiers.
+  {
+    PolyMesh t = withModifier(box100(), "Tessellate", {{"iterations", 2}});
+    CHECK(t.faces.size() == 6 * 16);
+    CHECK(isClosedManifold(t));
+    PolyMesh sd = withModifier(box100(), "Subdivide", {{"size", 30.0}});
+    CHECK(sd.faces.size() == 6 * 16);
+    PolyMesh fe = withModifier(box100(), "FaceExtrude", {{"amount", 10.0}});
+    CHECK(isClosedManifold(fe));
+    CHECK(fe.bounds().hi.z > 105.0f);
+    PolyMesh mat = withModifier(box100(), "Material", {{"id", 4}});
+    CHECK(facesWithMaterial(mat, 3).size() == 6);
+    PolyMesh two = box100();
+    PolyMesh other = box100();
+    other.transform(Mat4::translate(Vec3(300, 0, 0)));
+    two.append(other);
+    PolyMesh mbe = withModifier(two, "MaterialByElement", {{"idCount", 5}});
+    CHECK(mbe.faces[0].matId == mbe.faces[5].matId && mbe.faces[6].matId == mbe.faces[11].matId);
+    PolyMesh as = withModifier(box100(), "AutoSmooth", {{"threshold", 30.0}});
+    CHECK(!(as.faces[0].smoothGroups & as.faces[2].smoothGroups) || as.faces[0].smoothGroups == 0);
+    // Vertex Weld rejoins a box whose corners were broken apart.
+    PolyMesh br = box100();
+    PolySelection bs;
+    bs.level = PolyVertex;
+    bs.verts = {0, 1, 2, 3, 4, 5, 6, 7};
+    runPolyOp(br, bs, {{"op", "breakVerts"}});
+    CHECK(br.positions.size() == 24);
+    PolyMesh vw = withModifier(br, "VertexWeld", {{"threshold", 0.5}});
+    CHECK(vw.positions.size() == 8 && isClosedManifold(vw));
+    PolyMesh tp = withModifier(buildObject("Plane"), "TurnToPoly", {{"limitSize", 1}, {"maxSize", 3}});
+    CHECK(tp.faces.size() == 32);
+  }
+  // UVs: UVW XForm tiles; Unwrap flattens into the unit square.
+  {
+    PolyMesh m = buildObject("Plane");
+    bool hasUv = !m.uvs.empty();
+    if (hasUv) {
+      PolyMesh x = withModifier(m, "UVWXform", {{"uTile", 2.0}});
+      float maxU = 0;
+      for (const auto& t : x.uvs) maxU = std::max(maxU, t.x);
+      CHECK(maxU > 1.5f);
+    }
+    PolyMesh b = box100();
+    std::vector<Vec2> uvs;
+    std::vector<std::vector<int>> fuv;
+    flattenUvs(b, uvs, fuv, 45.0f, 0.02f);
+    CHECK(fuv.size() == 6);
+    bool inside = true;
+    for (const auto& t : uvs) inside = inside && t.x >= -1e-4f && t.x <= 1.0001f && t.y >= -1e-4f && t.y <= 1.0001f;
+    CHECK(inside);
+    // Charts must not overlap: total UV area of six 1x1 squares stays below 1.
+    double area = 0;
+    for (size_t f = 0; f < fuv.size(); ++f) {
+      const auto& c = fuv[f];
+      for (size_t k = 0; k < c.size(); ++k) {
+        const Vec2& p = uvs[c[k]];
+        const Vec2& q = uvs[c[(k + 1) % c.size()]];
+        area += 0.5 * (p.x * q.y - q.x * p.y);
+      }
+    }
+    CHECK(std::fabs(area) > 0.2 && std::fabs(area) <= 1.0001);
+    UnwrapUvwModifier uw;
+    uw.initFrom(b);
+    CHECK(uw.matches(b));
+    PolyMesh applied = b;
+    uw.apply(applied);
+    CHECK(applied.faces[0].uv.size() == 4);
+    UnwrapUvwModifier uw2;
+    uw2.fromJson(uw.toJson());
+    CHECK(uw2.uvs.size() == uw.uvs.size() && uw2.faceUvs == uw.faceUvs);
+    // Different topology passes through untouched.
+    PolyMesh tri = buildObject("Plane");
+    PolyMesh tri2 = tri;
+    uw.apply(tri2);
+    CHECK(tri2.uvs.size() == tri.uvs.size());
+    // Planar projection of one face, stitch and relax keep indices valid.
+    projectFaceUvs(b, uvs, fuv, {0}, 0);
+    std::vector<int> sel;
+    for (int t : fuv[0]) sel.push_back(t);
+    for (int t : fuv[1]) sel.push_back(t);
+    stitchUvs(b, uvs, fuv, sel);
+    relaxUvs(uvs, fuv, {}, 0.5f, 3);
+    compactUvList(uvs, fuv);
+    bool valid = true;
+    for (const auto& f : fuv)
+      for (int t : f) valid = valid && t >= 0 && t < static_cast<int>(uvs.size());
+    CHECK(valid);
+  }
+}
+
 int main() {
   testStackModifiers();
+  testMeshModifiers();
   testExtrudeInsetBevel();
   testChamfer();
   testEdgeVertexOps();

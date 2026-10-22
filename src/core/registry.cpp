@@ -10,6 +10,7 @@ void registerBuiltinObjectTypes() {
 void registerBuiltinModifierTypes() {
   registerCoreModifierTypes();
   registerPolyModifierTypes();
+  registerMeshModifierTypes();
 }
 
 }  // namespace veraa

@@ -13,5 +13,6 @@ void registerPrimitiveTypes();      // primitives.cpp: Standard Primitives, Cham
 void registerCoreObjectTypes();     // object.cpp: Editable Poly/Spline, lights, camera
 void registerCoreModifierTypes();   // modifier.cpp: Bend, Taper, Twist, Noise, Smooth, ...
 void registerPolyModifierTypes();   // polymods.cpp: Edit Poly, Poly/Mesh/Vol. Select, Turn to Poly
+void registerMeshModifierTypes();   // meshmods.cpp: FFDs, Symmetry, Slice, Optimize, Unwrap UVW, ...
 
 }  // namespace veraa
