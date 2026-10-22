@@ -10,6 +10,7 @@ void registerBuiltinModifierTypes();  // called once, on first registry access
 
 // Module register functions.
 void registerPrimitiveTypes();      // primitives.cpp: Standard Primitives, Chamfer Box
+void registerExtendedPrimitiveTypes();  // extprims.cpp: Teapot, Hedra, Torus Knot, ChamferCyl, ...
 void registerCoreObjectTypes();     // object.cpp: Editable Poly/Spline, lights, camera
 void registerCompoundObjectTypes(); // csg.cpp: Boolean
 void registerCoreModifierTypes();   // modifier.cpp: Bend, Taper, Twist, Noise, Smooth, ...

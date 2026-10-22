@@ -1037,7 +1037,57 @@ static void testCsg() {
   CHECK_NEAR(meshVolume(copy.build()), 1e6 - overlap, 10.0);
 }
 
+static void testPrimitives() {
+  // Every Hedra family (with and without truncation) is a closed solid.
+  for (int fam = 0; fam < 7; ++fam)
+    for (double p : {0.0, 0.5}) {
+      PolyMesh h = buildObject("Hedra", {{"family", fam}, {"p", p}});
+      bool ok = isClosedManifold(h) && meshVolume(h) > 0;
+      if (!ok) std::printf("  Hedra family %d p %.1f is not a closed solid\n", fam, p);
+      CHECK(ok);
+      CHECK_NEAR(h.bounds().radius(), 50.0 * std::sqrt(3.0), 40.0);
+    }
+  CHECK(buildObject("Hedra", {{"family", 1}}).faces.size() == 6);
+  CHECK(buildObject("Hedra", {{"family", 3}}).faces.size() == 12);
+  CHECK(buildObject("Hedra", {{"family", 4}}).faces.size() == 20);
+  CHECK(buildObject("Hedra", {{"family", 1}, {"p", 0.5}}).faces.size() == 14);  // truncated cube
+  // Parameter variations stay closed.
+  const char* closedTypes[] = {"TorusKnot", "ChamferCyl", "OilTank", "Capsule", "Spindle", "LExt",
+                               "Gengon",    "CExt",       "RingWave", "Hose",   "Prism"};
+  for (const char* t : closedTypes) {
+    PolyMesh m = buildObject(t);
+    bool ok = isClosedManifold(m) && meshVolume(m) > 0;
+    if (!ok) std::printf("  %s is not a closed solid\n", t);
+    CHECK(ok);
+  }
+  CHECK(isClosedManifold(buildObject("ChamferCyl", {{"fillet", 0.0}})));
+  CHECK(isClosedManifold(buildObject("Gengon", {{"fillet", 8.0}, {"filletSegs", 3}})));
+  CHECK(isClosedManifold(buildObject("TorusKnot", {{"p", 3.0}, {"q", 5.0}, {"twist", 90.0}})));
+  CHECK(isClosedManifold(buildObject("Hose", {{"flex", 0}})));
+  // Capsule: overall height includes the caps.
+  PolyMesh cap = buildObject("Capsule", {{"radius", 20.0}, {"height", 100.0}});
+  CHECK_NEAR(cap.bounds().extent().z, 100.0, 1e-3);
+  PolyMesh capC = buildObject("Capsule", {{"radius", 20.0}, {"height", 100.0}, {"heightMode", 1}});
+  CHECK_NEAR(capC.bounds().extent().z, 140.0, 1e-3);
+  // ChamferCyl volume is a bit less than the cylinder's.
+  double vc = meshVolume(buildObject("ChamferCyl", {{"fillet", 10.0}, {"sides", 64}}));
+  CHECK(vc < kPi * 2500.0 * 100.0 && vc > kPi * 2500.0 * 100.0 * 0.9);
+  // L-Ext area: 100x20 + 20x80 = 3600 per unit height.
+  CHECK_NEAR(meshVolume(buildObject("LExt")), 3600.0 * 50.0, 1.0);
+  // Prism: equilateral triangle of side 100.
+  CHECK_NEAR(meshVolume(buildObject("Prism")), 100.0 * 100.0 * std::sqrt(3.0) / 4.0 * 100.0, 10.0);
+  // Teapot: patches face outward (positive volume), every part can be turned off.
+  PolyMesh tp = buildObject("Teapot");
+  CHECK(tp.faces.size() > 500);
+  CHECK(meshVolume(tp) > 0);
+  CHECK_NEAR(tp.bounds().hi.z, 25.0 / 2.0 * 3.15, 0.01);
+  PolyMesh noHandle = buildObject("Teapot", {{"handle", 0}, {"spout", 0}, {"lid", 0}});
+  CHECK(noHandle.faces.size() < tp.faces.size());
+  CHECK(noHandle.bounds().extent().x < tp.bounds().extent().x);
+}
+
 int main() {
+  testPrimitives();
   testCsg();
   testStackModifiers();
   testMeshModifiers();

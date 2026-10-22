@@ -13,6 +13,7 @@ add_library(veraa_core STATIC
   polymods.cpp
   meshmods.cpp
   csg.cpp
+  extprims.cpp
   shape.cpp
   registry.cpp
 )
