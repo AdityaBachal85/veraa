@@ -12,6 +12,7 @@
 
 #include "aec.h"
 #include "editorstate.h"
+#include "patch_nurbs.h"
 #include "glscene.h"
 #include "mainwindow.h"
 #include "shape2d.h"
@@ -540,6 +541,132 @@ class WallTool : public ViewportTool {
 };
 
 // ---------------------------------------------------------------------------------------------
+// Point Curve / CV Curve: click points (or CVs); right-click finishes, clicking the first point
+// asks to close the curve.
+
+class CurveTool : public ViewportTool {
+ public:
+  explicit CurveTool(QString type) : type_(std::move(type)) {}
+  bool mousePress(Viewport& vp, QMouseEvent* e) override {
+    doc_ = vp.document();
+    float px = static_cast<float>(e->position().x()), py = static_cast<float>(e->position().y());
+    if (e->button() == Qt::RightButton) {
+      if (!nodeId_) return false;
+      finish(vp, false);
+      return true;
+    }
+    if (e->button() != Qt::LeftButton) return false;
+    Vec3 hit;
+    if (!vp.hitConstructionPlane(px, py, hit)) return true;
+    Node* n = nodeId_ ? doc_->scene().findNode(nodeId_) : nullptr;
+    if (!n) {
+      doc_->beginEdit(tr("Create %1").arg(QString::fromStdString(objectDisplayName(type_.toStdString()))));
+      n = doc_->createNode(type_);
+      if (!n) {
+        doc_->cancelEdit();
+        return true;
+      }
+      nodeId_ = n->id;
+      n->transform.position = hit;
+      n->transform.rotation = vp.camera().creationRotation();
+      pts_ = {Vec3(), Vec3()};
+      doc_->select(n->id, false);
+    } else {
+      Vec3 l = n->objectWorldMatrix().inverse().transformPoint(hit);
+      l.z = 0;
+      float sx = 0, sy = 0;
+      if (pts_.size() >= 4 && vp.camera().project(n->objectWorldMatrix().transformPoint(pts_[0]), sx, sy) &&
+          std::hypot(sx - px, sy - py) < 8.0f && askYesNo(&vp, tr("Close curve?"))) {
+        pts_.pop_back();
+        closed_ = true;
+        finish(vp, true);
+        return true;
+      }
+      pts_.back() = l;
+      pts_.push_back(l);
+    }
+    apply();
+    return true;
+  }
+  bool mouseMove(Viewport& vp, QMouseEvent* e) override {
+    Node* n = nodeId_ ? vp.document()->scene().findNode(nodeId_) : nullptr;
+    if (!n) return false;
+    Vec3 hit;
+    if (!vp.hitConstructionPlane(static_cast<float>(e->position().x()), static_cast<float>(e->position().y()), hit))
+      return true;
+    Vec3 l = n->objectWorldMatrix().inverse().transformPoint(hit);
+    l.z = 0;
+    pts_.back() = l;
+    apply();
+    return true;
+  }
+  bool mouseRelease(Viewport&, QMouseEvent* e) override { return nodeId_ != 0 && e->button() == Qt::LeftButton; }
+  bool cancel() override {
+    if (!nodeId_) return false;
+    doc_->cancelEdit();
+    nodeId_ = 0;
+    return true;
+  }
+  QString prompt() const override {
+    return type_ == "CVCurve" ? tr("Click to place control vertices; right-click to finish")
+                              : tr("Click to place curve points; right-click to finish");
+  }
+
+ private:
+  void apply() {
+    Node* n = nodeId_ ? doc_->scene().findNode(nodeId_) : nullptr;
+    auto* c = n ? dynamic_cast<NurbsCurveObject*>(n->object.get()) : nullptr;
+    if (!c) return;
+    c->points = pts_;
+    c->closed = closed_;
+    c->touch();
+    doc_->notifyNodeChanged(n, ChangeGeometry);
+  }
+  void finish(Viewport& vp, bool closedNow) {
+    if (!closedNow && pts_.size() > 1) pts_.pop_back();
+    if (pts_.size() >= 2) {
+      apply();
+      doc_->endEdit();
+    } else {
+      doc_->cancelEdit();
+    }
+    nodeId_ = 0;
+    vp.editorState()->setViewportTool(nullptr);
+  }
+
+  QString type_;
+  SceneDocument* doc_ = nullptr;
+  uint32_t nodeId_ = 0;
+  std::vector<Vec3> pts_;
+  bool closed_ = false;
+};
+
+// Control lattice of CV curves (shown while selected), like the CV display of NURBS curves.
+class CvLatticeDecorator : public ViewportDecorator {
+ public:
+  void drawLines(Viewport& vp, LineBatch& lines) override {
+    const Scene& scene = vp.document()->scene();
+    for (uint32_t id : vp.document()->selection()) {
+      const Node* n = scene.findNode(id);
+      auto* c = n ? dynamic_cast<const NurbsCurveObject*>(n->object.get()) : nullptr;
+      if (!c || !c->isCvCurve() || c->points.size() < 2) continue;
+      Mat4 m = n->objectWorldMatrix();
+      QColor col(80, 220, 90);
+      size_t count = c->points.size();
+      for (size_t i = 0; i + 1 < count + (c->closed ? 1 : 0); ++i)
+        lines.line(m.transformPoint(c->points[i]), m.transformPoint(c->points[(i + 1) % count]), col);
+      for (const auto& p : c->points) {
+        Vec3 w = m.transformPoint(p);
+        float s = vp.camera().worldPerPixel(w) * 3.0f;
+        Vec3 r = vp.camera().right() * s, u = vp.camera().up() * s;
+        lines.line(w - r, w + r, col);
+        lines.line(w - u, w + u, col);
+      }
+    }
+  }
+};
+
+// ---------------------------------------------------------------------------------------------
 // Staged drag creation: stage 0 is a drag on the construction plane, later stages follow the
 // mouse (up/down) and advance with a click.
 
@@ -770,12 +897,17 @@ void installCreationTools(MainWindow& w) {
   registerCreationTool("Line", [] { return std::make_shared<LineTool>("Line"); });
   registerCreationTool("Freehand", [] { return std::make_shared<FreehandTool>(); });
   registerCreationTool("Wall", [] { return std::make_shared<WallTool>(); });
+  registerCreationTool("PointCurve", [] { return std::make_shared<CurveTool>("PointCurve"); });
+  registerCreationTool("CVCurve", [] { return std::make_shared<CurveTool>("CVCurve"); });
+  w.editorState()->addDecorator(std::make_shared<CvLatticeDecorator>());
 
   const QString dragRect = tr("Drag to set the length and width");
   const QString dragRadius = tr("Drag to set the radius");
   const QString moveThick = tr("Move the mouse to set the thickness, click to finish");
   auto rectInit = [](Node& n) { zeroKeys(n, {"length", "width"}); };
   registerSpec("Rectangle", {{cornerRect()}, {dragRect}, false, rectInit, {}});
+  registerSpec("QuadPatch", {{cornerRect()}, {dragRect}, false, rectInit, {}});
+  registerSpec("TriPatch", {{cornerRect()}, {dragRect}, false, rectInit, {}});
   registerSpec("Ellipse", {{cornerRect()}, {dragRect}, false, rectInit, {}});
   auto radiusInit = [](Node& n) { zeroKeys(n, {"radius", "radius1"}); };
   registerSpec("Circle", {{radiusFrom("radius")}, {dragRadius}, false, radiusInit, {}});

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <cstring>
 #include <map>
 #include <unordered_map>
@@ -936,7 +937,7 @@ PolyMesh TerrainObject::build() const {
         zmin = std::min(zmin, p.z);
         zmax = std::max(zmax, p.z);
       }
-      if (sp.closed && line.size() >= 3) closedContours.push_back({c2, zsum / line.size()});
+      if (sp.closed && line.size() >= 3) closedContours.push_back({c2, zsum / static_cast<float>(line.size())});
     }
   if (pts.size() < 3) return PolyMesh();
   float base = params.getBool("autoBase") ? zmin - std::max(1.0f, (zmax - zmin) * 0.1f) : params.getFloat("baseElevation");

@@ -34,6 +34,7 @@ add_library(veraa_core STATIC
   aec_walls.cpp
   aec_doors.cpp
   aec_stairs.cpp
+  patch_nurbs.cpp
 )
 target_include_directories(veraa_core
   PUBLIC

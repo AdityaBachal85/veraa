@@ -12,6 +12,7 @@
 #include "commandpanel.h"
 #include "compound.h"
 #include "mainwindow.h"
+#include "patch_nurbs.h"
 #include "selftest.h"
 #include "shape_modifiers.h"
 #include "shapes.h"
@@ -351,6 +352,25 @@ void testShapes(MainWindow& w) {
     check(sc && sc->firstOperand("distribution") != nullptr, "Scatter picked its distribution object");
     check(scatter->mesh().faces.size() >= 10 * 6, "Scatter places the duplicates");
   }
+
+  // 15. CV Curve by clicks (right-click ends) and a Quad Patch by dragging.
+  st->setCreateType("CVCurve");
+  click(top, c + QPointF(-200, -150));
+  moveTo(top, c + QPointF(-200, -150), c + QPointF(-140, -190));
+  click(top, c + QPointF(-140, -190));
+  moveTo(top, c + QPointF(-140, -190), c + QPointF(-80, -140));
+  click(top, c + QPointF(-80, -140));
+  click(top, c + QPointF(-80, -140), Qt::RightButton);
+  st->setCreateType({});
+  Node* cvn = lastNodeOfType(s, "CVCurve");
+  auto* cvo = cvn ? dynamic_cast<NurbsCurveObject*>(cvn->object.get()) : nullptr;
+  check(cvo && cvo->points.size() == 3, "CV Curve created with three CVs");
+  check(cvn && cvn->isShapeResult() && !cvn->shapeLines().empty(), "CV Curve draws as a spline");
+  st->setCreateType("QuadPatch");
+  drag(top, c + QPointF(150, -200), c + QPointF(230, -140));
+  st->setCreateType({});
+  Node* qp = lastNodeOfType(s, "QuadPatch");
+  check(qp && qp->object->params.getFloat("width") > 10 && !qp->mesh().empty(), "Quad Patch sized by dragging");
 
   // Showcase screenshot: construction objects in a shaded perspective view.
   QString dir = qEnvironmentVariable("VERAA_SCREENSHOT_DIR");

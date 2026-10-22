@@ -4,6 +4,7 @@
 #include <map>
 #include <unordered_map>
 
+#include "patch_nurbs.h"
 #include "registry.h"
 
 namespace veraa {
@@ -618,6 +619,7 @@ void registerShapeTypes() {
   fn("Egg", "Egg", splines, defEgg, buildEgg);
   registerObjectType({"Section", "Section", "Shapes", splines, [] { return std::make_unique<SectionShape>(); }});
   registerObjectType({"Freehand", "Freehand", "Shapes", splines, [] { return std::make_unique<FreehandShape>(); }});
+  registerNurbsCurveTypes();
   const char* ext = "Extended Splines";
   fn("WalledRectangle", "Walled Rectangle", ext, defWalledRect, buildWalledRect);
   fn("Channel", "Channel", ext, defProfile, buildChannel);

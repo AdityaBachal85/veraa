@@ -8,6 +8,7 @@ void registerBuiltinObjectTypes() {
   registerShapeTypes();
   registerShapeGeometryTypes();
   registerCompoundTypes();
+  registerPatchGridTypes();
   registerAecTypes();
 }
 

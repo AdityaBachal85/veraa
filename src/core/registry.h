@@ -16,6 +16,7 @@ void registerShapeTypes();          // shapes.cpp: Splines and Extended Splines
 void registerShapeGeometryTypes();  // shape_modifiers.cpp: TextPlus
 void registerShapeModifierTypes();  // shape_modifiers.cpp: Extrude, Lathe, Sweep, Bevel, Edit Spline, ...
 void registerCompoundTypes();       // compound.cpp: Loft, Scatter, Connect, ShapeMerge, Terrain, Conform, BlobMesh
+void registerPatchGridTypes();      // patch_nurbs.cpp: Quad Patch, Tri Patch (NURBS curves: via registerShapeTypes)
 void registerAecTypes();            // aec_*.cpp: Doors, Windows, Wall, Railing, Foliage, Stairs
 
 }  // namespace veraa

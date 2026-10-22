@@ -8,8 +8,14 @@
 #pragma GCC diagnostic ignored "-Wall"
 #pragma GCC diagnostic ignored "-Wextra"
 #endif
+#if defined(_MSC_VER)
+#pragma warning(push, 0)
+#endif
 #include <clipper2/clipper.h>
 #include <earcut/earcut.hpp>
+#if defined(_MSC_VER)
+#pragma warning(pop)
+#endif
 #if defined(__GNUC__)
 #pragma GCC diagnostic pop
 #endif

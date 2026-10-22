@@ -7,6 +7,7 @@
 #include "aec.h"
 #include "compound.h"
 #include "modifier.h"
+#include "patch_nurbs.h"
 #include "scene.h"
 #include "shape2d.h"
 #include "shape_mesh.h"
@@ -718,8 +719,61 @@ static void testAec() {
   CHECK(sid.count(1) && sid.count(2) && sid.count(3) && sid.count(4) && sid.count(5));
 }
 
+static void testPatchNurbs() {
+  std::vector<std::string> subs = objectSubcategories("Shapes");
+  CHECK(subs.size() >= 3 && subs[0] == "Splines" && subs[1] == "NURBS Curves" && subs[2] == "Extended Splines");
+  // Point curve passes through its points.
+  std::vector<Vec3> pts = {{0, 0, 0}, {50, 40, 0}, {100, 0, 0}, {150, 30, 0}};
+  Spline pc = interpolatingSpline(pts, false);
+  CHECK(pc.knots.size() == 4);
+  for (int i = 0; i < 3; ++i) CHECK(length(pc.evaluate(i, 0) - pts[i]) < 1e-4f);
+  CHECK(length(pc.evaluate(2, 1) - pts[3]) < 1e-4f);
+  // CV curve passes through its end CVs and stays inside the control polygon's bounds.
+  Spline cv = bsplineToBezier(pts, false);
+  CHECK(length(cv.evaluate(0, 0) - pts.front()) < 1e-4f);
+  CHECK(length(cv.evaluate(cv.segmentCount() - 1, 1) - pts.back()) < 1e-4f);
+  for (int g = 0; g < cv.segmentCount(); ++g)
+    for (float t : {0.25f, 0.5f, 0.75f}) {
+      Vec3 p = cv.evaluate(g, t);
+      CHECK(p.y >= -1e-3f && p.y <= 40.0f && p.x >= -1e-3f && p.x <= 150.0f);
+    }
+  // A middle CV does not lie on the curve (it pulls it): the curve stays below y = 40.
+  float maxY = 0;
+  for (int g = 0; g < cv.segmentCount(); ++g)
+    for (int k = 0; k <= 20; ++k) maxY = std::max(maxY, cv.evaluate(g, k / 20.0f).y);
+  CHECK(maxY < 39.0f);
+  // Closed CV curve around a square is a smooth closed loop inside the square.
+  std::vector<Vec3> sq = {{-50, -50, 0}, {50, -50, 0}, {50, 50, 0}, {-50, 50, 0}};
+  Spline loop = bsplineToBezier(sq, true);
+  CHECK(loop.closed && loop.knots.size() == 4);
+  CHECK(std::fabs(loop.evaluate(0, 0).x) < 50.0f);
+  auto curve = createObject("CVCurve");
+  auto* nc = dynamic_cast<NurbsCurveObject*>(curve.get());
+  CHECK(nc && nc->isCvCurve());
+  if (nc) {
+    nc->points = sq;
+    nc->closed = true;
+    PolyMesh m = applyMod("Extrude", nc->buildShape(), {{"amount", 10}});
+    CHECK(isClosedManifold(m) && signedVolume(m) > 0);
+    auto copy = createObject("CVCurve");
+    copy->fromJson(nc->toJson());
+    CHECK(static_cast<NurbsCurveObject*>(copy.get())->points.size() == 4);
+  }
+  // Patch grids.
+  auto quad = createObject("QuadPatch");
+  quad->params.setNumber("steps", 3);
+  quad->params.setNumber("lengthSegs", 2);
+  PolyMesh qm = static_cast<GeometryObject*>(quad.get())->build();
+  CHECK(qm.faces.size() == 4u * 8u && qm.faces[0].v.size() == 4);
+  auto tri = createObject("TriPatch");
+  PolyMesh tm = static_cast<GeometryObject*>(tri.get())->build();
+  CHECK(!tm.faces.empty() && tm.faces[0].v.size() == 3);
+  CHECK(std::fabs(tm.bounds().extent().x - 100.0f) < 1e-3f);
+}
+
 int main() {
   testRegistration();
+  testPatchNurbs();
   testCompound();
   testAec();
   testCappingWithHoles();
