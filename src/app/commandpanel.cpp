@@ -432,11 +432,16 @@ void CommandPanel::rebuildModify() {
   if (!nodes.isEmpty()) color_->setColor(nodes[0]->wireColor);
 
   bool anyGeometry = false;
-  for (Node* s : nodes) anyGeometry |= s->kind() == ObjectKind::Geometry;
+  for (Node* s : nodes) anyGeometry |= s->kind() == ObjectKind::Geometry || s->kind() == ObjectKind::Shape;
   modList_->setEnabled(anyGeometry);
 
   if (!n) {
     modForm_->setBlock(nullptr);
+    if (modExtra_) {  // type-specific rollouts belong to the previous selection
+      modExtra_->hide();
+      modExtra_->deleteLater();
+      modExtra_ = nullptr;
+    }
     modInfo_->setText(nodes.isEmpty() ? tr("Select an object to modify it.")
                                       : tr("Multiple objects selected. Modifiers chosen from the list are added to each "
                                            "selected object."));

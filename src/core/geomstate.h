@@ -19,6 +19,10 @@ struct GeomState {
   double time = 0.0;              // scene time in frames (for animated modifiers)
   const Scene* scene = nullptr;   // scene being evaluated (for modifiers that read other nodes)
   uint32_t nodeId = 0;            // node being evaluated
+  // Spline interpolation of the base shape (its "Steps" and "Optimize" parameters), used by
+  // modifiers that turn splines into meshes.
+  int shapeSteps = 6;
+  bool shapeOptimize = true;
 };
 
 }  // namespace veraa
