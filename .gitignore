@@ -5,3 +5,5 @@ out/
 *.user
 CMakeUserPresets.json
 /renders/
+__pycache__/
+*.pyc
