@@ -10,6 +10,10 @@ add_library(veraa_core STATIC
   obj_import.cpp
   shape.cpp
   registry.cpp
+  texmap.cpp
+  renderobjects.cpp
+  rendersettings.cpp
+  photometry.cpp
 )
 target_include_directories(veraa_core
   PUBLIC

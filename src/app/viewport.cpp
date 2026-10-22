@@ -252,9 +252,9 @@ void Viewport::paintGL() {
       if (shading_ == ShadingMode::Shaded) {
         Vec3 c = n.wireColor;
         if (const Material* m = scene.findMaterial(n.materialId)) {
-          c = m->params.getColor("diffuse");
-          if (!m->params.getString("diffuseMap").empty()) c = Vec3(0.72f);
-          Vec3 refr = m->params.getColor("refract");
+          c = m->viewportColor();
+          if (!m->viewportTexture().empty()) c = Vec3(0.72f);
+          Vec3 refr = m->params.has("refract") ? m->params.getColor("refract") : Vec3(0.0f);
           if (maxComponent(refr) > 0.3f) c = lerp(c, Vec3(0.75f, 0.85f, 0.9f), 0.6f);
           c = vmax(c, Vec3(0.04f));
         }

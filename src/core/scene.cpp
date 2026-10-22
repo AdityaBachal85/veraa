@@ -1,5 +1,7 @@
 #include "scene.h"
 
+#include "rendersettings.h"
+
 #include <atomic>
 #include <cstdio>
 #include <filesystem>
@@ -338,6 +340,7 @@ void defineRenderSettings(ParamBlock& p) {
   p.addColor("backgroundColor", "Background", Vec3(0.0f));
   p.beginGroup("Camera");
   p.addString("camera", "Render camera", "");
+  defineAdvancedRenderSettings(p);
 }
 
 // ---------------------------------------------------------------------------------------------
