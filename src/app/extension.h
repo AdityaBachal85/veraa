@@ -12,6 +12,7 @@
 #pragma once
 
 #include <QString>
+#include <QStringList>
 
 #include <cstdint>
 #include <functional>
@@ -70,6 +71,8 @@ struct ExtensionRegistrar {
 
 // Runs every registered extension (called by MainWindow at the end of its constructor).
 void runAppExtensions(MainWindow& window);
+// Registered extension modules as "name" in run order (Customize > Plug-in Manager).
+QStringList appExtensionNames();
 
 // Custom creation for an object type (e.g. Line places knots with clicks). When the user starts
 // creating this type, the factory's tool becomes the active viewport tool.

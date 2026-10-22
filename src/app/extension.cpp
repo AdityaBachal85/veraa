@@ -50,6 +50,14 @@ void runAppExtensions(MainWindow& window) {
     if (e.installer) e.installer(window);
 }
 
+QStringList appExtensionNames() {
+  std::vector<Entry> list = extensions();
+  std::stable_sort(list.begin(), list.end(), [](const Entry& a, const Entry& b) { return a.order < b.order; });
+  QStringList out;
+  for (const auto& e : list) out << QString::fromStdString(e.name);
+  return out;
+}
+
 void registerCreationTool(const QString& objectType, CreationToolFactory factory) {
   creationTools().insert(objectType, std::move(factory));
 }
