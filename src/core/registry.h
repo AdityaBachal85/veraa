@@ -12,5 +12,6 @@ void registerBuiltinModifierTypes();  // called once, on first registry access
 void registerPrimitiveTypes();      // primitives.cpp: Standard Primitives, Chamfer Box
 void registerCoreObjectTypes();     // object.cpp: Editable Poly/Spline, lights, camera
 void registerCoreModifierTypes();   // modifier.cpp: Bend, Taper, Twist, Noise, Smooth, ...
+void registerPolyModifierTypes();   // polymods.cpp: Edit Poly, Poly/Mesh/Vol. Select, Turn to Poly
 
 }  // namespace veraa

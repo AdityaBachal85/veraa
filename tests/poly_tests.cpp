@@ -8,6 +8,7 @@
 
 #include "modifier.h"
 #include "object.h"
+#include "polymods.h"
 #include "polyops.h"
 #include "scene.h"
 
@@ -668,7 +669,100 @@ static void testSelectionTools() {
   CHECK(copy.sel.edges == js.edges && copy.mesh.faces.size() == 6);
 }
 
+static void testStackModifiers() {
+  Scene scene;
+  // Edit Poly records operations and replays them on its input.
+  Node* n = scene.createNode("Box");
+  auto ep = std::make_shared<EditPolyModifier>();
+  n->modifiers.push_back(ep);
+  n->invalidate();
+  CHECK(n->mesh().faces.size() == 6);
+  PolySelection s = faceSel({faceToward(n->mesh(), Vec3(0, 0, 1))});
+  ep->setSelection(s);
+  ep->record({{"op", "extrudeFaces"}, {"height", 25.0}});
+  CHECK(n->mesh().faces.size() == 10);
+  CHECK_NEAR(n->mesh().bounds().hi.z, 125.0, 1e-3);
+  CHECK(ep->selection().faces.size() == 1);
+  // Preview operations are transient.
+  ep->setPreview({{"op", "insetFaces"}, {"amount", 10.0}});
+  CHECK(n->mesh().faces.size() == 14);
+  ep->clearPreview();
+  CHECK(n->mesh().faces.size() == 10);
+  // Survives a scene round trip.
+  json saved = scene.toJson();
+  Scene loaded;
+  CHECK(loaded.fromJson(saved));
+  CHECK(loaded.nodes.size() == 1 && loaded.nodes[0]->mesh().faces.size() == 10);
+
+  // The selection flows up: Push moves only the selected (top) vertices.
+  Node* p = scene.createNode("Box");
+  auto poly = std::make_shared<EditablePolyObject>();
+  poly->mesh = box100();
+  poly->sel = faceSel({faceToward(poly->mesh, Vec3(0, 0, 1))});
+  p->object = poly;
+  auto push = createModifier("Push");
+  push->params.setNumber("amount", 10.0);
+  p->modifiers.push_back(std::shared_ptr<Modifier>(std::move(push)));
+  p->invalidate();
+  Aabb pb = p->mesh().bounds();
+  CHECK(pb.lo.z > -1e-3f);         // bottom unchanged
+  CHECK(pb.hi.z > 100.0f + 1.0f);  // top pushed up
+  // At object level, everything is pushed.
+  poly->sel.level = PolyObject;
+  p->invalidate();
+  CHECK(p->mesh().bounds().lo.z < -1.0f);
+
+  // Poly Select and Vol. Select drive deformers too.
+  Node* q = scene.createNode("Box");
+  auto ps = std::make_shared<PolySelectModifier>();
+  ps->sel.level = PolyVertex;
+  ps->sel.verts = {0};
+  q->modifiers.push_back(ps);
+  auto push2 = createModifier("Push");
+  push2->params.setNumber("amount", 10.0);
+  q->modifiers.push_back(std::shared_ptr<Modifier>(std::move(push2)));
+  q->invalidate();
+  int moved = 0;
+  PolyMesh qb = box100();
+  for (size_t v = 0; v < qb.positions.size(); ++v)
+    if (length(q->mesh().positions[v] - qb.positions[v]) > 1e-3f) ++moved;
+  CHECK(moved == 1);
+
+  Node* r = scene.createNode("Box");
+  auto vol = createModifier("VolSelect");
+  vol->params.setNumber("centerZ", 50.0);  // gizmo around the top half
+  vol->params.setNumber("sizeX", 200.0);
+  vol->params.setNumber("sizeY", 200.0);
+  vol->params.setNumber("sizeZ", 60.0);
+  r->modifiers.push_back(std::shared_ptr<Modifier>(std::move(vol)));
+  auto push3 = createModifier("Push");
+  push3->params.setNumber("amount", 10.0);
+  r->modifiers.push_back(std::shared_ptr<Modifier>(std::move(push3)));
+  r->invalidate();
+  CHECK(r->mesh().bounds().lo.z > -1e-3f);
+  CHECK(r->mesh().bounds().hi.z > 101.0f);
+
+  // Turn to Poly: limit polygon size splits a box's quads when the limit is 3.
+  Node* t = scene.createNode("Box");
+  auto ttp = createModifier("TurnToPoly");
+  ttp->params.setNumber("limitSize", 1);
+  ttp->params.setNumber("maxSize", 3);
+  t->modifiers.push_back(std::shared_ptr<Modifier>(std::move(ttp)));
+  t->invalidate();
+  CHECK(t->mesh().faces.size() == 12);
+
+  // Hidden faces are left out of the evaluated mesh.
+  Node* h = scene.createNode("Box");
+  auto hp = std::make_shared<EditablePolyObject>();
+  hp->mesh = box100();
+  hp->sel.hiddenFaces = {0, 1};
+  h->object = hp;
+  h->invalidate();
+  CHECK(h->mesh().faces.size() == 4);
+}
+
 int main() {
+  testStackModifiers();
   testExtrudeInsetBevel();
   testChamfer();
   testEdgeVertexOps();

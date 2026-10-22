@@ -10,6 +10,7 @@ add_library(veraa_core STATIC
   obj_import.cpp
   polyselect.cpp
   polyops.cpp
+  polymods.cpp
   shape.cpp
   registry.cpp
 )
