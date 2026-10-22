@@ -518,9 +518,9 @@ void registerRiggingTypes() {
 }
 
 void registerRiggingModifiers() {
-  registerModifierType({"Skin", "Skin", "Animation Modifiers", true, false, [] { return std::make_unique<SkinModifier>(); }});
-  registerModifierType({"Morpher", "Morpher", "Animation Modifiers", true, false, [] { return std::make_unique<MorpherModifier>(); }});
-  registerModifierType({"PathDeform", "Path Deform", "Animation Modifiers", true, false,
+  registerModifierType({"Skin", "Skin", "Animation", true, false, [] { return std::make_unique<SkinModifier>(); }});
+  registerModifierType({"Morpher", "Morpher", "Animation", true, false, [] { return std::make_unique<MorpherModifier>(); }});
+  registerModifierType({"PathDeform", "Path Deform", "Animation", true, false,
                         [] { return std::make_unique<PathDeformModifier>(); }});
 }
 

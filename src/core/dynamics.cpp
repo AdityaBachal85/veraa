@@ -471,7 +471,7 @@ int unbakeRigidBodies(Scene& scene) {
 }
 
 void registerDynamicsModifiers() {
-  registerModifierType({"RigidBody", "Rigid Body", "Animation Modifiers", true, false,
+  registerModifierType({"RigidBody", "Rigid Body", "Animation", true, false,
                         [] { return std::make_unique<RigidBodyModifier>(); }});
 }
 

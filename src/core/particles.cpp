@@ -952,7 +952,7 @@ void registerParticleTypes() {
 }
 
 void registerParticleModifiers() {
-  registerModifierType({"SpaceWarpBinding", "Space Warp Binding", "", true, false,
+  registerModifierType({"SpaceWarpBinding", "Space Warp Binding", "Animation", true, false,
                         [] { return std::make_unique<SpaceWarpBindingModifier>(); }});
 }
 

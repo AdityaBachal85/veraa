@@ -9,6 +9,7 @@
 #include <QVector>
 
 #include <cstdint>
+#include <functional>
 #include <unordered_map>
 
 #include "scene.h"
@@ -86,6 +87,11 @@ class SceneDocument : public QObject {
   // Replaces the scene from JSON (undo/redo); keeps the file path.
   void restore(const json& state, const QVector<uint32_t>& sel);
 
+  // Called when an edit is committed, before its undo step is recorded, with the scene as it was
+  // before the edit. The animation module uses it for Auto Key (turning changes into keys).
+  using CommitHook = std::function<void(const json& before)>;
+  void setCommitHook(CommitHook hook) { commitHook_ = std::move(hook); }
+
  Q_SIGNALS:
   void selectionChanged();
   void nodesChanged(const QVector<uint32_t>& ids, int flags);
@@ -115,6 +121,8 @@ class SceneDocument : public QObject {
   uint64_t epoch_ = 1;
   std::unordered_map<uint32_t, uint64_t> geomVersion_;
   bool dirtyWithoutUndo_ = false;
+  CommitHook commitHook_;
+  bool inCommitHook_ = false;
 };
 
 }  // namespace veraa
