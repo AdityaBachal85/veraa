@@ -14,6 +14,7 @@ add_library(veraa_core STATIC
   meshmods.cpp
   csg.cpp
   extprims.cpp
+  grouphead.cpp
   shape.cpp
   registry.cpp
 )

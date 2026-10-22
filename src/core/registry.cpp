@@ -7,6 +7,7 @@ void registerBuiltinObjectTypes() {
   registerExtendedPrimitiveTypes();
   registerCoreObjectTypes();
   registerCompoundObjectTypes();
+  registerGroupObjectTypes();
 }
 
 void registerBuiltinModifierTypes() {

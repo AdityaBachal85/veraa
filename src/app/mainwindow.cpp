@@ -736,9 +736,14 @@ void MainWindow::cloneSelection(bool askOptions) {
     if (nodes.size() > 1) dlg.setWindowTitle(tr("Clone Options (%1 objects)").arg(nodes.size()));
     if (dlg.exec() != QDialog::Accepted) return;
     name = dlg.name();
+    cloneMode_ = dlg.mode();
   }
+  CloneOptionsDialog::Mode mode = CloneOptionsDialog::Copy;
+  if (askOptions) mode = static_cast<CloneOptionsDialog::Mode>(cloneMode_);
   doc_->beginEdit(tr("Clone"));
+  QVector<uint32_t> sources = doc_->selection();
   QVector<uint32_t> ids = doc_->cloneSelected(true);
+  for (int i = 0; i < ids.size() && i < sources.size(); ++i) applyCloneMode(doc_->scene(), sources[i], ids[i], mode);
   if (ids.size() == 1 && !name.isEmpty())
     if (Node* n = doc_->scene().findNode(ids[0])) {
       n->name = name.toStdString();

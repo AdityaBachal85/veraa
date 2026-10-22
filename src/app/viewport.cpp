@@ -685,7 +685,11 @@ void Viewport::beginTransformDrag(GizmoHandle h, float px, float py, bool cloneF
   QString label = tool == TransformTool::Move ? tr("Move") : tool == TransformTool::Rotate ? tr("Rotate") : tr("Scale");
   doc_->beginEdit(cloneFirst ? tr("Clone") : label);
   cloneDrag_ = cloneFirst;
-  if (cloneFirst) doc_->cloneSelected(true);
+  cloneSources_.clear();
+  if (cloneFirst) {
+    for (Node* n : doc_->selectedNodes()) cloneSources_.push_back(n->id);
+    doc_->cloneSelected(true);
+  }
   setupGizmo();
   dragCenter_ = gizmo_.origin;
   dragStart_.clear();
@@ -761,15 +765,21 @@ void Viewport::endTransformDrag() {
     }
     if (first && dragStart_.size() == 1 && !dlg.name().isEmpty()) first->name = dlg.name().toStdString();
     QVector<uint32_t> created;
-    for (const auto& s : dragStart_) created.push_back(s.id);
+    for (size_t i = 0; i < dragStart_.size(); ++i) {
+      created.push_back(dragStart_[i].id);
+      if (i < static_cast<size_t>(cloneSources_.size())) applyCloneMode(scene, cloneSources_[i], dragStart_[i].id, dlg.mode());
+    }
     for (int k = 2; k <= dlg.copies(); ++k)
-      for (const auto& s : dragStart_) {
+      for (size_t i = 0; i < dragStart_.size(); ++i) {
+        const auto& s = dragStart_[i];
         Node* src = scene.findNode(s.id);
         if (!src) continue;
         Vec3 delta = src->transform.position - s.xf.position;
         auto copy = src->clone();
         copy->transform.position = s.xf.position + delta * static_cast<float>(k);
-        created.push_back(scene.addNode(std::move(copy))->id);
+        uint32_t cid = scene.addNode(std::move(copy))->id;
+        created.push_back(cid);
+        if (i < static_cast<size_t>(cloneSources_.size())) applyCloneMode(scene, cloneSources_[i], cid, dlg.mode());
       }
     doc_->notifyStructureChanged();
     doc_->setSelection(created);

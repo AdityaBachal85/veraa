@@ -58,7 +58,15 @@ Node* SceneDocument::firstSelected() const {
 
 void SceneDocument::setSelection(const QVector<uint32_t>& ids) {
   QVector<uint32_t> clean;
-  for (uint32_t id : ids) {
+  for (uint32_t id0 : ids) {
+    // Members of a closed group select the (outermost closed) group instead.
+    uint32_t id = id0;
+    for (Node* g = scene_.findNode(id0); g && g->groupMember;) {
+      Node* p = g->parent();
+      if (!p) break;
+      if (p->groupHead && !p->groupOpen) id = p->id;
+      g = p;
+    }
     Node* n = scene_.findNode(id);
     if (n && !n->hidden && !clean.contains(id)) clean.push_back(id);
   }
