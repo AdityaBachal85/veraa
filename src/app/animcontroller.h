@@ -4,6 +4,7 @@
 
 #include <QElapsedTimer>
 #include <QObject>
+#include <QPointer>
 #include <QString>
 #include <QTimer>
 #include <QVector>
@@ -122,6 +123,7 @@ class AnimController : public QObject {
 
   MainWindow& window_;
   SceneDocument* doc_;
+  QPointer<SceneDocument> docGuard_;  // the document may be destroyed first at shutdown
   QTimer timer_;
   QElapsedTimer clock_;
   double playStartFrame_ = 0.0;
