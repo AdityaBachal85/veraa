@@ -74,6 +74,10 @@ struct Light {
   int meshGeom = -1;              // renderer geometry holding the triangles
   // Emitted radiance at a point of triangle t with barycentrics b, seen from the front (or back).
   std::function<Vec3(int t, const Vec2& b, bool front)> meshRadiance;
+  // Large mesh lights are split into chunks of nearby triangles (separate lights for the light
+  // tree). The light the geometry points at maps each of its triangles to its chunk.
+  std::vector<int> primLight;
+  std::vector<int> primLocal;  // the triangle's index within its chunk
 
   const Environment* env = nullptr;  // portals sample the environment through their opening
 

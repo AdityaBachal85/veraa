@@ -28,3 +28,7 @@ add_executable(renderfeature_tests renderfeature_tests.cpp)
 target_link_libraries(renderfeature_tests PRIVATE veraa_render)
 target_compile_definitions(renderfeature_tests PRIVATE VERAA_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 add_test(NAME renderfeature_tests COMMAND renderfeature_tests)
+
+add_executable(guiding_tests guiding_tests.cpp)
+target_link_libraries(guiding_tests PRIVATE veraa_render)
+add_test(NAME guiding_tests COMMAND guiding_tests)

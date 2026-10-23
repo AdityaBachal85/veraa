@@ -17,6 +17,7 @@
 #include "icons.h"
 #include "paramform.h"
 #include "renderer.h"
+#include "rendersettings.h"
 
 namespace veraa {
 
@@ -32,8 +33,9 @@ const SizePreset kSizes[] = {{"Custom", 0, 0},         {"640 x 480", 640, 480}, 
                              {"Instagram 1080 x 1350", 1080, 1350}, {"A4 portrait 2480 x 3508", 2480, 3508}};
 
 // Groups shown by the dedicated tabs; everything else lands on the Common tab.
-const QStringList kClaimed = {"Image sampler", "Global illumination", "Color mapping", "Exposure",   "Environment",
-                              "Atmosphere",    "Lens effects",        "Color corrections", "Render elements", "Camera"};
+const QStringList kClaimed = {"Image sampler", "Global illumination", "Color mapping",   "Exposure",
+                              "Environment",   "Atmosphere",          "Lens effects",    "Color corrections",
+                              "Render elements", "Camera",            "Path guiding"};
 
 QWidget* scrolled(QWidget* content) {
   auto* scroll = new QScrollArea;
@@ -125,6 +127,14 @@ RenderSetupDialog::RenderSetupDialog(SceneDocument* doc, QWidget* parent) : QDia
   auto* sampler = new QWidget;
   auto* sv = new QVBoxLayout(sampler);
   sv->setContentsMargins(4, 4, 4, 4);
+  auto* qualityRow = new QFormLayout;
+  quality_ = new QComboBox(sampler);
+  quality_->addItem(tr("Custom"));
+  for (const auto& name : renderQualityPresetNames()) quality_->addItem(tr(name.c_str()));
+  quality_->setToolTip(tr("Sets samples, noise threshold, bounces, clamping, path guiding, glossy filter and the "
+                          "denoiser together"));
+  qualityRow->addRow(tr("Quality preset:"), quality_);
+  sv->addLayout(qualityRow);
   sv->addWidget(new RenderSettingsPanel(doc_, {"Image sampler"}, sampler));
   auto* info = new QLabel(sampler);
   info->setWordWrap(true);
@@ -143,9 +153,12 @@ RenderSetupDialog::RenderSetupDialog(SceneDocument* doc, QWidget* parent) : QDia
   auto* gi = new QWidget;
   auto* gv = new QVBoxLayout(gi);
   gv->setContentsMargins(4, 4, 4, 4);
-  gv->addWidget(new RenderSettingsPanel(doc_, {"Global illumination"}, gi));
+  gv->addWidget(new RenderSettingsPanel(doc_, {"Global illumination", "Path guiding"}, gi));
   auto* giInfo = new QLabel(tr("Global illumination is brute-force path tracing for primary and secondary "
-                               "bounces. Clamping removes fireflies at the cost of some energy."),
+                               "bounces. Clamping (in pixel values after exposure) and the glossy filter remove "
+                               "fireflies at the cost of some energy. Path guiding learns where light comes "
+                               "from during the first passes and aims later rays there; the light tree "
+                               "keeps scenes with many lights clean."),
                             gi);
   giInfo->setWordWrap(true);
   giInfo->setStyleSheet("color: #a8a8a8;");
@@ -213,6 +226,13 @@ RenderSetupDialog::RenderSetupDialog(SceneDocument* doc, QWidget* parent) : QDia
   connect(render, &QPushButton::clicked, this, &RenderSetupDialog::renderRequested);
   connect(close, &QPushButton::clicked, this, &QDialog::close);
 
+  connect(quality_, &QComboBox::activated, this, [this](int i) {
+    if (i <= 0) return;
+    applyQualityPreset(i - 1);
+  });
+  connect(doc_, &SceneDocument::renderSettingsChanged, this, &RenderSetupDialog::updateQualityPreset);
+  connect(doc_, &SceneDocument::fileChanged, this, &RenderSetupDialog::updateQualityPreset);
+  updateQualityPreset();
   connect(sizePreset_, &QComboBox::activated, this, [this](int i) {
     if (i <= 0) return;
     doc_->beginEdit(tr("Output Size"));
@@ -244,6 +264,22 @@ bool RenderSetupDialog::showTab(const QString& title) {
       return true;
     }
   return false;
+}
+
+void RenderSetupDialog::applyQualityPreset(int preset) {
+  if (preset < 0 || preset >= static_cast<int>(renderQualityPresetNames().size())) return;
+  doc_->beginEdit(tr("Quality Preset"));
+  applyRenderQualityPreset(doc_->scene().renderSettings, preset);
+  doc_->notifyRenderSettingsChanged();
+  doc_->endEdit();
+  updateQualityPreset();
+}
+
+int RenderSetupDialog::qualityPreset() const { return quality_->currentIndex() - 1; }
+
+void RenderSetupDialog::updateQualityPreset() {
+  QSignalBlocker b(quality_);
+  quality_->setCurrentIndex(matchingRenderQualityPreset(doc_->scene().renderSettings) + 1);
 }
 
 QStringList RenderSetupDialog::tabTitles() const {

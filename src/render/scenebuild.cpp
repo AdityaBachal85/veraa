@@ -307,6 +307,10 @@ bool Renderer::Impl::build(const Scene& scene, std::string* error) {
   clampDirect = rs.getFloat("clampDirect");
   giMultiplier = rs.getFloat("giMultiplier");
   caustics = rs.getBool("caustics");
+  lightSampling = rs.getInt("lightSampling");
+  filterGlossy = rs.getFloat("filterGlossy");
+  guidingOn = rs.getBool("pathGuiding");
+  guidingTrainSpp = rs.getInt("guidingTrainingSamples");
   samplerType = rs.getInt("samplerType");
   minSamples = rs.getInt("minSamples");
   noiseThreshold = rs.getFloat("noiseThreshold");
@@ -830,6 +834,77 @@ bool Renderer::Impl::build(const Scene& scene, std::string* error) {
     lights.push_back(std::move(L));
   }
 
+  // ---- Mesh lights with many triangles become chunks of nearby triangles ----
+  // The light tree then picks the parts of a big emitter (or of many strips in one object) that
+  // are near each shading point instead of sampling the whole mesh.
+  {
+    constexpr size_t kChunkTriangles = 16;
+    size_t count = lights.size();
+    for (size_t li = 0; li < count; ++li) {
+      if (lights[li].type != Light::Type::Mesh || lights[li].tri.size() / 3 <= kChunkTriangles) continue;
+      size_t nt = lights[li].tri.size() / 3;
+      std::vector<int> order(nt);
+      for (size_t t = 0; t < nt; ++t) order[t] = static_cast<int>(t);
+      std::vector<std::pair<size_t, size_t>> chunks;
+      std::vector<std::pair<size_t, size_t>> todo{{0, nt}};
+      Light parent = lights[li];  // a copy: lights grows below
+      const std::vector<Vec3>& T = parent.tri;
+      auto centroid = [&](int t) { return (T[t * 3] + T[t * 3 + 1] + T[t * 3 + 2]) / 3.0f; };
+      while (!todo.empty()) {
+        auto [b, e] = todo.back();
+        todo.pop_back();
+        if (e - b <= kChunkTriangles) {
+          chunks.push_back({b, e});
+          continue;
+        }
+        Aabb cb;
+        for (size_t k = b; k < e; ++k) cb.expand(centroid(order[k]));
+        Vec3 ext = cb.extent();
+        int axis = ext.x >= ext.y && ext.x >= ext.z ? 0 : (ext.y >= ext.z ? 1 : 2);
+        size_t mid = (b + e) / 2;
+        std::nth_element(order.begin() + b, order.begin() + mid, order.begin() + e,
+                         [&](int x, int y) { return centroid(x)[axis] < centroid(y)[axis]; });
+        todo.push_back({b, mid});
+        todo.push_back({mid, e});
+      }
+      std::vector<int> primLight(nt, static_cast<int>(li)), primLocal(nt, 0);
+      for (size_t c = 0; c < chunks.size(); ++c) {
+        Light L = parent;
+        L.primLight.clear();
+        L.primLocal.clear();
+        L.tri.clear();
+        L.triCdf.clear();
+        std::vector<int> local;
+        double area = 0.0;
+        for (size_t k = chunks[c].first; k < chunks[c].second; ++k) {
+          int t = order[k];
+          const Vec3 &a = T[t * 3], &bb = T[t * 3 + 1], &cc = T[t * 3 + 2];
+          L.tri.insert(L.tri.end(), {a, bb, cc});
+          area += 0.5 * length(cross(bb - a, cc - a));
+          L.triCdf.push_back(static_cast<float>(area));
+          local.push_back(t);
+        }
+        if (area <= 0.0) area = 1e-12;
+        for (float& v : L.triCdf) v = static_cast<float>(v / area);
+        L.area = static_cast<float>(area);
+        auto inner = parent.meshRadiance;
+        Vec3 color = parent.color;
+        L.meshRadiance = [inner, local, color](int t, const Vec2& b, bool front) {
+          return inner ? inner(local[t], b, front) : color;
+        };
+        int index = c == 0 ? static_cast<int>(li) : static_cast<int>(lights.size());
+        for (size_t k = 0; k < local.size(); ++k) {
+          primLight[local[k]] = index;
+          primLocal[local[k]] = static_cast<int>(k);
+        }
+        if (c == 0) lights[li] = std::move(L);
+        else lights.push_back(std::move(L));
+      }
+      lights[li].primLight = std::move(primLight);
+      lights[li].primLocal = std::move(primLocal);
+    }
+  }
+
   // ---- Light lists ----
   for (size_t i = 0; i < lights.size(); ++i) {
     Light& l = lights[i];
@@ -841,27 +916,53 @@ bool Renderer::Impl::build(const Scene& scene, std::string* error) {
     if (l.link.active()) anyLightLinks = true;
   }
   hasPortals = !portals.empty() && !env.isBlack();
-  // Power-based selection when there are many lights.
-  sampleAllLights = lights.size() <= 8;
+  // Suns are sampled at every vertex; the other lights are picked by the light tree, all
+  // sampled, or one picked by power (with a uniform part so weak lights near the camera are not
+  // starved).
+  distantLights.clear();
+  localLights.clear();
+  for (size_t i = 0; i < lights.size(); ++i)
+    (lights[i].type == Light::Type::Sun ? distantLights : localLights).push_back(static_cast<int>(i));
+  lightTree.clear();
+  if (lightSampling == 0) lightTree.build(lights, localLights, &env);
   lightCdf.assign(lights.size(), 0.0f);
   lightProb.assign(lights.size(), 0.0f);
   double total = 0.0;
-  std::vector<double> power(lights.size());
-  for (size_t i = 0; i < lights.size(); ++i) {
+  std::vector<double> power(lights.size(), 0.0);
+  for (int i : localLights) {
     float p = lights[i].power();
     if (lights[i].type == Light::Type::Portal) p = env.averageLuminance() * lights[i].area * kPi;
     power[i] = std::max(static_cast<double>(p), 1e-12);
     total += power[i];
   }
-  // Mix in a uniform part so weak lights near the camera are not starved.
   double acc = 0.0;
   for (size_t i = 0; i < lights.size(); ++i) {
-    double pr = 0.7 * power[i] / total + 0.3 / static_cast<double>(lights.size());
+    double pr = power[i] > 0.0 ? 0.7 * power[i] / total + 0.3 / static_cast<double>(localLights.size()) : 0.0;
     lightProb[i] = static_cast<float>(pr);
     acc += pr;
     lightCdf[i] = static_cast<float>(acc);
   }
-  if (!lightCdf.empty()) lightCdf.back() = 1.0f;
+  if (!localLights.empty()) {
+    for (size_t i = localLights.back(); i < lights.size(); ++i) lightCdf[i] = 1.0f;
+  }
+
+  // Bounds of the geometry (path guiding's spatial tree).
+  sceneBounds = Aabb();
+  for (const auto& rec : records) {
+    if (rec.kind == GeomRecord::Kind::Curves) {
+      const CurveData& cd = curves[rec.curves];
+      for (size_t k = 0; k + 3 < cd.v.size(); k += 4) sceneBounds.expand(Vec3(cd.v[k], cd.v[k + 1], cd.v[k + 2]));
+    } else if (rec.mesh >= 0) {
+      Aabb mb;
+      for (const Vec3& p : meshes[rec.mesh].P) mb.expand(p);
+      if (rec.kind == GeomRecord::Kind::Instance) {
+        sceneBounds.expand(mb.transformed(rec.M0));
+        sceneBounds.expand(mb.transformed(rec.M1));
+      } else {
+        sceneBounds.expand(mb);
+      }
+    }
+  }
 
   // Brightest light direction (Falloff "Shadow/Light").
   float best = -1.0f;
