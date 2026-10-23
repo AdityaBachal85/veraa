@@ -49,6 +49,7 @@ VERAA_UISTATE_SETTER(setGizmoSize, gizmoSize_, float)
 VERAA_UISTATE_SETTER(setShowFrozenInGray, frozenGray_, bool)
 VERAA_UISTATE_SETTER(setHiddenCategories, hiddenCategories_, int)
 VERAA_UISTATE_SETTER(setHideFrozen, hideFrozen_, bool)
+VERAA_UISTATE_SETTER(setSnapUseAxisConstraint, snapAxisConstraint_, bool)
 
 #undef VERAA_UISTATE_SETTER
 

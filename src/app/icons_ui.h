@@ -48,5 +48,15 @@ QIcon home();
 QIcon script();
 QIcon absoluteMode(bool absolute);
 QIcon adaptive();
+// Layout additions (uilayout.cpp, status bar, track bar).
+QIcon snapAxisConstraint();
+QIcon slateEditor();
+QIcon activeShade();
+QIcon renderIterative();
+QIcon ribbon();
+QIcon safeScript();
+QIcon timeTag();
+QIcon miniCurveEditor();
+QIcon tangent(int kind);  // 0 auto, 1 linear, 2 step, 3 smooth
 
 }  // namespace veraa::icons

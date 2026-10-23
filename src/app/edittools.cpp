@@ -59,6 +59,14 @@ bool surfaceFrame(const Viewport& vp, float px, float py, const std::vector<uint
   return true;
 }
 
+}  // namespace
+
+bool surfaceFrameAt(const Viewport& vp, float px, float py, Vec3& point, Vec3& normal) {
+  return surfaceFrame(vp, px, py, {}, point, normal);
+}
+
+namespace {
+
 void collectDescendants(const Scene& s, uint32_t id, std::vector<uint32_t>& out) {
   out.push_back(id);
   for (Node* c : s.children(id)) collectDescendants(s, c->id, out);

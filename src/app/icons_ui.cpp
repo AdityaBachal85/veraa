@@ -703,4 +703,155 @@ QIcon adaptive() {
   });
 }
 
+// ---- Layout additions ----
+
+QIcon snapAxisConstraint() {
+  return make([](QPainter& p) {
+    QFont f;
+    f.setPixelSize(11);
+    f.setBold(true);
+    p.setFont(f);
+    p.setPen(kInk);
+    p.drawText(QRectF(1, 3, 12, 12), Qt::AlignCenter, "X");
+    magnet(p, QPointF(16, 14), 4.0, kInk);
+    p.setPen(pen(kYellow, 1.4));
+    p.drawLine(QPointF(2, 20), QPointF(12, 20));
+  });
+}
+
+QIcon slateEditor() {
+  return make([](QPainter& p) {
+    p.setPen(pen(kDim, 1.2));
+    p.drawLine(QPointF(8, 8), QPointF(14, 14));
+    p.drawLine(QPointF(8, 17), QPointF(14, 14));
+    miniBox(p, QRectF(2, 4, 8, 6), kInk);
+    miniBox(p, QRectF(2, 14, 8, 6), kInk);
+    QRadialGradient g(QPointF(17, 12), 6, QPointF(15, 10));
+    g.setColorAt(0, QColor(0xf0, 0xf0, 0xf0));
+    g.setColorAt(1, QColor(0x50, 0x80, 0xc0));
+    p.setPen(Qt::NoPen);
+    p.setBrush(g);
+    p.drawEllipse(QPointF(17, 14), 5, 5);
+  });
+}
+
+QIcon activeShade() {
+  return make([](QPainter& p) {
+    p.setPen(pen(kInk, 1.3));
+    p.setBrush(QColor(0x2a, 0x2a, 0x2a));
+    p.drawRect(QRectF(2, 4, 20, 16));
+    QRadialGradient g(QPointF(10, 12), 7, QPointF(8, 10));
+    g.setColorAt(0, QColor(0xf8, 0xe0, 0x90));
+    g.setColorAt(1, QColor(0xc0, 0x60, 0x20));
+    p.setPen(Qt::NoPen);
+    p.setBrush(g);
+    p.drawEllipse(QPointF(10, 12), 5.5, 5.5);
+    p.setPen(pen(kBlue, 1.6));
+    p.drawArc(QRectF(13, 8, 7, 8), 300 * 16, 240 * 16);
+  });
+}
+
+QIcon renderIterative() {
+  return make([](QPainter& p) {
+    QRadialGradient g(QPointF(10, 13), 8, QPointF(8, 10));
+    g.setColorAt(0, QColor(0xf0, 0xf0, 0xf0));
+    g.setColorAt(1, QColor(0x70, 0x70, 0x70));
+    p.setPen(Qt::NoPen);
+    p.setBrush(g);
+    p.drawEllipse(QPointF(10, 13), 7, 6);
+    p.setPen(pen(kYellow, 1.8));
+    p.setBrush(Qt::NoBrush);
+    p.drawArc(QRectF(13, 3, 9, 9), 30 * 16, 270 * 16);
+    p.setBrush(kYellow);
+    arrowHead(p, QPointF(21.5, 6.5), QPointF(0.2, 1.0), 3.0);
+  });
+}
+
+QIcon ribbon() {
+  return make([](QPainter& p) {
+    p.setPen(pen(kInk, 1.2));
+    p.setBrush(QColor(0x30, 0x30, 0x30));
+    p.drawRect(QRectF(2, 4, 20, 16));
+    p.setBrush(kInk);
+    p.drawRect(QRectF(2, 4, 20, 3));
+    p.setBrush(QColor(0x58, 0x58, 0x58));
+    p.drawRect(QRectF(4, 9, 7, 4));
+    p.drawRect(QRectF(13, 9, 7, 4));
+    p.drawRect(QRectF(4, 15, 7, 3));
+    p.drawRect(QRectF(13, 15, 7, 3));
+  });
+}
+
+QIcon safeScript() {
+  return make([](QPainter& p) {
+    QPainterPath s;
+    s.moveTo(12, 2.5);
+    s.lineTo(20, 5.5);
+    s.cubicTo(20, 13, 17, 18.5, 12, 21.5);
+    s.cubicTo(7, 18.5, 4, 13, 4, 5.5);
+    s.closeSubpath();
+    p.setPen(pen(kInk, 1.3));
+    p.setBrush(QColor(0x38, 0x38, 0x38));
+    p.drawPath(s);
+    p.setPen(Qt::NoPen);
+    p.setBrush(kInk);
+    p.drawRect(QRectF(12, 5, 6, 7));
+    p.drawRect(QRectF(6, 12, 6, 6));
+  });
+}
+
+QIcon timeTag() {
+  return make([](QPainter& p) {
+    QPolygonF tag;
+    tag << QPointF(3, 8) << QPointF(9, 3) << QPointF(21, 3) << QPointF(21, 13) << QPointF(9, 13);
+    p.setPen(pen(kInk, 1.3));
+    p.setBrush(Qt::NoBrush);
+    p.drawPolygon(tag);
+    p.drawEllipse(QPointF(8, 8), 1.5, 1.5);
+    p.setPen(pen(kYellow, 1.6));
+    p.drawLine(QPointF(12, 16), QPointF(12, 22));
+    p.drawLine(QPointF(9, 19), QPointF(15, 19));
+  });
+}
+
+QIcon miniCurveEditor() {
+  return make([](QPainter& p) {
+    p.setPen(pen(kDim, 1.0));
+    for (int i = 0; i < 4; ++i) p.drawLine(QPointF(3, 5 + i * 4), QPointF(6, 5 + i * 4));
+    QPainterPath c;
+    c.moveTo(8, 16);
+    c.cubicTo(11, 16, 11, 6, 14, 6);
+    c.cubicTo(17, 6, 17, 18, 21, 14);
+    p.setPen(pen(QColor(0x40, 0xc8, 0xb0), 1.7));
+    p.setBrush(Qt::NoBrush);
+    p.drawPath(c);
+  });
+}
+
+QIcon tangent(int kind) {
+  return make([kind](QPainter& p) {
+    p.setPen(pen(kDim, 1.0));
+    p.drawLine(QPointF(3, 21), QPointF(21, 21));
+    p.setPen(pen(kInk, 1.7));
+    p.setBrush(Qt::NoBrush);
+    if (kind == 1) {
+      p.drawLine(QPointF(4, 18), QPointF(12, 8));
+      p.drawLine(QPointF(12, 8), QPointF(20, 16));
+    } else if (kind == 2) {
+      p.drawLine(QPointF(4, 18), QPointF(12, 18));
+      p.drawLine(QPointF(12, 18), QPointF(12, 7));
+      p.drawLine(QPointF(12, 7), QPointF(20, 7));
+    } else {
+      QPainterPath c;
+      c.moveTo(4, 18);
+      c.cubicTo(8, 18, 9, 8, 12, 8);
+      c.cubicTo(15, 8, 16, 16, 20, 16);
+      p.drawPath(c);
+    }
+    p.setPen(pen(kind == 0 ? kYellow : kBlue, 1.0));
+    p.setBrush(kind == 0 ? kYellow : kBlue);
+    p.drawRect(QRectF(10.5, 6.5, 3, 3));
+  });
+}
+
 }  // namespace veraa::icons

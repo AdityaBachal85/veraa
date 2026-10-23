@@ -97,9 +97,8 @@ QAction* MainWindow::proxyCommand(const QString& id, const QString& text, const 
   proxies_.push_back(a);
   connect(a, &QAction::triggered, this, [this, a](bool checked) {
     QAction* real = command(a->property("proxyId").toString());
-    if (!real || real == a) return;
-    if (real->isCheckable()) real->setChecked(checked);
-    else real->trigger();
+    if (!real || real == a || (real->isCheckable() && real->isChecked() == checked)) return;
+    real->trigger();
   });
   return a;
 }
@@ -186,25 +185,29 @@ void MainWindow::resolveProxyCommands() {
     for (QObject* o : p->associatedObjects())
       if (auto* m = qobject_cast<QMenu*>(o); m && m->actions().contains(real) && m->actions().contains(p))
         m->removeAction(p);
-    auto sync = [p, real, text] {
-      p->setEnabled(real->isEnabled());
-      p->setCheckable(real->isCheckable());
-      if (real->isCheckable()) {
-        QSignalBlocker b(p);
-        p->setChecked(real->isChecked());
-      }
-      QString key = real->shortcut().toString(QKeySequence::NativeText);
-      p->setText(key.isEmpty() ? text : text + '\t' + key);
-      p->setToolTip(key.isEmpty() ? text : QString("%1 (%2)").arg(text, key));
-      if (p->icon().isNull()) p->setIcon(real->icon());
-    };
-    sync();
-    connect(real, &QAction::changed, p, sync);
-    connect(real, &QAction::toggled, p, [p](bool on) {
-      QSignalBlocker b(p);
-      p->setChecked(on);
-    });
+    bindProxy(p, real, text);
   }
+}
+
+void MainWindow::bindProxy(QAction* p, QAction* real, const QString& text) {
+  auto sync = [p, real, text] {
+    p->setEnabled(real->isEnabled());
+    p->setCheckable(real->isCheckable());
+    if (real->isCheckable()) {
+      QSignalBlocker b(p);
+      p->setChecked(real->isChecked());
+    }
+    QString key = real->shortcut().toString(QKeySequence::NativeText);
+    p->setText(key.isEmpty() ? text : text + '\t' + key);
+    p->setToolTip(key.isEmpty() ? text : QString("%1 (%2)").arg(text, key));
+    if (p->icon().isNull()) p->setIcon(real->icon());
+  };
+  sync();
+  connect(real, &QAction::changed, p, sync);
+  connect(real, &QAction::toggled, p, [p](bool on) {
+    QSignalBlocker b(p);
+    p->setChecked(on);
+  });
 }
 
 void MainWindow::setSpinnerSnap(bool on) {
@@ -239,6 +242,7 @@ void MainWindow::createToolBar() {
 
   // Selection filter.
   filterCombo_ = new QComboBox(tb);
+  filterCombo_->setObjectName("SelectionFilter");
   filterCombo_->setToolTip(tr("Selection Filter"));
   filterCombo_->setMinimumContentsLength(7);
   for (int bits : {int(kAll), int(kGeometry), int(kShapes), int(kLights), int(kCameras), int(kHelpers), int(kWarps)})
@@ -326,6 +330,7 @@ void MainWindow::createToolBar() {
 
   // Reference coordinate system.
   refCoordCombo_ = new QComboBox(tb);
+  refCoordCombo_->setObjectName("RefCoordSystem");
   refCoordCombo_->setToolTip(tr("Reference Coordinate System"));
   for (RefCoordSys s : {RefCoordSys::View, RefCoordSys::Screen, RefCoordSys::World, RefCoordSys::Parent,
                         RefCoordSys::Local, RefCoordSys::Gimbal, RefCoordSys::Grid, RefCoordSys::Working,
@@ -456,6 +461,7 @@ void MainWindow::createToolBar() {
   connect(editSets, &QAction::triggered, command("edit.selectionSets"), &QAction::trigger);
   tb->addAction(editSets);
   selSetCombo_ = new QComboBox(tb);
+  selSetCombo_->setObjectName("NamedSelectionSets");
   selSetCombo_->setEditable(true);
   selSetCombo_->setInsertPolicy(QComboBox::NoInsert);
   selSetCombo_->setMinimumContentsLength(12);

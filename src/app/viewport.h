@@ -227,6 +227,9 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
   uint32_t createNode_ = 0;
   Vec3 createP0_, createPlaneN_;
   Mat4 createRot_;
+  // AutoGrid: the creation plane is the surface hit by the first click.
+  bool autoGridOn_ = false;
+  Vec3 autoGridP0_, autoGridN_;
   float createStartY_ = 0;
   float createBase_ = 0;
   QString createKind_;

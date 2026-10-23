@@ -532,20 +532,17 @@ void installSnapping(MainWindow& w) {
   st->addDecorator(std::make_shared<SnapMarker>());
   qApp->installEventFilter(new SpinnerSnapFilter(&w));
 
-  QToolBar* tb = w.mainToolBar();
-  tb->addSeparator();
+  // The main window places these on the main toolbar; "contextCommand" makes a right-click on
+  // their buttons open the settings and "toolMenu" gives the snap button its 2D / 2.5D / 3D flyout.
   auto make = [&](const QString& id, const QString& text, const QKeySequence& key, const QIcon& icon) {
     auto* a = new QAction(icon, text, &w);
     a->setCheckable(true);
     if (!key.isEmpty()) a->setShortcut(key);
-    a->setToolTip(QString("%1 (%2) - right-click for settings").arg(text, key.toString()));
+    a->setToolTip(key.isEmpty() ? QString("%1 - right-click for settings").arg(text)
+                                : QString("%1 (%2) - right-click for settings").arg(text, key.toString()));
+    a->setProperty("contextCommand", "snaps.settings");
     w.addAction(a);
     w.registerCommand(id, a);
-    tb->addAction(a);
-    if (auto* b = qobject_cast<QToolButton*>(tb->widgetForAction(a))) {
-      b->setContextMenuPolicy(Qt::CustomContextMenu);
-      QObject::connect(b, &QToolButton::customContextMenuRequested, &w, [&w] { showSettings(w); });
-    }
     return a;
   };
   SnapSettings& ss = SnapSettings::get();
@@ -554,8 +551,8 @@ void installSnapping(MainWindow& w) {
   QAction* percent = make("snaps.percent", QObject::tr("Percent Snap Toggle"), QKeySequence("Shift+Ctrl+P"), textIcon("%"));
   QAction* spinner = make("snaps.spinner", QObject::tr("Spinner Snap Toggle"), QKeySequence(), textIcon(QString::fromUtf8("⇕")));
   // The snap button offers 2D / 2.5D / 3D from a menu.
-  if (auto* b = qobject_cast<QToolButton*>(tb->widgetForAction(snap))) {
-    auto* menu = new QMenu(b);
+  {
+    auto* menu = new QMenu(&w);
     for (int m = 0; m < 3; ++m) {
       QAction* ma = menu->addAction(snapIcon(m), m == 0 ? QObject::tr("2D Snap") : m == 1 ? QObject::tr("2.5D Snap") : QObject::tr("3D Snap"));
       QObject::connect(ma, &QAction::triggered, &w, [snap, m] {
@@ -565,8 +562,7 @@ void installSnapping(MainWindow& w) {
         if (!snap->isChecked()) snap->trigger();
       });
     }
-    b->setMenu(menu);
-    b->setPopupMode(QToolButton::MenuButtonPopup);
+    snap->setProperty("toolMenu", QVariant::fromValue<QObject*>(menu));
   }
   QObject::connect(snap, &QAction::toggled, &w, [&w](bool on) {
     SnapSettings::get().enabled = on;

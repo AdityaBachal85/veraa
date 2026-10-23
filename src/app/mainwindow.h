@@ -123,6 +123,14 @@ class MainWindow : public QMainWindow {
   // Navigation controls (bottom right): the checked tool's command id, or empty.
   QString activeNavigationTool() const;
 
+  // ---- Features shown in the interface but not implemented yet ----
+  // Shows "<feature> is not available in Veraa yet" (a non-blocking message box and the prompt).
+  void showNotAvailable(const QString& feature);
+  // The feature named by the last showNotAvailable() call (self-tests).
+  QString lastNotAvailable() const { return lastNotAvailable_; }
+  // An action that opens the "not available yet" message; it carries the "notAvailable" property.
+  QAction* placeholderAction(const QString& text);
+
  Q_SIGNALS:
   void workspacesChanged();
 
@@ -142,6 +150,20 @@ class MainWindow : public QMainWindow {
   void createWorkspaceSelector();
   void resolveProxyCommands();
   QAction* proxyCommand(const QString& id, const QString& text, const QIcon& icon);
+  // Mirrors `real` (enabled, checked, shortcut, triggers) on `proxy`, which shows `text`.
+  void bindProxy(QAction* proxy, QAction* real, const QString& text);
+  // Final 3ds Max order of the menu bar, main toolbar and axis toolbar (uilayout.cpp). Runs once
+  // after every extension is installed.
+  void arrangeInterface();
+  void createLayoutCommands();
+  void arrangeMenus();
+  void arrangeMainToolBar();
+  void arrangeAxisToolBar();
+  // An action showing `text` that forwards to command `id` (for menus that label it differently).
+  QAction* aliasAction(const QString& id, const QString& text);
+  // Adds `a` to a toolbar, honoring the "toolMenu" (flyout menu) and "contextCommand" (right-click)
+  // properties feature modules set on their actions.
+  void addToolBarAction(QToolBar* tb, QAction* a);
   QAction* cmd(const QString& id, const QString& text, const QKeySequence& key = {}, const QIcon& icon = {});
   void updateTitle();
   void applyTypeIn(int axis, double value);
@@ -230,6 +252,8 @@ class MainWindow : public QMainWindow {
   QTimer* autoBackupTimer_ = nullptr;
   QHash<QString, QKeySequence> overriddenKeys_;
   QStringList lastImportWarnings_;
+  QString lastNotAvailable_;
+  QHash<QString, QAction*> aliases_;  // "id\ntext" -> alias action
 };
 
 }  // namespace veraa
