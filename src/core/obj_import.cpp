@@ -282,7 +282,7 @@ bool importObj(Scene& scene, const std::string& path, const ObjImportOptions& op
     node->name = name;
     auto obj = std::make_unique<EditablePolyObject>();
     res.triangles += g.mesh.triangleCount();
-    obj->mesh = std::move(g.mesh);
+    obj->setMesh(std::move(g.mesh));
     node->object = std::move(obj);
     node->transform.position = pivot;
     node->wireColor = Vec3(0.75f, 0.75f, 0.75f);

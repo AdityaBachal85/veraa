@@ -240,7 +240,7 @@ class BooleanPanel : public QWidget {
     b->touch();
     if (extract) {
       auto poly = std::make_shared<EditablePolyObject>();
-      poly->mesh = o.mesh;
+      poly->setMesh(o.mesh);
       auto node = std::make_unique<Node>();
       node->name = o.name.empty() ? "Operand" : o.name;
       node->object = poly;

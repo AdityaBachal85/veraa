@@ -17,26 +17,204 @@ void SceneObject::fromJson(const json& j) {
   if (j.contains("params")) params.fromJson(j["params"]);
 }
 
-void SceneObject::touch() {
-  static std::atomic<uint64_t> counter{1};
-  revision_ = ++counter;
+void SceneObject::touch() { revision_ = nextRevisionStamp(); }
+
+void to_json(json& j, const IndexList& l) {
+  j = json::array();
+  for (int i : l) j.push_back(i);
 }
 
-json polyMeshToJson(const PolyMesh& mesh) {
-  json p = json::array(), t = json::array(), f = json::array();
-  for (const auto& v : mesh.positions) { p.push_back(v.x); p.push_back(v.y); p.push_back(v.z); }
-  for (const auto& v : mesh.uvs) { t.push_back(v.x); t.push_back(v.y); }
-  for (const auto& face : mesh.faces) {
-    json jf{{"v", face.v}};
-    if (!face.uv.empty()) jf["t"] = face.uv;
-    if (face.matId != 0) jf["m"] = face.matId;
-    if (face.smoothGroups != 1) jf["s"] = face.smoothGroups;
-    f.push_back(std::move(jf));
+void from_json(const json& j, IndexList& l) {
+  l.clear();
+  if (!j.is_array()) return;
+  l.reserve(j.size());
+  for (const auto& e : j) l.push_back(e.get<int>());
+}
+
+namespace {
+
+// Meshes are stored as base64 little-endian binary arrays inside the JSON ("bin": 1). That is
+// many times faster to write and read than JSON number arrays, and smaller.
+const char kB64[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+std::string base64(const void* data, size_t n) {
+  const auto* p = static_cast<const uint8_t*>(data);
+  std::string out;
+  out.resize((n + 2) / 3 * 4);
+  if (out.empty()) return out;
+  char* o = &out[0];
+  size_t i = 0;
+  for (; i + 2 < n; i += 3) {
+    uint32_t v = (uint32_t(p[i]) << 16) | (uint32_t(p[i + 1]) << 8) | p[i + 2];
+    *o++ = kB64[v >> 18];
+    *o++ = kB64[(v >> 12) & 63];
+    *o++ = kB64[(v >> 6) & 63];
+    *o++ = kB64[v & 63];
   }
-  return json{{"p", std::move(p)}, {"t", std::move(t)}, {"f", std::move(f)}};
+  if (i < n) {
+    uint32_t v = uint32_t(p[i]) << 16;
+    if (i + 1 < n) v |= uint32_t(p[i + 1]) << 8;
+    *o++ = kB64[v >> 18];
+    *o++ = kB64[(v >> 12) & 63];
+    *o++ = i + 1 < n ? kB64[(v >> 6) & 63] : '=';
+    *o++ = '=';
+  }
+  return out;
+}
+
+// Decodes into `out` (resized); returns false on malformed input.
+bool unbase64(const std::string& s, std::vector<uint8_t>& out) {
+  static const std::vector<int8_t> table = [] {
+    std::vector<int8_t> t(256, -1);
+    for (int i = 0; i < 64; ++i) t[static_cast<uint8_t>(kB64[i])] = static_cast<int8_t>(i);
+    return t;
+  }();
+  size_t n = s.size();
+  while (n > 0 && s[n - 1] == '=') --n;
+  out.resize(n * 3 / 4);
+  uint8_t* o = out.data();
+  uint32_t acc = 0;
+  int bits = 0;
+  for (size_t i = 0; i < n; ++i) {
+    int8_t v = table[static_cast<uint8_t>(s[i])];
+    if (v < 0) return false;
+    acc = (acc << 6) | static_cast<uint32_t>(v);
+    bits += 6;
+    if (bits >= 8) {
+      bits -= 8;
+      *o++ = static_cast<uint8_t>(acc >> bits);
+    }
+  }
+  out.resize(static_cast<size_t>(o - out.data()));
+  return true;
+}
+
+template <typename T>
+bool readArray(const json& m, const char* key, std::vector<T>& out, size_t count) {
+  out.clear();
+  auto it = m.find(key);
+  if (it == m.end()) return count == 0;
+  if (!it->is_string()) return false;
+  std::vector<uint8_t> bytes;
+  if (!unbase64(it->get_ref<const std::string&>(), bytes) || bytes.size() != count * sizeof(T)) return false;
+  out.resize(count);
+  if (count) std::memcpy(out.data(), bytes.data(), bytes.size());
+  return true;
+}
+
+PolyMesh polyMeshFromBinary(const json& m) {
+  PolyMesh mesh;
+  size_t nv = m.value("nv", size_t(0)), nt = m.value("nt", size_t(0)), nf = m.value("nf", size_t(0));
+  std::vector<float> p, t;
+  std::vector<uint8_t> counts8, hasUv;
+  std::vector<uint32_t> counts32, smooth;
+  std::vector<int32_t> vi, ui, mat;
+  if (!readArray(m, "p", p, nv * 3) || !readArray(m, "t", t, nt * 2)) return mesh;
+  bool wide = m.contains("c32");
+  if (wide ? !readArray(m, "c32", counts32, nf) : !readArray(m, "c", counts8, nf)) return mesh;
+  size_t corners = 0;
+  for (size_t f = 0; f < nf; ++f) corners += wide ? counts32[f] : counts8[f];
+  if (!readArray(m, "v", vi, corners)) return mesh;
+  if (m.contains("hu") && !readArray(m, "hu", hasUv, nf)) return mesh;
+  bool anyUv = m.contains("u");
+  size_t uvCorners = 0;
+  if (anyUv)
+    for (size_t f = 0; f < nf; ++f)
+      if (hasUv.empty() || hasUv[f]) uvCorners += wide ? counts32[f] : counts8[f];
+  if (anyUv && !readArray(m, "u", ui, uvCorners)) return mesh;
+  if (m.contains("m") && !readArray(m, "m", mat, nf)) return mesh;
+  if (m.contains("s") && !readArray(m, "s", smooth, nf)) return mesh;
+  mesh.positions.resize(nv);
+  for (size_t i = 0; i < nv; ++i) mesh.positions[i] = Vec3(p[i * 3], p[i * 3 + 1], p[i * 3 + 2]);
+  mesh.uvs.resize(nt);
+  for (size_t i = 0; i < nt; ++i) mesh.uvs[i] = Vec2(t[i * 2], t[i * 2 + 1]);
+  mesh.faces.resize(nf);
+  size_t c = 0, cu = 0;
+  for (size_t f = 0; f < nf; ++f) {
+    PolyMesh::Face& face = mesh.faces[f];
+    size_t n = wide ? counts32[f] : counts8[f];
+    face.v.assign(vi.data() + c, vi.data() + c + n);
+    c += n;
+    if (anyUv && (hasUv.empty() || hasUv[f])) {
+      face.uv.assign(ui.data() + cu, ui.data() + cu + n);
+      cu += n;
+    }
+    if (!mat.empty()) face.matId = mat[f];
+    if (!smooth.empty()) face.smoothGroups = smooth[f];
+  }
+  return mesh;
+}
+
+thread_local MeshRefTable* t_meshRefs = nullptr;
+
+}  // namespace
+
+MeshRefScope::MeshRefScope(MeshRefTable* table) : previous_(t_meshRefs) { t_meshRefs = table; }
+MeshRefScope::~MeshRefScope() { t_meshRefs = previous_; }
+MeshRefTable* MeshRefScope::current() { return t_meshRefs; }
+
+json polyMeshToJson(const PolyMesh& mesh) {
+  size_t nf = mesh.faces.size();
+  std::vector<float> p(mesh.positions.size() * 3), t(mesh.uvs.size() * 2);
+  for (size_t i = 0; i < mesh.positions.size(); ++i) {
+    p[i * 3] = mesh.positions[i].x;
+    p[i * 3 + 1] = mesh.positions[i].y;
+    p[i * 3 + 2] = mesh.positions[i].z;
+  }
+  for (size_t i = 0; i < mesh.uvs.size(); ++i) {
+    t[i * 2] = mesh.uvs[i].x;
+    t[i * 2 + 1] = mesh.uvs[i].y;
+  }
+  bool wide = false, anyUv = false, allUv = true, anyMat = false, anySmooth = false;
+  size_t corners = 0;
+  for (const auto& f : mesh.faces) {
+    wide |= f.v.size() > 255;
+    bool faceUv = !f.uv.empty() && f.uv.size() == f.v.size();
+    anyUv |= faceUv;
+    allUv &= faceUv;
+    anyMat |= f.matId != 0;
+    anySmooth |= f.smoothGroups != 1;
+    corners += f.v.size();
+  }
+  std::vector<uint8_t> c8, hu;
+  std::vector<uint32_t> c32, s;
+  std::vector<int32_t> v, u, m;
+  v.reserve(corners);
+  if (anyUv) u.reserve(corners);
+  if (wide) c32.reserve(nf);
+  else c8.reserve(nf);
+  for (const auto& f : mesh.faces) {
+    if (wide) c32.push_back(static_cast<uint32_t>(f.v.size()));
+    else c8.push_back(static_cast<uint8_t>(f.v.size()));
+    v.insert(v.end(), f.v.begin(), f.v.end());
+    bool faceUv = !f.uv.empty() && f.uv.size() == f.v.size();
+    if (anyUv && faceUv) u.insert(u.end(), f.uv.begin(), f.uv.end());
+    if (anyUv && !allUv) hu.push_back(faceUv ? 1 : 0);
+    if (anyMat) m.push_back(f.matId);
+    if (anySmooth) s.push_back(f.smoothGroups);
+  }
+  json j{{"bin", 1},
+         {"nv", mesh.positions.size()},
+         {"nt", mesh.uvs.size()},
+         {"nf", nf},
+         {"p", base64(p.data(), p.size() * sizeof(float))},
+         {"v", base64(v.data(), v.size() * sizeof(int32_t))}};
+  if (!t.empty()) j["t"] = base64(t.data(), t.size() * sizeof(float));
+  if (wide) j["c32"] = base64(c32.data(), c32.size() * sizeof(uint32_t));
+  else j["c"] = base64(c8.data(), c8.size());
+  if (anyUv) j["u"] = base64(u.data(), u.size() * sizeof(int32_t));
+  if (!hu.empty()) j["hu"] = base64(hu.data(), hu.size());
+  if (anyMat) j["m"] = base64(m.data(), m.size() * sizeof(int32_t));
+  if (anySmooth) j["s"] = base64(s.data(), s.size() * sizeof(uint32_t));
+  return j;
 }
 
 PolyMesh polyMeshFromJson(const json& m) {
+  if (m.is_object() && m.value("bin", 0) == 1) {
+    PolyMesh mesh = polyMeshFromBinary(m);
+    if (!mesh.isValid()) mesh.clear();
+    return mesh;
+  }
   PolyMesh mesh;
   if (!m.is_object()) return mesh;
   if (m.contains("p")) {
@@ -95,6 +273,7 @@ BezierShape bezierShapeFromJson(const json& j) {
 }
 
 PolyMesh EditablePolyObject::build() const {
+  const PolyMesh& mesh = *mesh_;
   if (sel.hiddenFaces.empty()) return mesh;
   PolyMesh out;
   out.positions = mesh.positions;
@@ -104,16 +283,41 @@ PolyMesh EditablePolyObject::build() const {
   return out;
 }
 
+PolyMesh& EditablePolyObject::editMesh() {
+  // Unshare before writing (copy-on-write). mesh_ always points at a non-const PolyMesh made by
+  // make_shared<PolyMesh>, so the const_cast is safe once this object is the only owner.
+  if (mesh_.use_count() != 1) mesh_ = std::make_shared<PolyMesh>(*mesh_);
+  return const_cast<PolyMesh&>(*mesh_);
+}
+
+void EditablePolyObject::setMesh(PolyMesh m) { mesh_ = std::make_shared<PolyMesh>(std::move(m)); }
+
+void EditablePolyObject::setSharedMesh(std::shared_ptr<const PolyMesh> m) {
+  mesh_ = m ? std::move(m) : std::make_shared<PolyMesh>();
+}
+
 json EditablePolyObject::toJson() const {
   json j = SceneObject::toJson();
-  j["mesh"] = polyMeshToJson(mesh);
+  if (MeshRefTable* refs = MeshRefScope::current()) {
+    uint64_t id = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(mesh_.get()));
+    (*refs)[id] = mesh_;
+    j["meshRef"] = id;
+  } else {
+    j["mesh"] = polyMeshToJson(*mesh_);
+  }
   j["sel"] = sel.toJson();
   return j;
 }
 
 void EditablePolyObject::fromJson(const json& j) {
   SceneObject::fromJson(j);
-  mesh = j.contains("mesh") ? polyMeshFromJson(j["mesh"]) : PolyMesh();
+  std::shared_ptr<const PolyMesh> shared;
+  if (MeshRefTable* refs = MeshRefScope::current(); refs && j.contains("meshRef")) {
+    auto it = refs->find(j["meshRef"].get<uint64_t>());
+    if (it != refs->end()) shared = it->second;
+  }
+  if (shared) mesh_ = std::move(shared);
+  else setMesh(j.contains("mesh") ? polyMeshFromJson(j["mesh"]) : PolyMesh());
   sel = PolySelection();
   if (j.contains("sel")) sel.fromJson(j["sel"]);
 }

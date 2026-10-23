@@ -6,6 +6,7 @@
 #include <QString>
 #include <QTimer>
 #include <QUndoStack>
+#include <QSet>
 #include <QVector>
 
 #include <cstdint>
@@ -38,7 +39,7 @@ class SceneDocument : public QObject {
   const QVector<uint32_t>& selection() const { return selection_; }
   QVector<Node*> selectedNodes() const;
   Node* firstSelected() const;
-  bool isSelected(uint32_t id) const { return selection_.contains(id); }
+  bool isSelected(uint32_t id) const { return selectionSet_.contains(id); }
   void setSelection(const QVector<uint32_t>& ids);
   void select(uint32_t id, bool add);
   void deselect(uint32_t id);
@@ -84,12 +85,13 @@ class SceneDocument : public QObject {
   bool isModified() const { return !undo_.isClean() || dirtyWithoutUndo_; }
   void setModified(bool m);
 
-  // Replaces the scene from JSON (undo/redo); keeps the file path.
-  void restore(const json& state, const QVector<uint32_t>& sel);
+  // Makes the scene match a snapshot (undo/redo), rebuilding only the nodes that differ; keeps
+  // the file path.
+  void restore(const SceneSnapshot& state, const QVector<uint32_t>& sel);
 
   // Called when an edit is committed, before its undo step is recorded, with the scene as it was
   // before the edit. The animation module uses it for Auto Key (turning changes into keys).
-  using CommitHook = std::function<void(const json& before)>;
+  using CommitHook = std::function<void(const SceneSnapshot& before)>;
   void setCommitHook(CommitHook hook) { commitHook_ = std::move(hook); }
 
  Q_SIGNALS:
@@ -103,19 +105,24 @@ class SceneDocument : public QObject {
 
  private:
   void bumpGeometry(uint32_t id) { ++geomVersion_[id]; }
-  void pushSnapshot(const QString& label, json before, const QVector<uint32_t>& selBefore);
+  void pushSnapshot(const QString& label, std::shared_ptr<const SceneSnapshot> before, const QVector<uint32_t>& selBefore);
+  // Captures the scene, sharing unchanged entries with the last capture.
+  std::shared_ptr<const SceneSnapshot> capture();
 
   Scene scene_;
   QUndoStack undo_;
   QVector<uint32_t> selection_;
+  QSet<uint32_t> selectionSet_;  // same ids, for O(1) isSelected
+  void setSelectionList(QVector<uint32_t> ids);
   int editDepth_ = 0;
   QString editLabel_;
-  json editBefore_;
+  std::shared_ptr<const SceneSnapshot> editBefore_;
+  std::shared_ptr<const SceneSnapshot> last_;  // most recent capture (entries are shared with it)
   QVector<uint32_t> editSelBefore_;
   // Soft edit state.
   bool softOpen_ = false;
   QString softKey_, softLabel_;
-  json softBefore_;
+  std::shared_ptr<const SceneSnapshot> softBefore_;
   QVector<uint32_t> softSelBefore_;
   QTimer softTimer_;
   uint64_t epoch_ = 1;

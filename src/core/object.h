@@ -6,6 +6,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "geomstate.h"
@@ -39,7 +40,7 @@ class SceneObject {
   ParamBlock params;
 
  private:
-  uint64_t revision_ = 1;
+  uint64_t revision_ = nextRevisionStamp();
 };
 
 class GeometryObject : public SceneObject {
@@ -53,7 +54,12 @@ class GeometryObject : public SceneObject {
 };
 
 // Mesh stored explicitly (imported models, Convert to Editable Poly). The Editable Poly tools
-// edit `mesh` and the sub-object selection directly.
+// edit the mesh (editMesh()) and the sub-object selection directly.
+//
+// The mesh is copy-on-write: clones, undo snapshots and the evaluated node cache share one
+// immutable copy, and editMesh() makes a private copy first when it is shared. So undo steps and
+// clones cost nothing for meshes they do not change. Get the reference from editMesh() after the
+// edit has begun (SceneDocument::beginEdit) and do not keep it across edits.
 class EditablePolyObject : public GeometryObject {
  public:
   std::string type() const override { return "EditablePoly"; }
@@ -63,8 +69,32 @@ class EditablePolyObject : public GeometryObject {
   json toJson() const override;
   void fromJson(const json& j) override;
 
-  PolyMesh mesh;
+  const PolyMesh& mesh() const { return *mesh_; }
+  PolyMesh& editMesh();
+  void setMesh(PolyMesh m);
+  std::shared_ptr<const PolyMesh> sharedMesh() const { return mesh_; }
+  void setSharedMesh(std::shared_ptr<const PolyMesh> m);
+
   PolySelection sel;  // sub-object selection (level, selected/hidden parts)
+
+ private:
+  std::shared_ptr<const PolyMesh> mesh_ = std::make_shared<PolyMesh>();
+};
+
+// While a MeshRefScope is alive on a thread, EditablePolyObject::toJson writes its mesh as
+// {"meshRef": id} and records the shared mesh in the table, and fromJson resolves such references
+// from the table (sharing, not copying). Undo snapshots use this so they never serialize meshes.
+using MeshRefTable = std::unordered_map<uint64_t, std::shared_ptr<const PolyMesh>>;
+class MeshRefScope {
+ public:
+  explicit MeshRefScope(MeshRefTable* table);
+  ~MeshRefScope();
+  MeshRefScope(const MeshRefScope&) = delete;
+  MeshRefScope& operator=(const MeshRefScope&) = delete;
+  static MeshRefTable* current();
+
+ private:
+  MeshRefTable* previous_;
 };
 
 // Splines. Common parameters (added by addShapeParams): "steps", "optimize",
@@ -150,6 +180,10 @@ std::string objectDisplayName(const std::string& type);
 
 // Exact-position vertex weld followed by removal of degenerate faces.
 void weldVertices(PolyMesh& mesh);
+
+// IndexList <-> JSON array of integers.
+void to_json(json& j, const IndexList& l);
+void from_json(const json& j, IndexList& l);
 
 // JSON helpers for meshes and shapes (used by editable objects and caches).
 json polyMeshToJson(const PolyMesh& mesh);

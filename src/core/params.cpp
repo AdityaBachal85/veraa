@@ -1,5 +1,6 @@
 #include "params.h"
 
+#include <atomic>
 #include <cmath>
 
 namespace veraa {
@@ -165,6 +166,11 @@ void ParamBlock::fromJson(const json& j) {
         break;
     }
   }
+}
+
+uint64_t nextRevisionStamp() {
+  static std::atomic<uint64_t> counter{1};
+  return ++counter;
 }
 
 json vec3ToJson(const Vec3& v) { return json::array({v.x, v.y, v.z}); }

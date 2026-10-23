@@ -102,9 +102,16 @@ void main() { frag = vColor; }
 
 QMatrix4x4 toQt(const Mat4& m) { return QMatrix4x4(&m.m[0][0]); }
 
+uint64_t g_uploaded = 0;
+bool g_skipDraws = false;  // benchmarks: measure CPU work without software rasterization
+
 }  // namespace
 
 GlScene::GlScene(QOpenGLFunctions_3_3_Core* gl) : gl_(gl) {}
+
+uint64_t GlScene::uploadedBytes() { return g_uploaded; }
+void GlScene::resetStats() { g_uploaded = 0; }
+void GlScene::setSkipMeshDraws(bool skip) { g_skipDraws = skip; }
 
 GlScene::~GlScene() {
   for (auto& [id, m] : meshes_) release(m);
@@ -189,6 +196,8 @@ GlScene::GpuMesh& GlScene::meshFor(const Node& node, uint64_t stamp) {
   gl_->glBufferData(GL_ELEMENT_ARRAY_BUFFER, static_cast<GLsizeiptr>(t.wireIndices.size() * sizeof(uint32_t)),
                     t.wireIndices.data(), GL_STATIC_DRAW);
   m.wireCount = static_cast<GLsizei>(t.wireIndices.size());
+  g_uploaded += verts.size() * sizeof(float) + t.indices.size() * sizeof(uint32_t) +
+                t.wirePositions.size() * sizeof(Vec3) + t.wireIndices.size() * sizeof(uint32_t);
   gl_->glBindVertexArray(0);
   m.stamp = stamp;
   return m;
@@ -221,7 +230,7 @@ void GlScene::drawShaded(const Node& node, uint64_t stamp, const Mat4& viewProj,
     meshProg_.setUniformValue(("uLightDir[" + idx + "]").constData(), style_.lightDirectional[i] ? 1 : 0);
   }
   gl_->glBindVertexArray(m.triVao);
-  gl_->glDrawElements(GL_TRIANGLES, m.triCount, GL_UNSIGNED_INT, nullptr);
+  if (!g_skipDraws) gl_->glDrawElements(GL_TRIANGLES, m.triCount, GL_UNSIGNED_INT, nullptr);
   gl_->glBindVertexArray(0);
   meshProg_.release();
 }
@@ -234,7 +243,7 @@ void GlScene::drawWire(const Node& node, uint64_t stamp, const Mat4& viewProj, c
   gl_->glBindVertexArray(m.wireVao);
   QOpenGLContext::currentContext()->functions()->glVertexAttrib4f(1, color.redF(), color.greenF(), color.blueF(),
                                                                   color.alphaF());
-  gl_->glDrawElements(GL_LINES, m.wireCount, GL_UNSIGNED_INT, nullptr);
+  if (!g_skipDraws) gl_->glDrawElements(GL_LINES, m.wireCount, GL_UNSIGNED_INT, nullptr);
   gl_->glBindVertexArray(0);
   lineProg_.release();
 }

@@ -59,6 +59,12 @@ class GlScene {
   // Frees buffers of nodes not drawn since the last call.
   void collectGarbage();
 
+  // Bytes uploaded to the GPU by every GlScene since the last resetStats() (benchmarks).
+  static uint64_t uploadedBytes();
+  static void resetStats();
+  // Benchmarks: skip the mesh draw calls (uploads and state changes still happen).
+  static void setSkipMeshDraws(bool skip);
+
  private:
   struct GpuMesh {
     GLuint triVao = 0, triVbo = 0, triEbo = 0;

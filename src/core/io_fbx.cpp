@@ -155,7 +155,7 @@ bool importFbx(Scene& scene, const std::string& path, const ImportOptions& optio
         n = dummyType ? scene.createNode("Dummy") : io::addMeshNode(scene, name.empty() ? "Group" : name, PolyMesh());
       }
       if (n) {
-        if (!name.empty() && n->name != name && (fn->light || fn->camera || (!fn->mesh && dummyType))) n->name = io::uniqueName(scene, name);
+        if (!name.empty() && n->name != name && (fn->light || fn->camera || (!fn->mesh && dummyType))) scene.renameNode(n, io::uniqueName(scene, name));
         n->parentId = parentId;
         if (fn->light || fn->camera) {
           // Lights and cameras: Veraa aims them along local -Z, so rebuild the world placement.
