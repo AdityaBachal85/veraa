@@ -60,6 +60,10 @@ class ShadeMaterial {
     return Vec3(1.0f - opacity(sc));
   }
   virtual bool shadowTransparent() const { return hasOpacity(); }
+  // True when the light shadow rays pass through this surface beyond its cut-out opening stands
+  // in for a perfectly smooth refraction that bends rays (solid glass), which scattered paths do
+  // not connect to lights through while refractive caustics are off.
+  virtual bool smoothShadowRefraction(const ShadeContext& sc) const { return false; }
   // Builds the BSDF. sc.ns is bump-mapped in place.
   virtual void shade(ShadeContext& sc, SurfaceShade& out) const = 0;
   // Render-time displacement map of the material (null when none).

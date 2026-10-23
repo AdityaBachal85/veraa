@@ -39,6 +39,10 @@ class RenderSetupDialog : public QDialog {
   // Shows a tab by its title ("Common", "Sampler", "GI", ...). Returns false if unknown.
   bool showTab(const QString& title);
   QStringList tabTitles() const;
+  // Quality preset (index into renderQualityPresetNames()) as an undoable edit; the selector
+  // shows the preset the settings match, or Custom (-1).
+  void applyQualityPreset(int preset);
+  int qualityPreset() const;
 
  Q_SIGNALS:
   void renderRequested();
@@ -49,12 +53,14 @@ class RenderSetupDialog : public QDialog {
  private:
   void rebuildCameraList();
   void updateAspect();
+  void updateQualityPreset();
   void savePreset();
   void loadPreset();
   SceneDocument* doc_;
   QTabWidget* tabs_;
   QComboBox* camera_;
   QComboBox* sizePreset_;
+  QComboBox* quality_;
   QLabel* aspect_;
 };
 

@@ -1,5 +1,9 @@
 #include "rendersettings.h"
 
+#include <algorithm>
+#include <cctype>
+#include <cmath>
+
 namespace veraa {
 
 const std::vector<RenderElementInfo>& renderElementInfos() {
@@ -25,6 +29,7 @@ const std::vector<RenderElementInfo>& renderElementInfos() {
 }
 
 void defineAdvancedRenderSettings(ParamBlock& p) {
+  defineSamplingQualitySettings(p);
   p.beginGroup("Image sampler");
   p.addEnum("samplerType", "Sampler", {"Progressive", "Bucket"}, 0);
   p.addInt("minSamples", "Min samples per pixel", 16, 1, 100000);
@@ -87,6 +92,102 @@ void defineAdvancedRenderSettings(ParamBlock& p) {
   p.addFloat("zDepthMin", "Z-depth min (cm)", 0.0, 0.0, 1e9, 10.0);
   p.addFloat("zDepthMax", "Z-depth max (cm)", 2000.0, 0.0, 1e9, 10.0);
   p.addBool("lightMix", "Light Mix", false);
+}
+
+
+// ---------------------------------------------------------------------------------------------
+// Sampling quality: path guiding, light sampling, glossy filter and quality presets.
+
+void defineSamplingQualitySettings(ParamBlock& p) {
+  p.beginGroup("Global illumination");
+  p.addFloat("filterGlossy", "Glossy filter (0 = off)", 1.0, 0.0, 10.0, 0.05, 2).tooltip =
+      "Blurs sharp reflections reached after diffuse bounces: removes fireflies from small bright lights seen in "
+      "them, at the cost of slightly softer indirect reflections";
+  p.addEnum("lightSampling", "Light sampling", {"Light tree", "All lights", "One light by power"}, 0).tooltip =
+      "Light tree picks the lights that matter at each point, so scenes with many lights stay clean";
+  p.beginGroup("Path guiding");
+  p.addBool("pathGuiding", "Path guiding", false).tooltip =
+      "Learns where indirect light comes from while rendering and sends more rays there (interiors lit through "
+      "windows, light bouncing off bright surfaces). On in the High, Very high and Supreme presets";
+  p.addInt("guidingTrainingSamples", "Training samples per pixel", 64, 1, 4096).tooltip =
+      "Passes that refine the learned light distribution; the passes after them use the final one";
+}
+
+namespace {
+
+struct QualityPreset {
+  const char* name;
+  int samples, minSamples;
+  double noiseThreshold;
+  int maxDepth;
+  double clampIndirect;
+  bool guiding;
+  int trainingSamples;
+  double filterGlossy;
+};
+
+const QualityPreset kQualityPresets[] = {
+    {"Draft", 64, 4, 0.05, 4, 5.0, false, 16, 1.5},
+    {"Medium", 256, 8, 0.02, 6, 10.0, false, 32, 1.0},
+    {"High", 1024, 16, 0.01, 8, 20.0, true, 64, 0.75},
+    {"Very high", 4096, 32, 0.005, 12, 50.0, true, 128, 0.5},
+    {"Supreme", 16384, 64, 0.0025, 16, 100.0, true, 256, 0.3},
+};
+constexpr int kQualityPresetCount = static_cast<int>(sizeof(kQualityPresets) / sizeof(kQualityPresets[0]));
+
+std::string presetKey(const std::string& name) {
+  std::string k;
+  for (char c : name)
+    if (std::isalnum(static_cast<unsigned char>(c))) k += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+  return k;
+}
+
+}  // namespace
+
+const std::vector<std::string>& renderQualityPresetNames() {
+  static const std::vector<std::string> names = [] {
+    std::vector<std::string> n;
+    for (const auto& q : kQualityPresets) n.push_back(q.name);
+    return n;
+  }();
+  return names;
+}
+
+int renderQualityPresetIndex(const std::string& name) {
+  std::string k = presetKey(name);
+  for (int i = 0; i < kQualityPresetCount; ++i)
+    if (presetKey(kQualityPresets[i].name) == k) return i;
+  return -1;
+}
+
+bool applyRenderQualityPreset(ParamBlock& p, int preset) {
+  if (preset < 0 || preset >= kQualityPresetCount) return false;
+  const QualityPreset& q = kQualityPresets[preset];
+  p.setNumber("samples", q.samples);
+  p.setNumber("minSamples", q.minSamples);
+  p.setNumber("noiseThreshold", q.noiseThreshold);
+  p.setNumber("maxDepth", q.maxDepth);
+  p.setNumber("clampIndirect", q.clampIndirect);
+  p.setNumber("pathGuiding", q.guiding ? 1 : 0);
+  p.setNumber("guidingTrainingSamples", q.trainingSamples);
+  p.setNumber("filterGlossy", q.filterGlossy);
+  p.setNumber("lightSampling", 0);
+  p.setNumber("denoise", 1);
+  return true;
+}
+
+int matchingRenderQualityPreset(const ParamBlock& p) {
+  auto same = [](double a, double b) { return std::fabs(a - b) <= 1e-4 * std::max(1.0, std::fabs(b)); };
+  for (int i = 0; i < kQualityPresetCount; ++i) {
+    const QualityPreset& q = kQualityPresets[i];
+    if (p.getInt("samples") == q.samples && p.getInt("minSamples") == q.minSamples &&
+        same(p.getFloat("noiseThreshold"), q.noiseThreshold) && p.getInt("maxDepth") == q.maxDepth &&
+        same(p.getFloat("clampIndirect"), q.clampIndirect) && p.getBool("pathGuiding") == q.guiding &&
+        p.getInt("guidingTrainingSamples") == q.trainingSamples && same(p.getFloat("filterGlossy"), q.filterGlossy) &&
+        p.getInt("lightSampling") == 0 && p.getBool("denoise"))
+      return i;
+  }
+  return -1;
 }
 
 }  // namespace veraa
