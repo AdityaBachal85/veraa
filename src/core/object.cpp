@@ -94,15 +94,28 @@ BezierShape bezierShapeFromJson(const json& j) {
   return shape;
 }
 
+PolyMesh EditablePolyObject::build() const {
+  if (sel.hiddenFaces.empty()) return mesh;
+  PolyMesh out;
+  out.positions = mesh.positions;
+  out.uvs = mesh.uvs;
+  for (size_t f = 0; f < mesh.faces.size(); ++f)
+    if (!sel.isFaceHidden(static_cast<int>(f))) out.faces.push_back(mesh.faces[f]);
+  return out;
+}
+
 json EditablePolyObject::toJson() const {
   json j = SceneObject::toJson();
   j["mesh"] = polyMeshToJson(mesh);
+  j["sel"] = sel.toJson();
   return j;
 }
 
 void EditablePolyObject::fromJson(const json& j) {
   SceneObject::fromJson(j);
   mesh = j.contains("mesh") ? polyMeshFromJson(j["mesh"]) : PolyMesh();
+  sel = PolySelection();
+  if (j.contains("sel")) sel.fromJson(j["sel"]);
 }
 
 void ShapeObject::addShapeParams(ParamBlock& p) {

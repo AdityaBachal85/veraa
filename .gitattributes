@@ -1,0 +1,2 @@
+# Built app (committed by the Windows build): store as-is, no line-ending changes or text diffs.
+App/** -text -diff

@@ -12,6 +12,7 @@
 #pragma once
 
 #include <QString>
+#include <QStringList>
 
 #include <cstdint>
 #include <functional>
@@ -51,6 +52,8 @@ class ViewportTool {
   virtual bool cancel() { return false; }
   // Whether the move/rotate/scale gizmo should still be shown and usable.
   virtual bool allowsGizmo() const { return false; }
+  // Edit > Delete while the tool is active (e.g. delete sub-objects). Return true if handled.
+  virtual bool deleteSelection() { return false; }
   virtual QString prompt() const { return QString(); }
 };
 
@@ -70,6 +73,8 @@ struct ExtensionRegistrar {
 
 // Runs every registered extension (called by MainWindow at the end of its constructor).
 void runAppExtensions(MainWindow& window);
+// Registered extension modules as "name" in run order (Customize > Plug-in Manager).
+QStringList appExtensionNames();
 
 // Custom creation for an object type (e.g. Line places knots with clicks). When the user starts
 // creating this type, the factory's tool becomes the active viewport tool.

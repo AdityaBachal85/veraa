@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write  # publish Veraa-windows-x64.zip on the Releases page
+  contents: write  # commit the built app into the App folder (and publish version releases)
   actions: write   # delete old build artifacts (they use the account's Actions storage)
 
 # A newer push to the same branch cancels the build still running for the previous one.
@@ -19,6 +19,9 @@ env:
   EMBREE_VERSION: "4.3.3"
   OIDN_VERSION: "2.3.3"
   QT_VERSION: "6.8.3"
+  PYTHON_VERSION: "3.12"
+  # Embeddable Python shipped next to Veraa.exe (same 3.12 ABI as the build-time Python).
+  PYTHON_EMBED_VERSION: "3.12.10"
 
 jobs:
   windows:
@@ -39,6 +42,11 @@ jobs:
           arch: win64_msvc2022_64
           cache: true
 
+      - name: Install Python (scripting)
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
       - name: Download Embree and Open Image Denoise
         run: |
           $deps = Join-Path $env:RUNNER_TEMP "deps"
@@ -56,6 +64,7 @@ jobs:
           cmake -S . -B build -G "Visual Studio 17 2022" -A x64
           -Dembree_DIR="$env:EMBREE_ROOT/lib/cmake/embree-$env:EMBREE_VERSION"
           -DOpenImageDenoise_DIR="$env:OIDN_ROOT/lib/cmake/OpenImageDenoise-$env:OIDN_VERSION"
+          -DPython3_ROOT_DIR="$env:pythonLocation"
 
       - name: Build
         run: cmake --build build --config Release --parallel
@@ -71,10 +80,14 @@ jobs:
             Copy-Item "$env:OIDN_ROOT/bin/$dll" $bin
           }
 
+      # A failing test doesn't hold back the App folder; the last step fails the job instead.
       - name: Test
+        id: test
+        continue-on-error: true
         run: ctest --test-dir build -C Release --output-on-failure
 
       - name: Package
+        id: package
         run: |
           $ErrorActionPreference = "Stop"
           $dist = "dist/Veraa"
@@ -93,6 +106,14 @@ jobs:
             ForEach-Object { Join-Path $_.FullName "x64/Microsoft.VC143.CRT" } |
             Where-Object { Test-Path $_ } | Select-Object -First 1
           Copy-Item "$crt/*.dll" $dist
+          # Python for the Scripting menu: python312.dll, the standard library zip, extension
+          # modules and the ._pth file that points Python at them.
+          $ProgressPreference = "SilentlyContinue"
+          $embed = Join-Path $env:RUNNER_TEMP "python-embed.zip"
+          Invoke-WebRequest "https://www.python.org/ftp/python/$env:PYTHON_EMBED_VERSION/python-$env:PYTHON_EMBED_VERSION-embed-amd64.zip" -OutFile $embed
+          Expand-Archive $embed -DestinationPath $dist -Force
+          Remove-Item "$dist/python.exe", "$dist/pythonw.exe" -ErrorAction SilentlyContinue
+          if (-not (Test-Path "$dist/python312.dll")) { throw "python312.dll missing from the package" }
           foreach ($dir in "scenes", "assets") { if (Test-Path $dir) { Copy-Item $dir $dist -Recurse } }
           Copy-Item README.md $dist
           if (Test-Path THIRD_PARTY_NOTICES.md) { Copy-Item THIRD_PARTY_NOTICES.md $dist }
@@ -107,21 +128,64 @@ jobs:
           }
 
       - name: Zip
+        if: startsWith(github.ref, 'refs/tags/v')
         run: Compress-Archive -Path dist/Veraa -DestinationPath Veraa-windows-x64.zip
 
-      # The download lives on the Releases page ("Veraa latest build"), not as an Actions
-      # artifact: release files don't count against the Actions storage quota.
-      - name: Publish the latest build on the Releases page
+      # The finished app goes into the repository's App folder, so downloading the repository
+      # gives a runnable Veraa.exe. Pushes made with the workflow token don't start new runs.
+      - name: Put the app in the App folder of the repository
         if: github.ref_type == 'branch'
         shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
-          gh release delete latest-build --cleanup-tag --yes || true
-          gh release create latest-build Veraa-windows-x64.zip \
-            --target "$GITHUB_SHA" --prerelease \
-            --title "Veraa latest build" \
-            --notes "Latest Windows build of Veraa (branch $GITHUB_REF_NAME, commit ${GITHUB_SHA:0:7}). Download Veraa-windows-x64.zip, unzip it anywhere and run Veraa.exe. No installation needed."
+          set -euo pipefail
+          rm -rf App
+          cp -r dist/Veraa App
+          # GitHub rejects files over 100 MB.
+          big=$(find App -type f -size +95M)
+          if [ -n "$big" ]; then echo "Too large to commit: $big"; exit 1; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A App
+          if git diff --cached --quiet; then echo "App folder is already up to date"; exit 0; fi
+          git commit -q -m "Update App folder with the Windows build of ${GITHUB_SHA:0:7} [skip ci]"
+          for attempt in 1 2 3 4; do
+            if git push origin "HEAD:refs/heads/$GITHUB_REF_NAME"; then exit 0; fi
+            sleep $((attempt * 2))
+            git pull -q --rebase origin "$GITHUB_REF_NAME"
+          done
+          exit 1
+
+      # The app's own UI self-test, on Windows with software OpenGL. Informational: it runs
+      # after the App folder is updated and doesn't fail the build.
+      - name: Self-test the app on Windows
+        if: steps.package.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 20
+        run: |
+          $env:QT_OPENGL = "software"
+          $env:QT_FORCE_STDERR_LOGGING = "1"
+          $cdb = "${env:ProgramFiles(x86)}/Windows Kits/10/Debuggers/x64/cdb.exe"
+          if (Test-Path $cdb) {
+            # Under the console debugger: a crash prints the call stack (symbols from the build).
+            @(
+              'sxd -c2 ".ecxr; kn 80; q" av'
+              'sxe -c "kn 80; q" c0000409'
+              'sxe -c "kn 80; q" c00000fd'
+              'g'
+              'q'
+            ) | Set-Content cdb-commands.txt
+            & $cdb -G -lines -y "build/bin/Release" -cf cdb-commands.txt dist/Veraa/Veraa.exe --script selftest *>&1 |
+              Tee-Object selftest.log | Out-Null
+          } else {
+            $p = Start-Process -FilePath dist/Veraa/Veraa.exe -ArgumentList "--script", "selftest" -Wait -PassThru `
+              -NoNewWindow -RedirectStandardOutput selftest.log -RedirectStandardError selftest.err
+          }
+          $log = Get-Content selftest.log
+          $log | Select-String -Pattern 'FAIL|failure\(s\)|Access violation|Security check|Veraa!' |
+            ForEach-Object { $_.Line }
+          "---- last lines ----"
+          $log | Select-Object -Last 120
+          if (-not ($log -match "^0 failure\(s\)")) { throw "The self-test did not pass" }
 
       - name: Publish the version release
         if: startsWith(github.ref, 'refs/tags/v')
@@ -138,6 +202,10 @@ jobs:
             gh api -X DELETE "repos/$GITHUB_REPOSITORY/actions/artifacts/$id" || true
           done
 
+      - name: Fail the build if unit tests failed
+        if: steps.test.outcome == 'failure'
+        run: throw "Unit tests failed (see the Test step)"
+
   linux:
     name: Linux (build + tests)
     runs-on: ubuntu-24.04
@@ -147,7 +215,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ninja-build qt6-base-dev libembree-dev libgl-dev
+          sudo apt-get install -y --no-install-recommends ninja-build qt6-base-dev libembree-dev libgl-dev python3-dev
 
       - name: Configure
         run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release

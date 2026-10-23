@@ -11,6 +11,7 @@
 #include "geomstate.h"
 #include "mesh.h"
 #include "params.h"
+#include "polysel.h"
 #include "shape.h"
 
 namespace veraa {
@@ -57,11 +58,13 @@ class EditablePolyObject : public GeometryObject {
  public:
   std::string type() const override { return "EditablePoly"; }
   std::unique_ptr<SceneObject> clone() const override { return std::make_unique<EditablePolyObject>(*this); }
-  PolyMesh build() const override { return mesh; }
+  // The mesh without hidden polygons (vertex indices are unchanged).
+  PolyMesh build() const override;
   json toJson() const override;
   void fromJson(const json& j) override;
 
   PolyMesh mesh;
+  PolySelection sel;  // sub-object selection (level, selected/hidden parts)
 };
 
 // Splines. Common parameters (added by addShapeParams): "steps", "optimize",
@@ -101,7 +104,7 @@ class CameraObject : public SceneObject {
   std::unique_ptr<SceneObject> clone() const override { return std::make_unique<CameraObject>(*this); }
   // Vertical field of view in degrees for a given image aspect (width / height).
   // The "fov" parameter is horizontal, as in 3ds Max.
-  float verticalFovDeg(float aspect) const;
+  virtual float verticalFovDeg(float aspect) const;
 };
 
 // Non-rendering helpers (Dummy, Point, Tape, Grid, groups' head nodes, ...).

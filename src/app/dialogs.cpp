@@ -1,6 +1,13 @@
 #include "dialogs.h"
 
+#include <algorithm>
+
+#include <QAction>
+#include <QButtonGroup>
 #include <QCheckBox>
+#include <QComboBox>
+#include <QPlainTextEdit>
+#include <QTabWidget>
 #include <QDialogButtonBox>
 #include <QDoubleSpinBox>
 #include <QFormLayout>
@@ -17,6 +24,7 @@
 #include <QVBoxLayout>
 
 #include "icons.h"
+#include "mainwindow.h"
 
 namespace veraa {
 
@@ -115,10 +123,14 @@ CloneOptionsDialog::CloneOptionsDialog(const QString& defaultName, bool showCopi
   copy->setChecked(true);
   auto* instance = new QRadioButton(tr("Instance"), objBox);
   auto* reference = new QRadioButton(tr("Reference"), objBox);
-  instance->setEnabled(false);
-  reference->setEnabled(false);
-  instance->setToolTip(tr("Instances are planned for a later version"));
-  reference->setToolTip(tr("References are planned for a later version"));
+  instance->setObjectName("clone_instance");
+  reference->setObjectName("clone_reference");
+  instance->setToolTip(tr("Shares the object and its modifiers: editing one changes all"));
+  reference->setToolTip(tr("Shares the base object; each copy keeps its own modifiers"));
+  modeGroup_ = new QButtonGroup(this);
+  modeGroup_->addButton(copy, Copy);
+  modeGroup_->addButton(instance, Instance);
+  modeGroup_->addButton(reference, Reference);
   ov->addWidget(copy);
   ov->addWidget(instance);
   ov->addWidget(reference);
@@ -140,44 +152,142 @@ CloneOptionsDialog::CloneOptionsDialog(const QString& defaultName, bool showCopi
 }
 
 int CloneOptionsDialog::copies() const { return copies_ ? copies_->value() : 1; }
+void CloneOptionsDialog::setMode(int m) {
+  if (QAbstractButton* b = modeGroup_->button(m)) b->setChecked(true);
+}
 QString CloneOptionsDialog::name() const { return name_->text().trimmed(); }
+
+CloneOptionsDialog::Mode CloneOptionsDialog::mode() const {
+  return static_cast<Mode>(std::max(0, modeGroup_->checkedId()));
+}
+
+void applyCloneMode(Scene& scene, uint32_t sourceId, uint32_t cloneId, CloneOptionsDialog::Mode mode) {
+  if (mode == CloneOptionsDialog::Copy) return;
+  Node* src = scene.findNode(sourceId);
+  Node* dst = scene.findNode(cloneId);
+  if (!src || !dst) return;
+  dst->object = src->object;
+  if (mode == CloneOptionsDialog::Instance) {
+    dst->modifiers = src->modifiers;
+  } else {
+    dst->modifiers.clear();
+    for (const auto& m : src->modifiers)
+      if (m) dst->modifiers.push_back(m->clone());
+  }
+  dst->invalidate();
+}
 
 ObjectPropertiesDialog::ObjectPropertiesDialog(SceneDocument* doc, Node* node, QWidget* parent) : QDialog(parent) {
   setWindowTitle(tr("Object Properties"));
   setWindowFlag(Qt::WindowContextHelpButtonHint, false);
-  auto* form = new QFormLayout(this);
-  auto* name = new QLineEdit(QString::fromStdString(node->name), this);
+  auto* v = new QVBoxLayout(this);
+  auto* tabs = new QTabWidget(this);
+  v->addWidget(tabs);
+
+  // ---- General ----
+  auto* general = new QWidget(tabs);
+  auto* gv = new QVBoxLayout(general);
+  auto* info = new QGroupBox(tr("Object Information"), general);
+  auto* form = new QFormLayout(info);
+  auto* name = new QLineEdit(QString::fromStdString(node->name), info);
   form->addRow(tr("Name:"), name);
-  form->addRow(tr("Type:"), new QLabel(QString::fromStdString(objectDisplayName(node->object->type())), this));
+  form->addRow(tr("Type:"), new QLabel(QString::fromStdString(objectDisplayName(node->object->type())), info));
+  Aabb b = node->worldBounds();
+  if (b.valid()) {
+    Vec3 e = b.extent();
+    form->addRow(tr("Dimensions:"),
+                 new QLabel(QString("X: %1  Y: %2  Z: %3").arg(e.x, 0, 'f', 2).arg(e.y, 0, 'f', 2).arg(e.z, 0, 'f', 2), info));
+  }
   if (node->kind() == ObjectKind::Geometry) {
     const PolyMesh& m = node->mesh();
-    form->addRow(tr("Vertices:"), new QLabel(QLocale().toString(static_cast<qulonglong>(m.positions.size())), this));
-    form->addRow(tr("Polygons:"), new QLabel(QLocale().toString(static_cast<qulonglong>(m.faces.size())), this));
-    form->addRow(tr("Triangles:"), new QLabel(QLocale().toString(static_cast<qulonglong>(m.triangleCount())), this));
-    Aabb b = node->worldBounds();
-    Vec3 e = b.extent();
-    form->addRow(tr("Dimensions:"), new QLabel(QString("%1 x %2 x %3").arg(e.x, 0, 'f', 2).arg(e.y, 0, 'f', 2).arg(e.z, 0, 'f', 2), this));
+    form->addRow(tr("Vertices:"), new QLabel(QLocale().toString(static_cast<qulonglong>(m.positions.size())), info));
+    form->addRow(tr("Faces:"), new QLabel(QLocale().toString(static_cast<qulonglong>(m.faces.size())), info));
     const Material* mat = doc->scene().findMaterial(node->materialId);
-    form->addRow(tr("Material:"), new QLabel(mat ? QString::fromStdString(mat->name) : tr("None"), this));
+    form->addRow(tr("Material:"), new QLabel(mat ? QString::fromStdString(mat->name) : tr("None"), info));
   }
-  auto* renderable = new QCheckBox(tr("Renderable"), this);
-  renderable->setChecked(node->renderable);
-  auto* hidden = new QCheckBox(tr("Hidden"), this);
-  hidden->setChecked(node->hidden);
-  form->addRow(renderable);
-  form->addRow(hidden);
+  Node* parentNode = node->parent();
+  form->addRow(tr("Parent:"), new QLabel(parentNode ? QString::fromStdString(parentNode->name) : tr("Scene Root"), info));
+  form->addRow(tr("Children:"), new QLabel(QString::number(doc->scene().children(node->id).size()), info));
+  auto* layer = new QComboBox(info);
+  for (const Layer& l : doc->scene().layers) layer->addItem(QString::fromStdString(l.name), l.id);
+  layer->setCurrentIndex(std::max(0, layer->findData(node->layerId)));
+  form->addRow(tr("Layer:"), layer);
+  gv->addWidget(info);
+
+  auto* flagsRow = new QHBoxLayout;
+  auto* interactivity = new QGroupBox(tr("Interactivity / Display"), general);
+  auto* iv = new QVBoxLayout(interactivity);
+  auto* render = new QGroupBox(tr("Rendering Control"), general);
+  auto* rv = new QVBoxLayout(render);
+  struct Flag {
+    QCheckBox* box;
+    bool Node::*member;
+  };
+  QList<Flag> flags;
+  auto addFlag = [&](QGroupBox* group, QVBoxLayout* l, const QString& text, bool Node::*member) {
+    auto* c = new QCheckBox(text, group);
+    c->setChecked(node->*member);
+    l->addWidget(c);
+    flags.push_back({c, member});
+  };
+  addFlag(interactivity, iv, tr("Hide"), &Node::hidden);
+  addFlag(interactivity, iv, tr("Freeze"), &Node::frozen);
+  addFlag(interactivity, iv, tr("See-Through"), &Node::seeThrough);
+  addFlag(interactivity, iv, tr("Display as Box"), &Node::displayAsBox);
+  addFlag(interactivity, iv, tr("Backface Cull"), &Node::backfaceCull);
+  addFlag(render, rv, tr("Renderable"), &Node::renderable);
+  addFlag(render, rv, tr("Visible to Camera"), &Node::visibleToCamera);
+  addFlag(render, rv, tr("Visible to Reflection/Refraction"), &Node::visibleToReflections);
+  addFlag(render, rv, tr("Receive Shadows"), &Node::receiveShadows);
+  addFlag(render, rv, tr("Cast Shadows"), &Node::castShadows);
+  addFlag(render, rv, tr("Motion Blur"), &Node::motionBlur);
+  auto* gb = new QSpinBox(render);
+  gb->setRange(0, 65535);
+  gb->setValue(node->gBufferId);
+  auto* gbRow = new QHBoxLayout;
+  gbRow->addWidget(new QLabel(tr("Object ID:"), render));
+  gbRow->addWidget(gb);
+  rv->addLayout(gbRow);
+  flagsRow->addWidget(interactivity);
+  flagsRow->addWidget(render);
+  gv->addLayout(flagsRow);
+  tabs->addTab(general, tr("General"));
+
+  // ---- User Defined ----
+  auto* user = new QWidget(tabs);
+  auto* uv = new QVBoxLayout(user);
+  uv->addWidget(new QLabel(tr("User Defined Properties:"), user));
+  auto* props = new QPlainTextEdit(QString::fromStdString(node->userProps), user);
+  props->setPlaceholderText(tr("key = value, one per line"));
+  uv->addWidget(props);
+  tabs->addTab(user, tr("User Defined"));
+
   auto* box = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
-  form->addRow(box);
+  v->addWidget(box);
   connect(box, &QDialogButtonBox::rejected, this, &QDialog::reject);
   uint32_t id = node->id;
-  connect(box, &QDialogButtonBox::accepted, this, [this, doc, id, name, renderable, hidden] {
+  connect(box, &QDialogButtonBox::accepted, this, [this, doc, id, name, layer, flags, gb, props] {
     Node* n = doc->scene().findNode(id);
     if (n) {
       doc->beginEdit(tr("Object Properties"));
-      if (!name->text().isEmpty()) n->name = name->text().toStdString();
-      n->renderable = renderable->isChecked();
-      n->hidden = hidden->isChecked();
-      doc->notifyNodeChanged(n, ChangeName | ChangeDisplay);
+      if (!name->text().trimmed().isEmpty()) n->name = name->text().trimmed().toStdString();
+      n->userProps = props->toPlainText().toStdString();
+      // Flags, layer and object ID go to every selected object (like 3ds Max).
+      QVector<Node*> targets = doc->selectedNodes();
+      if (!targets.contains(n)) targets.push_back(n);
+      QVector<uint32_t> ids;
+      for (Node* t : targets) {
+        for (const Flag& f : flags) t->*(f.member) = f.box->isChecked();
+        t->layerId = layer->currentData().toUInt();
+        t->gBufferId = gb->value();
+        ids.push_back(t->id);
+      }
+      QVector<uint32_t> keep;
+      for (uint32_t sid : doc->selection())
+        if (Node* t = doc->scene().findNode(sid); t && !t->hidden && !t->frozen) keep.push_back(sid);
+      doc->setSelection(keep);
+      doc->notifyNodesChanged(ids, ChangeName | ChangeDisplay);
+      doc->notifyStructureChanged();
       doc->endEdit();
     }
     accept();
@@ -219,16 +329,46 @@ void showShortcutsDialog(QWidget* parent) {
       {"Right-click (while creating)", "Stop creating objects"},
       {"Ctrl+N / Ctrl+O / Ctrl+S", "New / Open / Save"},
   };
-  auto* table = new QTableWidget(static_cast<int>(sizeof(rows) / sizeof(rows[0])), 2, &dlg);
+  QList<QPair<QString, QString>> list;
+  // Every command with a hotkey (current assignments, including Hotkey Editor changes).
+  if (auto* w = qobject_cast<MainWindow*>(parent)) {
+    QHash<QString, QString> keys = w->hotkeys();
+    for (auto it = keys.begin(); it != keys.end(); ++it) {
+      QAction* a = w->command(it.key());
+      if (it.value().isEmpty() || !a) continue;
+      QString key = QKeySequence(it.value(), QKeySequence::PortableText).toString(QKeySequence::NativeText);
+      list.push_back({key, a->text().remove('&').section('\t', 0, 0)});
+    }
+    std::sort(list.begin(), list.end(), [](const auto& x, const auto& y) { return x.second.toLower() < y.second.toLower(); });
+    // Mouse and modifier gestures are not commands; keep them from the fixed list.
+    for (const auto& r : rows) {
+      QString k = QString::fromUtf8(r[0]);
+      if (k.contains("mouse", Qt::CaseInsensitive) || k.contains("click", Qt::CaseInsensitive) ||
+          k.contains("drag", Qt::CaseInsensitive) || k.contains("wheel", Qt::CaseInsensitive))
+        list.push_back({k, QObject::tr(r[1])});
+    }
+  } else {
+    for (const auto& r : rows) list.push_back({QString::fromUtf8(r[0]), QObject::tr(r[1])});
+  }
+  auto* filter = new QLineEdit(&dlg);
+  filter->setPlaceholderText(QObject::tr("Find..."));
+  filter->setClearButtonEnabled(true);
+  v->addWidget(filter);
+  auto* table = new QTableWidget(list.size(), 2, &dlg);
   table->setHorizontalHeaderLabels({QObject::tr("Shortcut"), QObject::tr("Action")});
   table->verticalHeader()->hide();
   table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
   table->horizontalHeader()->setStretchLastSection(true);
   table->setEditTriggers(QAbstractItemView::NoEditTriggers);
   for (int i = 0; i < table->rowCount(); ++i) {
-    table->setItem(i, 0, new QTableWidgetItem(QString::fromUtf8(rows[i][0])));
-    table->setItem(i, 1, new QTableWidgetItem(QObject::tr(rows[i][1])));
+    table->setItem(i, 0, new QTableWidgetItem(list[i].first));
+    table->setItem(i, 1, new QTableWidgetItem(list[i].second));
   }
+  QObject::connect(filter, &QLineEdit::textChanged, table, [table](const QString& f) {
+    for (int i = 0; i < table->rowCount(); ++i)
+      table->setRowHidden(i, !f.isEmpty() && !table->item(i, 0)->text().contains(f, Qt::CaseInsensitive) &&
+                                 !table->item(i, 1)->text().contains(f, Qt::CaseInsensitive));
+  });
   v->addWidget(table);
   auto* box = new QDialogButtonBox(QDialogButtonBox::Close, &dlg);
   QObject::connect(box, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);

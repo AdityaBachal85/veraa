@@ -25,8 +25,11 @@ class Modifier {
   // Override for modifiers that work on splines or need the full state. The default applies
   // apply(mesh) when the state is a mesh.
   virtual void applyState(GeomState& state) const {
-    if (!state.isShape) apply(state.mesh);
+    if (!state.isShape) applyWithSelection(state);
   }
+  // Runs apply(mesh) and, when a sub-object selection comes from below, keeps unselected
+  // vertices in place (blending by weight). Topology changes drop the selection.
+  void applyWithSelection(GeomState& state) const;
 
   virtual json toJson() const;
   virtual void fromJson(const json& j);

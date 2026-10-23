@@ -1,5 +1,5 @@
-// Environment lighting: constant color, sky gradient, HDRI and Preetham physical sky,
-// with importance sampling for map-based environments.
+// Environment lighting: constant color, sky gradient, HDRI, physical skies (Preetham or single
+// scattering) and dome lights, with importance sampling for map-based environments.
 #pragma once
 
 #include <memory>
@@ -13,6 +13,8 @@ namespace veraa {
 class Scene;
 
 namespace render {
+
+struct LightBuildResult;
 
 // Piecewise-constant 2D distribution over a w x h grid (rows = v, columns = u).
 class Distribution2D {
@@ -42,9 +44,15 @@ Vec3 sunAtmosphereTint(float elevationRad, float turbidity);
 
 class Environment {
  public:
-  // sunDir: unit vector toward the sun (or null); sunIrradiance: the sun's luminance irradiance.
+  // Environment from the render settings. sunDir: unit vector toward the (standard) sun or null;
+  // sunIrradiance: the sun's luminance irradiance.
   void build(const Scene& scene, TextureCache& cache, const Vec3* sunDir, float sunIrradiance,
              std::vector<std::string>* warnings);
+  // Same, using the lights collected for rendering (physical sun drives the physical sky).
+  void build(const Scene& scene, TextureCache& cache, const LightBuildResult& lights, std::vector<std::string>* warnings);
+  // Dome light: an HDRI (or a constant color without texture) times color.
+  void buildDome(const Scene& scene, TextureCache& cache, const LightBuildResult& lights,
+                 std::vector<std::string>* warnings);
   // Uniform radiance environment (tests and material previews).
   void buildConstant(const Vec3& radiance);
   void buildGradient(const Vec3& zenith, const Vec3& horizon, const Vec3& ground, float intensity);
@@ -55,21 +63,32 @@ class Environment {
   bool sample(float u1, float u2, Vec3& dir, Vec3& radiance, float& pdf) const;
   float pdf(const Vec3& dir) const;
   bool isBlack() const { return black_; }
+  // Average radiance (luminance) for light selection.
+  float averageLuminance() const { return average_; }
+
+  // Visible sun disk (physical sun): radiance when dir falls inside the disk.
+  Vec3 sunDisk(const Vec3& dir) const;
 
   bool visibleToCamera = true;
   Vec3 background;
 
  private:
-  void buildFromMap(const Texture* map, float rotationRad, float intensity);
+  void buildFromMap(const Texture* map, float rotationRad, const Vec3& tint);
 
   bool black_ = true;
   bool useMap_ = false;
+  bool hemisphere_ = false;
   Vec3 constant_;
   const Texture* map_ = nullptr;
   std::unique_ptr<Texture> baked_;
   float rotation_ = 0.0f;
-  float intensity_ = 1.0f;
+  Vec3 tint_{1, 1, 1};
+  float average_ = 0.0f;
   Distribution2D dist_;
+  bool hasSunDisk_ = false;
+  Vec3 sunDir_;
+  float sunCos_ = 1.0f;
+  Vec3 sunRadiance_;
 };
 
 }  // namespace render

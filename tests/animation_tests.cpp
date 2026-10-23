@@ -3,6 +3,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <exception>
 #include <filesystem>
 #include <fstream>
 #include <vector>
@@ -604,8 +605,12 @@ static void testAvi() {
     CHECK(w.frameCount() == 3);
     CHECK(w.close());
   }
-  std::ifstream in(path, std::ios::binary);
-  std::vector<uint8_t> b((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+  std::vector<uint8_t> b;
+  {
+    // Closed again before the file is removed below (Windows can't delete an open file).
+    std::ifstream in(path, std::ios::binary);
+    b.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+  }
   CHECK(b.size() > 300);
   if (b.size() < 300) return;
   CHECK(std::memcmp(&b[0], "RIFF", 4) == 0);
@@ -635,23 +640,40 @@ static void testAvi() {
   CHECK(std::memcmp(&b[end], "idx1", 4) == 0);
   CHECK(rd32(b, end + 4) == 48);
   CHECK(rd32(b, end + 8 + 8) == 4);  // first frame offset relative to "movi"
-  std::filesystem::remove(path);
+  std::error_code ec;
+  std::filesystem::remove(path, ec);
 }
 
 int main() {
-  testBezier();
-  testTcb();
-  testOutOfRange();
-  testExpressions();
-  testQuat();
-  testAutoKeyAndEvaluate();
-  testLayersWiresReactions();
-  testConstraints();
-  testIk();
-  testSkinMorphPathDeform();
-  testParticles();
-  testRigidBodies();
-  testAvi();
+  // Unbuffered, so a crash still shows how far the tests got.
+  std::setvbuf(stdout, nullptr, _IONBF, 0);
+  const struct {
+    const char* name;
+    void (*run)();
+  } tests[] = {
+      {"testBezier", testBezier},
+      {"testTcb", testTcb},
+      {"testOutOfRange", testOutOfRange},
+      {"testExpressions", testExpressions},
+      {"testQuat", testQuat},
+      {"testAutoKeyAndEvaluate", testAutoKeyAndEvaluate},
+      {"testLayersWiresReactions", testLayersWiresReactions},
+      {"testConstraints", testConstraints},
+      {"testIk", testIk},
+      {"testSkinMorphPathDeform", testSkinMorphPathDeform},
+      {"testParticles", testParticles},
+      {"testRigidBodies", testRigidBodies},
+      {"testAvi", testAvi},
+  };
+  for (const auto& t : tests) {
+    std::printf("%s\n", t.name);
+    try {
+      t.run();
+    } catch (const std::exception& e) {
+      std::printf("FAIL %s threw: %s\n", t.name, e.what());
+      ++g_failures;
+    }
+  }
   if (g_failures) {
     std::printf("%d animation test(s) failed\n", g_failures);
     return 1;

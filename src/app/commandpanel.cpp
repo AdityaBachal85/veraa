@@ -3,6 +3,7 @@
 #include "extension.h"
 
 #include <QButtonGroup>
+#include <QCheckBox>
 #include <QComboBox>
 #include <QFileInfo>
 #include <QFormLayout>
@@ -60,7 +61,17 @@ CommandPanel::CommandPanel(SceneDocument* doc, EditorState* state, QWidget* pare
   });
   connect(doc_, &SceneDocument::nodesChanged, this, [this](const QVector<uint32_t>& ids, int flags) {
     if (ids.contains(createFormNode_)) {
-      createForm_->refresh();
+      Node* cn = doc_->scene().findNode(createFormNode_);
+      if (!cn || !cn->object || cn->object.get() != createFormObject_) {
+        // The object was replaced (Convert To, ...): its parameters are gone.
+        createForm_->setBlock(nullptr);
+        createFormNode_ = 0;
+        createFormObject_ = nullptr;
+      } else {
+        createForm_->refresh();
+      }
+    }
+    if (ids.contains(createFormNode_)) {
       if (Node* n = doc_->scene().findNode(createFormNode_)) {
         QSignalBlocker b(createName_);
         createName_->setText(QString::fromStdString(n->name));
@@ -114,6 +125,7 @@ QWidget* CommandPanel::buildCreateTab() {
   v->addLayout(cats);
 
   subCombo_ = new QComboBox(content);
+  subCombo_->setObjectName("CreateListCombo");
   v->addWidget(subCombo_);
   connect(subCombo_, &QComboBox::currentTextChanged, this, [this](const QString& sub) {
     if (sub == subcategory_) return;
@@ -122,6 +134,22 @@ QWidget* CommandPanel::buildCreateTab() {
   });
 
   auto* typeRoll = new Rollout(tr("Object Type"), content);
+  // AutoGrid: new objects are built on the surface under the cursor (enabled while creating).
+  autoGrid_ = new QCheckBox(tr("AutoGrid"), typeRoll->body());
+  autoGrid_->setObjectName("AutoGrid");
+  autoGrid_->setToolTip(tr("Create objects on the surface of other objects"));
+  autoGrid_->setEnabled(false);
+  connect(autoGrid_, &QCheckBox::toggled, this, [this](bool on) { state_->setAutoGrid(on); });
+  auto* autoRow = new QHBoxLayout;
+  autoRow->addStretch(1);
+  autoRow->addWidget(autoGrid_);
+  autoRow->addStretch(1);
+  typeRoll->form()->addRow(autoRow);
+  listNote_ = new QLabel(typeRoll->body());
+  listNote_->setWordWrap(true);
+  listNote_->setStyleSheet("color: #a8a8a8;");
+  listNote_->hide();
+  typeRoll->form()->addRow(listNote_);
   auto* grid = new QWidget(typeRoll->body());
   typeGrid_ = new QGridLayout(grid);
   typeGrid_->setContentsMargins(0, 0, 0, 0);
@@ -138,6 +166,7 @@ QWidget* CommandPanel::buildCreateTab() {
   createName_ = new QLineEdit(nameRow);
   createColor_ = new ColorSwatch(nameRow);
   createColor_->setFixedWidth(28);
+  createColor_->setColor(Vec3(0.78f, 0.16f, 0.16f));
   nh->addWidget(createName_, 1);
   nh->addWidget(createColor_);
   nameRollout_->form()->addRow(nameRow);
@@ -166,28 +195,27 @@ QWidget* CommandPanel::buildCreateTab() {
   return scrollWrap(content, this);
 }
 
-namespace {
-const char* const kCategories[7] = {"Geometry", "Shapes", "Lights", "Cameras", "Helpers", "Space Warps", "Systems"};
-
-int categoryIndexOf(const QString& type) {
-  const ObjectTypeInfo* info = findObjectType(type.toStdString());
-  if (!info) return -1;
-  for (int i = 0; i < 7; ++i)
-    if (info->category == kCategories[i]) return i;
-  return -1;
-}
-}  // namespace
-
 void CommandPanel::setCategory(int c) {
   category_ = c;
   for (int i = 0; i < 7; ++i) catButtons_[i]->setChecked(i == c);
   QSignalBlocker block(subCombo_);
   subCombo_->clear();
-  for (const std::string& sub : objectSubcategories(kCategories[c]))
-    subCombo_->addItem(QString::fromStdString(sub.empty() ? std::string("Standard") : sub));
+  lists_ = createLists(createCategories().value(c));
+  for (const CreateList& l : lists_) subCombo_->addItem(l.name);
   subCombo_->setVisible(subCombo_->count() > 0);
   subcategory_ = subCombo_->currentText();
   rebuildTypeButtons();
+}
+
+void CommandPanel::setCreateList(const QString& name) {
+  int at = subCombo_->findText(name);
+  if (at >= 0) subCombo_->setCurrentIndex(at);
+}
+
+QStringList CommandPanel::createButtonLabels() const {
+  QStringList out;
+  for (QAbstractButton* b : typeGroup_->buttons()) out << b->text();
+  return out;
 }
 
 void CommandPanel::rebuildTypeButtons() {
@@ -196,52 +224,86 @@ void CommandPanel::rebuildTypeButtons() {
     b->hide();
     b->deleteLater();
   }
-  std::vector<std::string> types;
-  std::string sub = subcategory_ == "Standard" ? std::string() : subcategory_.toStdString();
-  for (const ObjectTypeInfo* t : objectTypesIn(kCategories[category_]))
-    if (t->subcategory == sub || (sub.empty() && t->subcategory == "Standard") ||
-        QString::fromStdString(t->subcategory) == subcategory_)
-      types.push_back(t->type);
+  const CreateList* list = nullptr;
+  for (const CreateList& l : lists_)
+    if (l.name == subcategory_) list = &l;
+  listNote_->setVisible(list && list->buttons.empty());
+  if (list && list->buttons.empty()) listNote_->setText(tr("%1: not available in Veraa yet.").arg(list->name));
+  if (!list) return;
   int i = 0;
-  for (const auto& t : types) {
-    auto* b = new QPushButton(display(t), typeGrid_->parentWidget());
-    b->setCheckable(true);
+  for (const CreateButton& cb : list->buttons) {
+    auto* b = new QPushButton(cb.label, typeGrid_->parentWidget());
     b->setMinimumHeight(24);
-    QString type = QString::fromStdString(t);
+    QString type = cb.type, label = cb.label;
     b->setProperty("objectType", type);
-    b->setChecked(state_->createType() == type);
-    connect(b, &QPushButton::clicked, this, [this, type](bool on) {
-      state_->setCreateType(on ? type : QString());
-      if (on)
-        state_->setPrompt(tr("Click and drag in a viewport to create a %1").arg(display(type.toStdString())));
-    });
+    if (type.isEmpty()) {
+      b->setProperty("notAvailable", true);
+      b->setToolTip(tr("%1 (not available yet)").arg(label));
+      connect(b, &QPushButton::clicked, this, [this, label] { Q_EMIT featureNotAvailable(label); });
+    } else {
+      b->setCheckable(true);
+      connect(b, &QPushButton::clicked, this, [this, type, label](bool on) {
+        if (on) beginCreate(type, label);
+        else state_->setCreateType(QString());
+      });
+    }
     typeGroup_->addButton(b);
     typeGrid_->addWidget(b, i / 2, i % 2);
     ++i;
   }
+  syncCreate();
+}
+
+void CommandPanel::beginCreate(const QString& type, const QString& label) {
+  createLabel_ = label;
+  createLabelType_ = type;
+  state_->setCreateType(type);
+  if (!type.isEmpty())
+    state_->setPrompt(tr("Click and drag in a viewport to create a %1")
+                          .arg(label.isEmpty() ? display(type.toStdString()) : label));
 }
 
 void CommandPanel::syncCreate() {
   QString ct = state_->createType();
+  if (ct != createLabelType_) createLabel_.clear();  // creation started elsewhere (menu, script)
+  // The button of the active type: the one that started it, else the first of that type.
+  auto buttonFor = [this, &ct]() -> QAbstractButton* {
+    QAbstractButton* first = nullptr;
+    for (QAbstractButton* b : typeGroup_->buttons()) {
+      if (ct.isEmpty() || b->property("objectType").toString() != ct) continue;
+      if (!createLabel_.isEmpty() && b->text() == createLabel_) return b;
+      if (!first) first = b;
+    }
+    return first;
+  };
+  if (!ct.isEmpty() && !buttonFor()) {
+    // Jump to the list that has the active creation type (the starting button's list first).
+    bool found = false;
+    for (int pass = 0; pass < 2 && !found; ++pass)
+      for (int c = 0; c < createCategories().size() && !found; ++c)
+        for (const CreateList& l : createLists(createCategories()[c]))
+          for (const CreateButton& b : l.buttons)
+            if (!found && b.type == ct && (pass == 1 || createLabel_.isEmpty() || b.label == createLabel_)) {
+              if (c != category_) setCategory(c);
+              setCreateList(l.name);
+              found = true;
+            }
+  }
+  QAbstractButton* active = buttonFor();
   for (QAbstractButton* b : typeGroup_->buttons()) {
     QSignalBlocker blk(b);
-    b->setChecked(b->property("objectType").toString() == ct);
+    b->setChecked(b == active);
   }
-  if (!ct.isEmpty()) {
-    // Jump to the category of the active creation type.
-    int cat = categoryIndexOf(ct);
-    if (cat >= 0 && cat != category_) setCategory(cat);
-    if (const ObjectTypeInfo* info = findObjectType(ct.toStdString())) {
-      QString sub = QString::fromStdString(info->subcategory.empty() ? std::string("Standard") : info->subcategory);
-      if (sub != subcategory_ && subCombo_->findText(sub) >= 0) subCombo_->setCurrentText(sub);
-    }
-    showCreate();
-  }
-  // Parameters of the object being (or just) created.
+  autoGrid_->setEnabled(!ct.isEmpty());
+  if (!ct.isEmpty()) showCreate();
+  // Name and color of the object being (or just) created; empty otherwise.
   Node* n = doc_->selection().size() == 1 ? doc_->firstSelected() : nullptr;
   bool show = n && !ct.isEmpty() && QString::fromStdString(n->object->type()) == ct;
-  nameRollout_->setVisible(show);
+  createName_->setEnabled(show);
+  createColor_->setEnabled(show);
   if (!show) {
+    QSignalBlocker b(createName_);
+    createName_->clear();
     if (createFormNode_) {
       createForm_->setBlock(nullptr);
       createFormNode_ = 0;
@@ -255,6 +317,7 @@ void CommandPanel::syncCreate() {
     createFormNode_ = n->id;
     wireForm(createForm_, n->id, -1);
     createForm_->setBlock(&n->object->params);
+    createFormObject_ = n->object.get();
   }
 }
 
@@ -415,11 +478,22 @@ void CommandPanel::wireForm(ParamForm* form, uint32_t nodeId, int stackIndex) {
   form->browseDir = file.isEmpty() ? QString() : QFileInfo(file).absolutePath();
 }
 
+namespace {
+std::vector<const void*> stackIdentity(const Node* n) {
+  std::vector<const void*> ids;
+  if (!n) return ids;
+  ids.push_back(n->object.get());
+  for (const auto& m : n->modifiers) ids.push_back(m.get());
+  return ids;
+}
+}  // namespace
+
 void CommandPanel::rebuildModify() {
   rebuilding_ = true;
   auto nodes = doc_->selectedNodes();
   Node* n = nodes.size() == 1 ? nodes[0] : nullptr;
   modNode_ = n ? n->id : 0;
+  modBuiltFor_ = stackIdentity(n);
   stack_->clear();
   name_->setEnabled(!nodes.isEmpty());
   color_->setEnabled(!nodes.isEmpty());
@@ -432,11 +506,16 @@ void CommandPanel::rebuildModify() {
   if (!nodes.isEmpty()) color_->setColor(nodes[0]->wireColor);
 
   bool anyGeometry = false;
-  for (Node* s : nodes) anyGeometry |= s->kind() == ObjectKind::Geometry;
+  for (Node* s : nodes) anyGeometry |= s->kind() == ObjectKind::Geometry || s->kind() == ObjectKind::Shape;
   modList_->setEnabled(anyGeometry);
 
   if (!n) {
     modForm_->setBlock(nullptr);
+    if (modExtra_) {  // type-specific rollouts belong to the previous selection
+      modExtra_->hide();
+      modExtra_->deleteLater();
+      modExtra_ = nullptr;
+    }
     modInfo_->setText(nodes.isEmpty() ? tr("Select an object to modify it.")
                                       : tr("Multiple objects selected. Modifiers chosen from the list are added to each "
                                            "selected object."));
@@ -495,7 +574,8 @@ void CommandPanel::selectStackRow(int row) {
 void CommandPanel::refreshModifyValues() {
   Node* n = doc_->scene().findNode(modNode_);
   if (!n) return;
-  if (static_cast<int>(stack_->count()) != static_cast<int>(n->modifiers.size()) + 1) {
+  if (static_cast<int>(stack_->count()) != static_cast<int>(n->modifiers.size()) + 1 ||
+      stackIdentity(n) != modBuiltFor_) {
     rebuildModify();
     return;
   }

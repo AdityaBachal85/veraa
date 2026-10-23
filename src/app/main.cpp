@@ -1,3 +1,5 @@
+#include <cstdio>
+
 #include <QApplication>
 #include <QCommandLineParser>
 #include <QFileInfo>
@@ -41,6 +43,7 @@ int main(int argc, char** argv) {
   if (!files.isEmpty() && QFileInfo::exists(files.first())) window.openFile(files.first());
 
   if (parser.isSet(shot) || parser.isSet(script)) {
+    std::setvbuf(stdout, nullptr, _IONBF, 0);  // keep the log up to date even if the app crashes
     QString name = parser.value(script);
     QString path = parser.value(shot);
     QTimer::singleShot(200, &window, [&window, name, path] {

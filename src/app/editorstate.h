@@ -33,6 +33,9 @@ class EditorState : public QObject {
   void setCreateType(const QString& type);
   void setShowGrid(bool on);
   void setPrompt(const QString& text) { Q_EMIT promptChanged(text); }
+  // Create panel > AutoGrid: new objects are built on the surface under the cursor.
+  bool autoGrid() const { return autoGrid_; }
+  void setAutoGrid(bool on) { autoGrid_ = on; }
 
   // ---- Viewport tools and decorators (see extension.h) ----
   ViewportTool* viewportTool() const { return tool2_.get(); }
@@ -82,6 +85,7 @@ class EditorState : public QObject {
   GizmoHandle constraint_ = GizmoHandle::XY;
   QString createType_;
   bool showGrid_ = true;
+  bool autoGrid_ = false;
   std::shared_ptr<ViewportTool> tool2_;
   std::vector<std::shared_ptr<ViewportDecorator>> decorators_;
   PointSnapper pointSnapper_;

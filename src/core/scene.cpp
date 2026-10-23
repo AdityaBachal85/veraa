@@ -1,5 +1,8 @@
 #include "scene.h"
 
+#include "polyops.h"
+#include "rendersettings.h"
+
 #include <atomic>
 #include <cstdio>
 #include <filesystem>
@@ -149,9 +152,13 @@ void Node::evaluate() const {
   st.nodeId = id;
   if (auto* g = geometry()) {
     st.mesh = g->buildAt(st);
+    // An Editable Poly at a sub-object level passes its selection to the modifiers above.
+    if (auto* ep = dynamic_cast<const EditablePolyObject*>(g)) st.selWeights = stackSelectionWeights(ep->mesh, ep->sel);
   } else if (auto* s = shapeObject()) {
     st.shape = s->buildShape();
     st.isShape = true;
+    if (s->params.has("steps")) st.shapeSteps = s->params.getInt("steps");
+    if (s->params.has("optimize")) st.shapeOptimize = s->params.getBool("optimize");
   }
   for (const auto& m : modifiers)
     if (m && m->enabled) m->applyState(st);
@@ -342,6 +349,7 @@ void defineRenderSettings(ParamBlock& p) {
   p.addColor("backgroundColor", "Background", Vec3(0.0f));
   p.beginGroup("Camera");
   p.addString("camera", "Render camera", "");
+  defineAdvancedRenderSettings(p);
 }
 
 // ---------------------------------------------------------------------------------------------

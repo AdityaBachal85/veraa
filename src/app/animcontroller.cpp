@@ -29,7 +29,8 @@ void appendParamPaths(const ParamBlock& p, const std::string& prefix, std::vecto
 
 }  // namespace
 
-AnimController::AnimController(MainWindow& window) : QObject(&window), window_(window), doc_(window.document()) {
+AnimController::AnimController(MainWindow& window)
+    : QObject(&window), window_(window), doc_(window.document()), docGuard_(doc_) {
   g_instance = this;
   timer_.setTimerType(Qt::PreciseTimer);
   connect(&timer_, &QTimer::timeout, this, &AnimController::tick);
@@ -48,7 +49,7 @@ AnimController::AnimController(MainWindow& window) : QObject(&window), window_(w
 
 AnimController::~AnimController() {
   if (g_instance == this) g_instance = nullptr;
-  doc_->setCommitHook(nullptr);
+  if (docGuard_) docGuard_->setCommitHook(nullptr);
 }
 
 AnimController* AnimController::instance() { return g_instance; }
