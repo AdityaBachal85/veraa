@@ -13,3 +13,15 @@ if(MSVC)
 else()
   target_compile_options(veraa_thirdparty PRIVATE -w)
 endif()
+
+# Hosek-Wilkie 2012 sky model, the authors' reference implementation and data (BSD 3-Clause,
+# hosekwilkie/LICENSE). Used by the renderer's physical sky.
+add_library(veraa_hosekwilkie STATIC hosekwilkie/ArHosekSkyModel.c)
+target_include_directories(veraa_hosekwilkie PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/hosekwilkie)
+set_target_properties(veraa_hosekwilkie PROPERTIES POSITION_INDEPENDENT_CODE ON)
+if(MSVC)
+  target_compile_options(veraa_hosekwilkie PRIVATE /W0)
+  target_compile_definitions(veraa_hosekwilkie PRIVATE _CRT_SECURE_NO_WARNINGS)
+else()
+  target_compile_options(veraa_hosekwilkie PRIVATE -w)
+endif()

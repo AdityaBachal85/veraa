@@ -1,5 +1,6 @@
-// Environment lighting: constant color, sky gradient, HDRI, physical skies (Preetham or single
-// scattering) and dome lights, with importance sampling for map-based environments.
+// Environment lighting: constant color, sky gradient, HDRI, physical skies (Preetham, the
+// spectral physical atmosphere or Hosek-Wilkie, see sky.h) and dome lights, with importance
+// sampling for map-based environments.
 #pragma once
 
 #include <memory>
@@ -39,8 +40,10 @@ class Distribution2D {
 Vec2 directionToEquirect(const Vec3& dir, float rotationRad);
 Vec3 equirectToDirection(float u, float v, float rotationRad);
 
-// Approximate color of sunlight after passing through the atmosphere (1 at the zenith).
-Vec3 sunAtmosphereTint(float elevationRad, float turbidity);
+// Color of sunlight after passing through the atmosphere, relative to the sun at the zenith
+// (1 there). skyModel 0 (Preetham) uses the original approximation, the other models the
+// physical atmosphere's transmittance.
+Vec3 sunAtmosphereTint(float elevationRad, float turbidity, int skyModel = 0);
 
 class Environment {
  public:
@@ -88,7 +91,8 @@ class Environment {
   bool hasSunDisk_ = false;
   Vec3 sunDir_;
   float sunCos_ = 1.0f;
-  Vec3 sunRadiance_;
+  float sunAngle_ = 0.0f;  // angular radius of the disk (radians)
+  Vec3 sunRadiance_;       // average radiance of the disk (limb darkening is applied around it)
 };
 
 }  // namespace render

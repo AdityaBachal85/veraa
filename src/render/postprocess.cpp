@@ -30,6 +30,127 @@ Vec3 acesFitted(const Vec3& c) {
           -0.00327f * v.x - 0.07276f * v.y + 1.07602f * v.z};
 }
 
+// ---- AgX-style view transform ----
+// Built from the published description of AgX (T. Sobotka): the scene color is expressed in a
+// slightly wider, rotated set of primaries (an "inset" that pulls colors toward the achromatic
+// axis), encoded logarithmically around middle grey, passed per channel through a sigmoid and
+// brought back with the inverse matrix. Per-channel compression of the inset values gives
+// saturated highlights a smooth path to white without the hue skews of plain per-channel curves.
+// The primaries, log range and sigmoid below are Veraa's own choices.
+
+struct M3 {
+  float m[3][3];
+  Vec3 operator*(const Vec3& v) const {
+    return {m[0][0] * v.x + m[0][1] * v.y + m[0][2] * v.z, m[1][0] * v.x + m[1][1] * v.y + m[1][2] * v.z,
+            m[2][0] * v.x + m[2][1] * v.y + m[2][2] * v.z};
+  }
+};
+
+M3 mul(const M3& a, const M3& b) {
+  M3 r{};
+  for (int i = 0; i < 3; ++i)
+    for (int j = 0; j < 3; ++j)
+      for (int k = 0; k < 3; ++k) r.m[i][j] += a.m[i][k] * b.m[k][j];
+  return r;
+}
+
+M3 inverse(const M3& a) {
+  const auto& m = a.m;
+  double det = m[0][0] * (static_cast<double>(m[1][1]) * m[2][2] - static_cast<double>(m[1][2]) * m[2][1]) -
+               m[0][1] * (static_cast<double>(m[1][0]) * m[2][2] - static_cast<double>(m[1][2]) * m[2][0]) +
+               m[0][2] * (static_cast<double>(m[1][0]) * m[2][1] - static_cast<double>(m[1][1]) * m[2][0]);
+  double inv = det != 0.0 ? 1.0 / det : 0.0;
+  M3 r;
+  r.m[0][0] = static_cast<float>((m[1][1] * m[2][2] - m[1][2] * m[2][1]) * inv);
+  r.m[0][1] = static_cast<float>((m[0][2] * m[2][1] - m[0][1] * m[2][2]) * inv);
+  r.m[0][2] = static_cast<float>((m[0][1] * m[1][2] - m[0][2] * m[1][1]) * inv);
+  r.m[1][0] = static_cast<float>((m[1][2] * m[2][0] - m[1][0] * m[2][2]) * inv);
+  r.m[1][1] = static_cast<float>((m[0][0] * m[2][2] - m[0][2] * m[2][0]) * inv);
+  r.m[1][2] = static_cast<float>((m[0][2] * m[1][0] - m[0][0] * m[1][2]) * inv);
+  r.m[2][0] = static_cast<float>((m[1][0] * m[2][1] - m[1][1] * m[2][0]) * inv);
+  r.m[2][1] = static_cast<float>((m[0][1] * m[2][0] - m[0][0] * m[2][1]) * inv);
+  r.m[2][2] = static_cast<float>((m[0][0] * m[1][1] - m[0][1] * m[1][0]) * inv);
+  return r;
+}
+
+// RGB -> XYZ for primaries given as xy chromaticities, with white (1,1,1) -> the white point.
+M3 primariesToXyz(const Vec2 prim[3], const Vec2& white) {
+  M3 P;
+  for (int i = 0; i < 3; ++i) {
+    P.m[0][i] = prim[i].x / prim[i].y;
+    P.m[1][i] = 1.0f;
+    P.m[2][i] = (1.0f - prim[i].x - prim[i].y) / prim[i].y;
+  }
+  Vec3 W(white.x / white.y, 1.0f, (1.0f - white.x - white.y) / white.y);
+  Vec3 S = inverse(P) * W;
+  for (int r = 0; r < 3; ++r)
+    for (int i = 0; i < 3; ++i) P.m[r][i] *= S[i];
+  return P;
+}
+
+struct AgxMatrices {
+  M3 inset, outset;
+};
+
+const AgxMatrices& agxMatrices() {
+  static const AgxMatrices mats = [] {
+    const Vec2 white(0.3127f, 0.3290f);
+    const Vec2 rec709[3] = {Vec2(0.64f, 0.33f), Vec2(0.30f, 0.60f), Vec2(0.15f, 0.06f)};
+    // Primaries pushed 15% away from white and rotated a little (degrees, counter-clockwise in xy):
+    // red toward magenta, green toward cyan and blue toward magenta keep fire, foliage and skies
+    // on their hue when they burn out.
+    const float expand = 0.15f;
+    const float rotDeg[3] = {-1.0f, 2.0f, 1.5f};
+    Vec2 wide[3];
+    for (int i = 0; i < 3; ++i) {
+      Vec2 d = rec709[i] - white;
+      float a = radians(rotDeg[i]), cs = std::cos(a), sn = std::sin(a);
+      wide[i] = white + Vec2(cs * d.x - sn * d.y, sn * d.x + cs * d.y) * (1.0f + expand);
+    }
+    AgxMatrices r;
+    r.inset = mul(inverse(primariesToXyz(wide, white)), primariesToXyz(rec709, white));
+    r.outset = inverse(r.inset);
+    return r;
+  }();
+  return mats;
+}
+
+// Log range (stops around middle grey 0.18) and display-encoded sigmoid.
+constexpr float kAgxMinEv = -10.0f, kAgxMaxEv = 6.5f;
+constexpr float kAgxPivotY = 0.48f, kAgxSlope = 2.6f;
+
+float agxSigmoidRaw(float x) {
+  const float x0 = -kAgxMinEv / (kAgxMaxEv - kAgxMinEv);
+  float d = kAgxSlope * (x - x0);
+  float L = d > 0.0f ? 1.0f - kAgxPivotY : kAgxPivotY;
+  float r = std::fabs(d / L);
+  return kAgxPivotY + d / std::cbrt(1.0f + r * r * r);
+}
+
+float agxCurve(float v) {
+  static const float lo = agxSigmoidRaw(0.0f), hi = agxSigmoidRaw(1.0f);
+  float x = (std::log2(std::max(v, 1e-10f) / 0.18f) - kAgxMinEv) / (kAgxMaxEv - kAgxMinEv);
+  float y = (agxSigmoidRaw(clampf(x, 0.0f, 1.0f)) - lo) / (hi - lo);
+  return srgbToLinear(clampf(y, 0.0f, 1.0f));
+}
+
+Vec3 agxView(const Vec3& c) {
+  const AgxMatrices& M = agxMatrices();
+  Vec3 v = M.inset * vmax(c, Vec3(0.0f));
+  v = Vec3(agxCurve(v.x), agxCurve(v.y), agxCurve(v.z));
+  return clampColor(M.outset * v, 0.0f, 1.0f);
+}
+
+// Dark/bright multipliers: the slope blends from `dark` (black) to `bright` (white and above),
+// so the mapping stays monotonic for any positive multipliers.
+float multiplyCurve(float x, float dark, float bright) {
+  if (x <= 0.0f) return 0.0f;
+  float s = x < 1.0f ? x * x * x * (1.0f - 0.5f * x) : x - 0.5f;
+  return dark * x + (bright - dark) * s;
+}
+
+Vec3 scaleTo(const Vec3& c, float from, float to) { return from > 1e-20f ? c * (to / from) : Vec3(0.0f); }
+
 // ---- 3D LUTs (.cube) ----
 struct Lut3D {
   int n = 0;
@@ -164,6 +285,68 @@ void boxBlur(std::vector<float>& img, int w, int h, int r) {
 
 }  // namespace
 
+ColorMappingParams colorMappingParams(const DisplaySettings& d) {
+  ColorMappingParams p;
+  p.type = (d.tonemap >= 0 && d.tonemap < kMapCount) ? d.tonemap : kMapFilmicAces;
+  p.dark = std::max(d.mapDark, 0.0f);
+  p.bright = std::max(d.mapBright, 0.0f);
+  p.gamma = std::max(d.mapGamma, 0.01f);
+  p.burn = clampf(d.mapBurn, 0.0f, 1.0f);
+  return p;
+}
+
+Vec3 applyColorMapping(const Vec3& cIn, const ColorMappingParams& p) {
+  Vec3 c = vmax(cIn, Vec3(0.0f));
+  const bool unit = p.dark == 1.0f && p.bright == 1.0f;
+  auto g = [&](float x) { return unit ? std::max(x, 0.0f) : multiplyCurve(x, p.dark, p.bright); };
+  auto expo = [&](float x) { return 1.0f - std::exp(-g(x)); };
+  const float invGamma = 1.0f / p.gamma;
+  Vec3 out;
+  switch (p.type) {
+    case kMapReinhard: {
+      float L = luminance(c), Lm = g(L);
+      out = scaleTo(c, L, Lm * (1.0f + p.burn * Lm) / (1.0f + Lm));
+      break;
+    }
+    case kMapLinear: out = Vec3(g(c.x), g(c.y), g(c.z)); break;
+    case kMapExponential: out = Vec3(expo(c.x), expo(c.y), expo(c.z)); break;
+    case kMapHsvExponential: {
+      float V = maxComponent(c);
+      out = scaleTo(c, V, expo(V));
+      break;
+    }
+    case kMapIntensityExp: {
+      float I = luminance(c);
+      out = scaleTo(c, I, expo(I));
+      break;
+    }
+    case kMapGamma: {
+      auto gc = [&](float x) { return std::pow(std::max(x * p.bright, 0.0f), invGamma); };
+      return Vec3(gc(c.x), gc(c.y), gc(c.z));
+    }
+    case kMapIntensityGamma: {
+      float I = luminance(c);
+      return scaleTo(c, I, std::pow(std::max(I * p.bright, 0.0f), invGamma));
+    }
+    case kMapAgx:
+    case kMapFilmicAces:
+    default: {
+      // The multipliers shape the luminance before the filmic curve.
+      if (!unit) {
+        float L = luminance(c);
+        c = scaleTo(c, L, g(L));
+      }
+      // The filmic curve maps scene middle grey (0.18) to roughly display middle grey with this pre-gain.
+      out = p.type == kMapAgx ? agxView(c) : clampColor(acesFitted(c * 1.8f), 0.0f, 1.0f);
+      break;
+    }
+  }
+  if (p.gamma != 1.0f)
+    out = Vec3(std::pow(std::max(out.x, 0.0f), invGamma), std::pow(std::max(out.y, 0.0f), invGamma),
+               std::pow(std::max(out.z, 0.0f), invGamma));
+  return vmax(out, Vec3(0.0f));
+}
+
 std::vector<Vec2> parseCurve(const std::string& text) {
   std::vector<Vec2> pts;
   std::string item;
@@ -258,37 +441,22 @@ void postProcess(std::vector<float>& rgb, int w, int h, const DisplaySettings& d
         for (int c = 0; c < 3; ++c) rgb[(static_cast<size_t>(y) * w + x) * 3 + c] *= v;
       }
   }
-  if (d.corrections) {
-    Vec3 wb = kelvinToRgb(d.whiteBalanceK);
-    Vec3 wbMul(1.0f / std::max(wb.x, 1e-3f), 1.0f / std::max(wb.y, 1e-3f), 1.0f / std::max(wb.z, 1e-3f));
-    wbMul /= std::max(luminance(wbMul), 1e-6f);
-    Vec3 tintMul(1.0f + 0.15f * d.tint, 1.0f - 0.2f * d.tint, 1.0f + 0.15f * d.tint);
-    float burn = clampf(d.highlightBurn, 0.0f, 1.0f);
-    for (size_t i = 0; i < n; ++i) {
-      Vec3 c(rgb[i * 3], rgb[i * 3 + 1], rgb[i * 3 + 2]);
-      c = c * wbMul * tintMul;
-      if (d.hueShift != 0.0f) {
-        Vec3 hsv = rgbToHsv(vmax(c, Vec3(0.0f)));
-        hsv.x += d.hueShift / 360.0f;
-        c = hsvToRgb(hsv);
-      }
-      if (burn < 1.0f) {
-        float l = luminance(c);
-        if (l > 0.0f) c *= 1.0f / (1.0f + (1.0f - burn) * l);
-      }
-      rgb[i * 3] = c.x;
-      rgb[i * 3 + 1] = c.y;
-      rgb[i * 3 + 2] = c.z;
-    }
-  }
 }
 
-void tonemapToRgba(const float* hdr, int w, int h, const DisplaySettings& d, std::vector<uint8_t>& out) {
+void tonemapToRgba(const float* hdr, int w, int h, const DisplaySettings& d, std::vector<uint8_t>& out,
+                   const float* alpha) {
   size_t n = static_cast<size_t>(w) * h;
   out.resize(n * 4);
   float scale = std::pow(2.0f, d.exposureEV);
-  // The filmic curve maps scene middle grey (0.18) to roughly display middle grey with this pre-gain.
-  const float filmicGain = 1.8f;
+  ColorMappingParams cm = colorMappingParams(d);
+  const bool mapOn = !d.mapAdaptationOnly;
+  const bool protectBackground = mapOn && !d.mapAffectBackground && alpha != nullptr;
+  // Color corrections on the display-linear (color mapped) image.
+  Vec3 wb = kelvinToRgb(d.whiteBalanceK);
+  Vec3 wbMul(1.0f / std::max(wb.x, 1e-3f), 1.0f / std::max(wb.y, 1e-3f), 1.0f / std::max(wb.z, 1e-3f));
+  wbMul /= std::max(luminance(wbMul), 1e-6f);
+  Vec3 tintMul(1.0f + 0.15f * d.tint, 1.0f - 0.2f * d.tint, 1.0f + 0.15f * d.tint);
+  float burn = clampf(d.highlightBurn, 0.0f, 1.0f);
   bool levels = d.corrections && (d.levelsBlack != 0.0f || d.levelsWhite != 1.0f || d.levelsGamma != 1.0f);
   std::vector<float> curve;
   if (d.corrections && d.curve.size() >= 2) {
@@ -301,17 +469,26 @@ void tonemapToRgba(const float* hdr, int w, int h, const DisplaySettings& d, std
   for (size_t i = 0; i < n; ++i) {
     Vec3 c(hdr[i * 3], hdr[i * 3 + 1], hdr[i * 3 + 2]);
     if (!isFiniteColor(c)) c = Vec3(0.0f);
-    c = vmax(c * scale, Vec3(0.0f));
-    if (d.saturation != 1.0f) c = vmax(lerp(Vec3(luminance(c)), c, d.saturation), Vec3(0.0f));
-    switch (d.tonemap) {
-      case 0: c = acesFitted(c * filmicGain); break;
-      case 1: {
-        float l = luminance(c);
-        if (l > 0.0f) c *= (l / (1.0f + l)) / l;
-        break;
-      }
-      default: break;
+    c = vmax(c * scale, Vec3(0.0f));  // exposure
+    if (mapOn) {
+      Vec3 mapped = applyColorMapping(c, cm);
+      // Background pixels (alpha 0) keep the linear values when the mapping must not affect them.
+      c = protectBackground ? lerp(c, mapped, clampf(alpha[i], 0.0f, 1.0f)) : mapped;
     }
+    if (d.corrections) {
+      c = c * wbMul * tintMul;
+      if (d.hueShift != 0.0f) {
+        Vec3 hsv = rgbToHsv(vmax(c, Vec3(0.0f)));
+        hsv.x += d.hueShift / 360.0f;
+        c = hsvToRgb(hsv);
+      }
+      if (burn < 1.0f) {
+        float l = luminance(c);
+        if (l > 0.0f) c *= 1.0f / (1.0f + (1.0f - burn) * l);
+      }
+    }
+    if (d.saturation != 1.0f) c = vmax(lerp(Vec3(luminance(c)), c, d.saturation), Vec3(0.0f));
+    // Display transform.
     Vec3 s(linearToSrgb(c.x), linearToSrgb(c.y), linearToSrgb(c.z));
     for (int k = 0; k < 3; ++k) {
       float v = s[k];

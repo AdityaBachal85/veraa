@@ -19,6 +19,7 @@ Veraa uses the following open-source components. Each is used under its own lice
 | miniz 3.0.2 (Rich Geldreich, RAD Game Tools, Valve) | Zip archives (File > Archive) | MIT | https://github.com/richgel999/miniz |
 | Python 3.12 (embeddable package, Windows builds) | Scripting (Scripting menu, listener) | Python Software Foundation License | https://www.python.org/ |
 | TinyEXR 1.0.9 (Syoyo Fujita), includes OpenEXR-derived code (ILM) | OpenEXR loading and saving | BSD 3-Clause | https://github.com/syoyo/tinyexr |
+| Hosek-Wilkie sky model 1.4a (Lukas Hosek, Alexander Wilkie), reference implementation and coefficient data | Hosek-Wilkie 2012 physical sky | BSD 3-Clause (third_party/hosekwilkie/LICENSE) | https://cgg.mff.cuni.cz/projects/SkylightModelling/ |
 | Microsoft Visual C++ runtime (Windows builds) | C++ runtime DLLs | Microsoft Visual Studio redistributable terms | https://learn.microsoft.com/cpp/windows/redistributing-visual-cpp-files |
 | Sample HDRI from Poly Haven | Sample scenes | CC0 | https://polyhaven.com/ |
 

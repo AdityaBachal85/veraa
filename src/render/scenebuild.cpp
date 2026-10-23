@@ -396,7 +396,8 @@ bool Renderer::Impl::build(const Scene& scene, std::string* error) {
   if (rs.getInt("envMode") == 3 && !lb.physicalSun) {
     float turbidity = rs.getFloat("skyTurbidity");
     for (auto& l : lights)
-      if (l.type == Light::Type::Sun) l.color *= sunAtmosphereTint(std::asin(clampf(l.dir.z, -1.0f, 1.0f)), turbidity);
+      if (l.type == Light::Type::Sun)
+        l.color *= sunAtmosphereTint(std::asin(clampf(l.dir.z, -1.0f, 1.0f)), turbidity, rs.getInt("skyModel"));
   }
   if (lb.physicalSun && rs.getInt("exposureControl") == 0) {
     bool cameraExposure = false;

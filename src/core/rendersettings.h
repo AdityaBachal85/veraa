@@ -11,6 +11,8 @@
 namespace veraa {
 
 void defineAdvancedRenderSettings(ParamBlock& p);
+// Color mapping parameters and physical sky settings (called by defineAdvancedRenderSettings).
+void defineRealismRenderSettings(ParamBlock& p);
 
 // Render elements (AOVs). The key of element i is renderElementKeys()[i]; the setting
 // "elem" + key enables it (e.g. "elemReflection").
@@ -34,6 +36,10 @@ const std::vector<RenderElementInfo>& renderElementInfos();
 //  Corrections: ccOn, ccWhiteBalanceK, ccTint, ccHue, ccHighlightBurn, ccCurve (points
 //               "x,y;x,y"), ccLevelsBlack, ccLevelsWhite, ccLevelsGamma, ccLutFile, ccLutStrength
 //  Elements:    elem<Key> (bool) per renderElementInfos(), zDepthMin, zDepthMax, lightMix
+//  Mapping:     cmDarkMultiplier, cmBrightMultiplier, cmGamma, cmBurn, cmAffectBackground,
+//               cmAdaptationOnly (the type is "tonemap")
+//  Sky:         skyModel (0 Preetham, 1 physical atmosphere, 2 Hosek-Wilkie; standard sun),
+//               skyHorizonBlur (degrees)
 //  Batch:       stored in Scene::extensions["batchRender"]
 
 }  // namespace veraa

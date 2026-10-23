@@ -87,6 +87,36 @@ void defineAdvancedRenderSettings(ParamBlock& p) {
   p.addFloat("zDepthMin", "Z-depth min (cm)", 0.0, 0.0, 1e9, 10.0);
   p.addFloat("zDepthMax", "Z-depth max (cm)", 2000.0, 0.0, 1e9, 10.0);
   p.addBool("lightMix", "Light Mix", false);
+
+  defineRealismRenderSettings(p);
+}
+
+// ---------------------------------------------------------------------------------------------
+// Realism settings: color mapping parameters and the physical sky. Kept in their own block.
+
+void defineRealismRenderSettings(ParamBlock& p) {
+  p.beginGroup("Color mapping");
+  p.addFloat("cmDarkMultiplier", "Dark multiplier", 1.0, 0.0, 100.0, 0.05, 3).tooltip =
+      "Multiplier for dark values (all color mapping types except the gamma types)";
+  p.addFloat("cmBrightMultiplier", "Bright multiplier", 1.0, 0.0, 100.0, 0.05, 3).tooltip =
+      "Multiplier for bright values";
+  p.addFloat("cmGamma", "Gamma", 1.0, 0.05, 10.0, 0.05, 3).tooltip =
+      "Gamma applied after the color mapping curve (the curve itself for the gamma types). The sRGB display "
+      "transform is always applied afterwards, so 1.0 is neutral";
+  p.addFloat("cmBurn", "Burn value (Reinhard)", 0.0, 0.0, 1.0, 0.05, 3).tooltip =
+      "Reinhard only: 1 = linear, 0 = full highlight compression";
+  p.addBool("cmAffectBackground", "Affect background", true).tooltip =
+      "When off, pixels showing the environment are not color mapped";
+  p.addBool("cmAdaptationOnly", "Don't affect colors (adaptation only)", false).tooltip =
+      "Keeps the image linear: the color mapping is not applied to the output";
+
+  p.beginGroup("Environment");
+  // Scenes saved before this setting existed keep the Preetham sky (Scene::fromJson).
+  p.addEnum("skyModel", "Sky model (standard sun)", {"Preetham et al.", "Physical atmosphere", "Hosek-Wilkie 2012"}, 1)
+      .tooltip = "Physical sky model used with a standard Sun or without a sun. A VeraaSun or Sun Positioner "
+                 "uses its own sky settings";
+  p.addFloat("skyHorizonBlur", "Horizon blur (deg)", 1.5, 0.0, 30.0, 0.1, 2).tooltip =
+      "Width of the soft transition from the horizon haze to the ground below the horizon";
 }
 
 }  // namespace veraa
