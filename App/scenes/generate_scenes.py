@@ -271,7 +271,79 @@ def product_shot():
     s.save("product_shot.veraa")
 
 
+def interior_sun():
+    """Daylight interior lit only by the sun and sky through one window (the camera looks away from
+    it), with the High quality preset. Most of the room sees indirect light only: the test scene for
+    path guiding."""
+    s = SceneBuilder()
+    s.settings = {"width": 1280, "height": 720, "samples": 1024, "minSamples": 16, "noiseThreshold": 0.01,
+                  "maxDepth": 8, "clampIndirect": 20, "pathGuiding": True, "guidingTrainingSamples": 64,
+                  "filterGlossy": 0.75, "lightSampling": 0, "denoise": True,
+                  "envMode": 3, "exposureControl": 1, "ev100": 12.0, "exposure": 0.0, "camera": "Camera"}
+    wall = s.material("Wall paint", diffuse=[0.78, 0.76, 0.72])
+    ceiling = s.material("Ceiling", diffuse=[0.85, 0.85, 0.85])
+    floor = s.material("Oak floor", diffuse=[0.45, 0.3, 0.18], reflect=[0.5, 0.5, 0.5], reflectGlossiness=0.72,
+                       fresnelIor=1.5)
+    glass = s.material("Window glass", diffuse=[0, 0, 0], reflect=[1, 1, 1], refract=[1, 1, 1], ior=1.52,
+                       fresnelIor=1.52, thinWalled=True, affectShadows=True)
+    frame = s.material("Window frame", diffuse=[0.85, 0.85, 0.83], reflect=[0.3, 0.3, 0.3], reflectGlossiness=0.6)
+    fabric = s.material("Sofa fabric", diffuse=[0.35, 0.4, 0.45], roughness=0.8)
+    cushion = s.material("Cushions", diffuse=[0.7, 0.62, 0.5], roughness=0.8)
+    wood = s.material("Walnut", diffuse=[0.25, 0.14, 0.08], reflect=[0.6, 0.6, 0.6], reflectGlossiness=0.8,
+                      fresnelIor=1.5)
+    metal = s.material("Brushed steel", diffuse=[0.8, 0.8, 0.8], reflect=[1, 1, 1], metalness=1.0,
+                       reflectGlossiness=0.85)
+    rug = s.material("Rug", diffuse=[0.6, 0.55, 0.48], roughness=1.0)
+    art = s.material("Print", diffuse=[0.2, 0.35, 0.5])
+    ceramic = s.material("Ceramic", diffuse=[0.85, 0.82, 0.78], reflect=[1, 1, 1], reflectGlossiness=0.92,
+                         fresnelIor=1.5)
+
+    # Room 500 (X) x 400 (Y) x 280 (Z); the window is an opening in the -X wall.
+    s.box("Floor", (250, 200), -10, (540, 440, 10), floor)
+    s.box("Ceiling", (250, 200), 280, (540, 440, 10), ceiling)
+    s.box("BackWall", (250, 410), 0, (540, 20, 280), wall)
+    s.box("FrontWall", (250, -10), 0, (540, 20, 280), wall)
+    s.box("RightWall", (510, 200), 0, (20, 440, 280), wall)
+    s.box("WindowWallBottom", (-10, 200), 0, (20, 440, 70), wall)
+    s.box("WindowWallTop", (-10, 200), 230, (20, 440, 50), wall)
+    s.box("WindowWallA", (-10, 50), 70, (20, 140, 160), wall)
+    s.box("WindowWallB", (-10, 360), 70, (20, 120, 160), wall)
+    s.box("WindowGlass", (-10, 210), 70, (1, 180, 160), glass)
+    s.box("WindowMullion", (-10, 210), 70, (6, 5, 160), frame)
+    s.box("WindowTransom", (-10, 210), 168, (6, 180, 5), frame)
+    s.box("WindowSill", (-2, 210), 67, (24, 190, 3), frame)
+
+    # Furniture.
+    s.box("SofaBase", (300, 352), 0, (220, 90, 40), fabric, otype="ChamferBox", extra={"fillet": 4, "filletSegs": 3})
+    s.box("SofaBack", (300, 388), 30, (220, 24, 55), fabric, otype="ChamferBox", extra={"fillet": 7, "filletSegs": 3})
+    s.box("SofaArmL", (180, 352), 0, (20, 90, 60), fabric, otype="ChamferBox", extra={"fillet": 6, "filletSegs": 3})
+    s.box("SofaArmR", (420, 352), 0, (20, 90, 60), fabric, otype="ChamferBox", extra={"fillet": 6, "filletSegs": 3})
+    s.box("Cushions", (300, 345), 40, (200, 76, 14), cushion, otype="ChamferBox", extra={"fillet": 5, "filletSegs": 3})
+    s.box("Rug", (290, 240), 0, (260, 180, 1), rug)
+    s.box("TableTop", (290, 235), 40, (120, 65, 4), wood, otype="ChamferBox", extra={"fillet": 1, "filletSegs": 2})
+    for i, (x, y) in enumerate([(240, 210), (340, 210), (240, 260), (340, 260)]):
+        s.node("Cylinder", "TableLeg%d" % (i + 1), pos=(x, y, 0), material=metal,
+               params={"radius": 1.5, "height": 40, "heightSegs": 1, "sides": 16})
+    s.node("Sphere", "Bowl", pos=(300, 235, 44), scale=(1, 1, 0.45), material=ceramic,
+           params={"radius": 12, "segments": 32, "basePivot": True})
+    s.box("Sideboard", (478, 170), 0, (44, 160, 70), wood, otype="ChamferBox", extra={"fillet": 1, "filletSegs": 2})
+    s.node("Cylinder", "Vase", pos=(478, 120, 70), material=metal,
+           params={"radius": 8, "height": 34, "heightSegs": 4, "sides": 32},
+           modifiers=[("Taper", {"amount": -0.3, "curve": 0.6})])
+    s.box("Print", (498, 200), 110, (3, 100, 70), art)
+
+    # Afternoon sun through the window: a patch of light on the floor and rug.
+    elev = math.radians(32)
+    hd = norm([-1.0, 0.3, 0.0])
+    to_sun = [hd[0] * math.cos(elev), hd[1] * math.cos(elev), math.sin(elev)]
+    s.light("VeraaSun", "Sun", [c * 2000 for c in to_sun], target=(0, 0, 0), intensity=1.0, turbidity=2.5)
+
+    s.camera("Camera", (60, 30, 150), (430, 330, 85), 72)
+    s.save("interior_sun.veraa")
+
+
 if __name__ == "__main__":
     cornell_box()
     living_room()
     product_shot()
+    interior_sun()
