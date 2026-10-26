@@ -1,7 +1,7 @@
 file(GLOB VERAA_RENDER_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp)
 add_library(veraa_render STATIC ${VERAA_RENDER_SOURCES})
 target_include_directories(veraa_render PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(veraa_render PUBLIC veraa_core PRIVATE embree Threads::Threads)
+target_link_libraries(veraa_render PUBLIC veraa_core PRIVATE embree Threads::Threads veraa_hosekwilkie)
 if(OpenImageDenoise_FOUND)
   target_link_libraries(veraa_render PRIVATE OpenImageDenoise)
   target_compile_definitions(veraa_render PRIVATE VERAA_HAVE_OIDN=1)

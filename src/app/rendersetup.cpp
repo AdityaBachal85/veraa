@@ -170,6 +170,22 @@ RenderSetupDialog::RenderSetupDialog(SceneDocument* doc, QWidget* parent) : QDia
   auto* cm = new QWidget;
   auto* cmv = new QVBoxLayout(cm);
   cmv->setContentsMargins(4, 4, 4, 4);
+  auto* lookRow = new QHBoxLayout;
+  auto* look = new QComboBox(cm);
+  look->addItem(tr("Apply look preset..."));
+  for (const auto& name : renderLookPresetNames()) look->addItem(QString::fromStdString(name));
+  look->setToolTip(tr("Sets the color mapping, exposure and white balance for a kind of scene"));
+  lookRow->addWidget(look, 1);
+  cmv->addLayout(lookRow);
+  connect(look, &QComboBox::activated, this, [this, look](int i) {
+    if (i <= 0) return;
+    doc_->beginEdit(tr("Look Preset"));
+    applyRenderLookPreset(doc_->scene().renderSettings, renderLookPresetNames()[static_cast<size_t>(i - 1)]);
+    doc_->notifyRenderSettingsChanged();
+    doc_->endEdit();
+    QSignalBlocker b(look);
+    look->setCurrentIndex(0);
+  });
   cmv->addWidget(new RenderSettingsPanel(doc_, {"Color mapping", "Exposure"}, cm));
   cmv->addStretch();
   tabs_->addTab(scrolled(cm), tr("Color Mapping"));

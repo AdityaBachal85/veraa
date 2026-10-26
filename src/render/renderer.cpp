@@ -668,7 +668,9 @@ void Renderer::resolve(const DisplaySettings& display, std::vector<uint8_t>& rgb
     }
   }
   postProcess(color, w, h, display);
-  tonemapToRgba(color.data(), w, h, display, rgba);
+  std::vector<float> alpha;  // color mapping "affect background" off: keep the background linear
+  if (!display.mapAffectBackground && display.element.empty()) resolveAlpha(alpha);
+  tonemapToRgba(color.data(), w, h, display, rgba, alpha.size() == color.size() / 3 ? alpha.data() : nullptr);
 }
 
 void toneMapImage(const std::vector<float>& rgb, int width, int height, const DisplaySettings& display,

@@ -152,6 +152,8 @@ class FrameBufferWindow : public QMainWindow {
   // Display.
   QDoubleSpinBox* exposure_;
   QComboBox* tonemap_;
+  QDoubleSpinBox *mapDark_, *mapBright_, *mapGamma_, *mapBurn_;
+  QCheckBox *mapAffectBg_, *mapAdaptOnly_;
   QDoubleSpinBox* contrast_;
   QDoubleSpinBox* saturation_;
   // Corrections.

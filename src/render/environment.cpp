@@ -1,6 +1,8 @@
 #include "environment.h"
 
 #include <algorithm>
+#include <iterator>
+#include <mutex>
 
 #include "lights.h"
 #include "scene.h"
@@ -91,7 +93,16 @@ Vec3 equirectToDirection(float u, float v, float rotationRad) {
   return {s * std::sin(phi), s * std::cos(phi), std::cos(theta)};
 }
 
-Vec3 sunAtmosphereTint(float elevationRad, float turbidity) {
+Vec3 sunAtmosphereTint(float elevationRad, float turbidity, int skyModel) {
+  if (skyModel != kSkyPreetham) {
+    // Transmittance of the physical atmosphere, relative to the sun at the zenith per channel
+    // (a standard sun keeps its own color and intensity at noon).
+    AtmosphereParams ap;
+    ap.turbidity = turbidity;
+    Vec3 dir(std::cos(elevationRad), 0.0f, std::sin(elevationRad));
+    Vec3 t = atmosphereTransmittance(dir, ap), z = atmosphereTransmittance(Vec3(0, 0, 1), ap);
+    return Vec3(t.x / std::max(z.x, 1e-6f), t.y / std::max(z.y, 1e-6f), t.z / std::max(z.z, 1e-6f));
+  }
   float e = std::max(degrees(elevationRad), -1.0f);
   float s = std::sin(radians(std::max(e, 0.0f)));
   // Kasten-Young relative air mass.
@@ -130,6 +141,48 @@ Vec3 xyYToLinearSrgb(float x, float y, float Y) {
   float X = x / y * Y, Z = (1.0f - x - y) / y * Y;
   return {3.2406f * X - 1.5372f * Y - 0.4986f * Z, -0.9689f * X + 1.8758f * Y + 0.0415f * Z,
           0.0557f * X - 0.2040f * Y + 1.0570f * Z};
+}
+
+// Parameters of the physical sun that drives the sky: the first enabled VeraaSun or Sun
+// Positioner, as chosen by collectLights().
+const ParamBlock* physicalSunParams(const Scene& scene) {
+  for (const auto& node : scene.nodes) {
+    const LightObject* lo = node->light();
+    if (!lo || !lo->params.getBool("enabled")) continue;
+    std::string type = lo->type();
+    if (type == "VeraaSun" || type == "SunPositioner") return &lo->params;
+  }
+  return nullptr;
+}
+
+// Baked physical skies are kept for re-renders of the same sun and atmosphere.
+struct SkyKey {
+  float v[12];
+  int model, w, h;
+  bool operator==(const SkyKey& o) const {
+    return model == o.model && w == o.w && h == o.h && std::equal(std::begin(v), std::end(v), std::begin(o.v));
+  }
+};
+
+std::shared_ptr<const std::vector<float>> bakedSky(const Vec3& sunDir, const AtmosphereParams& ap, float sunE,
+                                                   int model, float blurDeg, int w, int h) {
+  static std::mutex mutex;
+  static std::vector<std::pair<SkyKey, std::shared_ptr<const std::vector<float>>>> cache;
+  SkyKey key{{sunDir.x, sunDir.y, sunDir.z, ap.turbidity, ap.ozone, ap.groundAlbedo.x, ap.groundAlbedo.y,
+              ap.groundAlbedo.z, sunE, blurDeg, 0.0f, 0.0f},
+             model, w, h};
+  {
+    std::lock_guard<std::mutex> lock(mutex);
+    for (const auto& e : cache)
+      if (e.first == key) return e.second;
+  }
+  PhysicalSky sky;
+  sky.build(sunDir, ap, sunE, model, blurDeg);
+  auto map = std::make_shared<const std::vector<float>>(sky.bake(w, h));
+  std::lock_guard<std::mutex> lock(mutex);
+  cache.insert(cache.begin(), {key, map});
+  if (cache.size() > 3) cache.pop_back();
+  return map;
 }
 
 // Preetham et al. 1999 clear-sky model. Returns relative radiance (arbitrary scale).
@@ -284,15 +337,31 @@ void Environment::build(const Scene& scene, TextureCache& cache, const LightBuil
   if (mode == 3) {
     bool physical = lights.hasSun && lights.physicalSun;
     Vec3 sd = lights.hasSun ? normalize(lights.sunDir) : normalize(Vec3(0.0f, 0.7071f, 0.7071f));
-    if (physical && lights.sunSkyModel == 1) {
+    int skyModel = physical ? lights.sunSkyModel : rs.getInt("skyModel");
+    if (skyModel == kSkyPhysical || skyModel == kSkyHosekWilkie) {
       AtmosphereParams ap;
-      ap.turbidity = lights.sunTurbidity;
-      ap.ozone = lights.sunOzone;
-      ap.groundAlbedo = lights.sunGroundAlbedo;
-      PhysicalSky sky;
-      sky.build(sd, ap, kSolarIlluminance * lights.sunIntensity);
-      const int w = 512, h = 256;
-      std::vector<float> rgb = sky.bake(w, h);
+      float sunE = 0.0f, blur = rs.getFloat("skyHorizonBlur");
+      if (physical) {
+        // Photometric: the sun's illuminance outside the atmosphere drives the sky.
+        ap.turbidity = lights.sunTurbidity;
+        ap.ozone = lights.sunOzone;
+        ap.groundAlbedo = lights.sunGroundAlbedo;
+        float skyMult = 1.0f;
+        if (const ParamBlock* sp = physicalSunParams(scene)) {
+          if (sp->has("skyIntensity")) skyMult = sp->getFloat("skyIntensity");
+          if (sp->has("horizonBlur")) blur = sp->getFloat("horizonBlur");
+        }
+        sunE = kSolarIlluminance * lights.sunIntensity * skyMult;
+      } else {
+        // A standard sun's intensity is its irradiance at noon (sun at the zenith): the sky is
+        // scaled to match, so the sun/sky balance stays physical.
+        ap.turbidity = rs.getFloat("skyTurbidity");
+        ap.groundAlbedo = ground;
+        float userE = lights.hasSun ? lights.sunIrradiance : 3.0f * luminance(Vec3(1.0f, 0.95f, 0.88f));
+        sunE = userE / std::max(luminance(atmosphereTransmittance(Vec3(0, 0, 1), ap)), 1e-3f);
+      }
+      const int w = 1024, h = 512;
+      std::vector<float> rgb = *bakedSky(sd, ap, sunE, skyModel, blur, w, h);
       for (float& f : rgb) f *= envIntensity;
       baked_ = Texture::fromFloatRgb(w, h, std::move(rgb));
       buildFromMap(baked_.get(), 0.0f, Vec3(1.0f));
@@ -326,7 +395,11 @@ void Environment::build(const Scene& scene, TextureCache& cache, const LightBuil
       // about 8% of the sun's irradiance plus 25% of its horizontal component (clear-sky ratios).
       float cosS = std::max(sd.z, 0.0f);
       float target = sunE * (0.08f + 0.25f * cosS);
-      if (physical) target = kSolarIlluminance * lights.sunIntensity * (0.02f + 0.1f * cosS);
+      if (physical) {
+        target = kSolarIlluminance * lights.sunIntensity * (0.02f + 0.1f * cosS);
+        const ParamBlock* sp = physicalSunParams(scene);
+        if (sp && sp->has("skyIntensity")) target *= sp->getFloat("skyIntensity");
+      }
       if (elevation < 0.0f) target *= std::max(0.0f, 1.0f + degrees(elevation) / 6.0f);
       float scale = eRaw > 0.0 ? static_cast<float>(target / eRaw) * envIntensity : 0.0f;
       for (size_t i = 0; i < static_cast<size_t>(w) * (h / 2) * 3; ++i) rgb[i] *= scale;
@@ -353,6 +426,7 @@ void Environment::build(const Scene& scene, TextureCache& cache, const LightBuil
       hasSunDisk_ = true;
       sunDir_ = sd;
       sunCos_ = lights.sunCos;
+      sunAngle_ = std::acos(clampf(lights.sunCos, -1.0f, 1.0f));
       sunRadiance_ = lights.sunColor / (kTwoPi * (1.0f - lights.sunCos));
     }
     return;
@@ -394,8 +468,13 @@ Vec3 Environment::eval(const Vec3& dir) const {
 }
 
 Vec3 Environment::sunDisk(const Vec3& dir) const {
-  if (!hasSunDisk_ || dot(dir, sunDir_) < sunCos_) return Vec3(0.0f);
-  return sunRadiance_;
+  if (!hasSunDisk_) return Vec3(0.0f);
+  float c = dot(dir, sunDir_);
+  if (c < sunCos_) return Vec3(0.0f);
+  // Limb darkening around the disk's average radiance (the sun light's irradiance is unchanged).
+  float angle = std::asin(std::min(length(cross(dir, sunDir_)), 1.0f));  // precise for tiny angles
+  float r = sunAngle_ > 0.0f ? angle / sunAngle_ : 0.0f;
+  return sunRadiance_ * solarLimbDarkening(r);
 }
 
 bool Environment::sample(float u1, float u2, Vec3& dir, Vec3& radiance, float& pdf) const {

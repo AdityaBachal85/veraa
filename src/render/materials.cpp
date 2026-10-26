@@ -128,6 +128,23 @@ class VeraaMtl : public ShadeMaterial {
     metal_ = floatInput(p, maps, "metalness", mc);
     aniso_ = floatInput(p, maps, "anisotropy", mc);
     anisoRot_ = floatInput(p, maps, "anisoRotation", mc);
+    // Metal Fresnel from a complex IOR (custom or measured preset) and thin film.
+    int mf = p.getInt("metalFresnel");
+    if (mf >= 1) {
+      metalNk_ = true;
+      metalN_ = Vec3(p.getFloat("metalNr"), p.getFloat("metalNg"), p.getFloat("metalNb"));
+      metalK_ = Vec3(p.getFloat("metalKr"), p.getFloat("metalKg"), p.getFloat("metalKb"));
+      int count = 0;
+      const MetalPreset* presets = metalPresets(count);
+      if (mf >= 2 && mf - 2 < count) {
+        metalN_ = presets[mf - 2].n;
+        metalK_ = presets[mf - 2].k;
+      }
+    }
+    thinFilm_ = p.getBool("thinFilm");
+    filmOnCoat_ = p.getInt("thinFilmLayer") == 1;
+    filmThickness_ = floatInput(p, maps, "thinFilmThickness", mc);
+    filmIor_ = p.getFloat("thinFilmIor");
     refract_ = colorInput(p, maps, "refract", mc);
     refrGloss_ = floatInput(p, maps, "refractGlossiness", mc);
     ior_ = floatInput(p, maps, "ior", mc);
@@ -201,6 +218,13 @@ class VeraaMtl : public ShadeMaterial {
     return pass;
   }
 
+  // Thin-film thickness (nm); a map scales the parameter value (0..1 -> 0..thickness).
+  float filmThicknessAt(const ShadeContext& sc) const {
+    float t = filmThickness_.value;
+    if (filmThickness_.map) t *= clampf(filmThickness_.map->value(sc), 0.0f, 4.0f);
+    return std::max(t, 0.0f);
+  }
+
   const MapNode* displacement(float& amount, float& shift) const override {
     amount = dispAmount_;
     shift = dispShift_;
@@ -231,7 +255,33 @@ class VeraaMtl : public ShadeMaterial {
     spec.metal = metal;
     spec.fresnelEta = fresnel_ ? (entering ? fior : 1.0f / fior) : 0.0f;
     spec.eta = spec.fresnelEta;
-    Vec3 s0 = spec.fresnelAt(cosO);
+    if (metalNk_ && metal > 0.0f) {
+      spec.metalNk = true;
+      spec.condN = metalN_;
+      spec.condK = metalK_;
+    }
+    if (thinFilm_ && !filmOnCoat_ && entering) {
+      spec.filmThickness = filmThicknessAt(sc);
+      spec.filmIor = filmIor_;
+    }
+    // A thin-walled sheet reflects from both faces (and between them).
+    if (thin_ && refracts && metal <= 0.0f && fresnel_) spec.fresnel = FresnelMode::ThinSlab;
+    // Reflection lobe shape (needed for the energy split below).
+    float gloss = reflGloss_.eval(sc);
+    bool deltaS = useRoughness_ ? gloss <= 1.0f - kDeltaGloss : gloss >= kDeltaGloss;
+    float aniso = clampf(aniso_.eval(sc), -0.99f, 0.99f);
+    if (deltaS) {
+      spec.kind = LobeKind::SpecularReflect;
+    } else {
+      spec.kind = LobeKind::GgxReflect;
+      float a = glossToAlpha(gloss, useRoughness_);
+      float aspect = std::sqrt(1.0f - 0.9f * std::fabs(aniso));
+      spec.ax = std::max(aniso >= 0.0f ? a / aspect : a * aspect, 0.0015f);
+      spec.ay = std::max(aniso >= 0.0f ? a * aspect : a / aspect, 0.0015f);
+    }
+    // What the reflection takes from the layers below: its directional albedo (rough reflections
+    // reflect less than the Fresnel term at the view angle suggests).
+    Vec3 s0 = deltaS || refracts ? spec.fresnelAt(cosO) : specularAlbedo(spec, cosO);
     Vec3 rest = vmax(one() - s0, Vec3(0.0f));
     Vec3 wt = rest * refr;
     Vec3 wdNoColor = rest * (one() - refr) * (1.0f - metal);
@@ -241,10 +291,36 @@ class VeraaMtl : public ShadeMaterial {
     // ---- Layer weights from coat and sheen (applied to everything below) ----
     Vec3 below(1.0f);
     float coat = clampf(coatAmount_.eval(sc), 0.0f, 1.0f);
-    float coatF = 0.0f;
+    Vec3 coatF(0.0f);  // directional albedo of the coat
+    Lobe c;
     if (coat > 0.0f && entering) {
-      coatF = fresnelDielectric(cosO, coatIor_);
-      below = lerp(one(), clampColor(coatColor_.eval(sc), 0.0f, 1.0f), coat) * (1.0f - coat * coatF);
+      Vec3 cn = nf;
+      if (coatBump_) {
+        ShadeContext cs = sc;
+        cs.ns = sc.ns;
+        applyBump(cs, coatBump_.get(), coatBumpAmount_);
+        cn = viewerNormal(sc, cs.ns);
+      }
+      c.category = LobeCategory::Specular;
+      c.frame = Frame(cn);
+      c.fresnel = FresnelMode::Dielectric;
+      c.tint = one();
+      c.fresnelEta = c.eta = coatIor_;
+      c.weight = Vec3(coat);
+      if (thinFilm_ && filmOnCoat_) {
+        c.filmThickness = filmThicknessAt(sc);
+        c.filmIor = filmIor_;
+      }
+      float cg = coatGloss_.eval(sc);
+      if (cg >= kDeltaGloss) {
+        c.kind = LobeKind::SpecularReflect;
+        coatF = c.fresnelAt(cosO);
+      } else {
+        c.kind = LobeKind::GgxReflect;
+        c.ax = c.ay = glossToAlpha(cg);
+        coatF = specularAlbedo(c, cosO);
+      }
+      below = lerp(one(), clampColor(coatColor_.eval(sc), 0.0f, 1.0f), coat) * vmax(one() - coatF * coat, Vec3(0.0f));
     }
     Vec3 sheen = sheen_.mapped() || maxComponent(sheen_.value) > 0.0f ? clampColor(sheen_.eval(sc), 0.0f, 1.0f) : Vec3(0.0f);
     float sheenAlpha = 0.3f;
@@ -292,23 +368,9 @@ class VeraaMtl : public ShadeMaterial {
     }
 
     // ---- Reflection ----
-    float gloss = reflGloss_.eval(sc);
-    bool deltaS = useRoughness_ ? gloss <= 1.0f - kDeltaGloss : gloss >= kDeltaGloss;
-    float aniso = clampf(aniso_.eval(sc), -0.99f, 0.99f);
     if (maxComponent(s0) > 0.0f || metal > 0.0f) {
       spec.frame = aniso != 0.0f ? makeFrame(sc, nf, anisoRot_.eval(sc)) : Frame(nf);
       spec.weight = below;
-      if (deltaS) {
-        spec.kind = LobeKind::SpecularReflect;
-      } else {
-        spec.kind = LobeKind::GgxReflect;
-        float a = glossToAlpha(gloss, useRoughness_);
-        float aspect = std::sqrt(1.0f - 0.9f * std::fabs(aniso));
-        spec.ax = aniso >= 0.0f ? a / aspect : a * aspect;
-        spec.ay = aniso >= 0.0f ? a * aspect : a / aspect;
-        spec.ax = std::max(spec.ax, 0.0015f);
-        spec.ay = std::max(spec.ay, 0.0015f);
-      }
       out.bsdf.add(spec);
     }
 
@@ -328,6 +390,8 @@ class VeraaMtl : public ShadeMaterial {
         t.metalF0 = spec.metalF0;
         t.metal = 0.0f;
         t.fresnelEta = spec.fresnelEta;
+        t.filmThickness = spec.filmThickness;
+        t.filmIor = spec.filmIor;
         if (abbe_ > 0.0f) {
           // Cauchy fit through the d line with the given Abbe number.
           float dn = (ior - 1.0f) / abbe_;
@@ -364,35 +428,12 @@ class VeraaMtl : public ShadeMaterial {
       sh.category = LobeCategory::Specular;
       sh.frame = Frame(nf);
       sh.ax = sh.ay = sheenAlpha;
-      sh.weight = sheen * (coat > 0.0f ? (1.0f - coat * coatF) : 1.0f);
+      sh.weight = sheen * vmax(one() - coatF * coat, Vec3(0.0f));
       out.bsdf.add(sh);
     }
 
     // ---- Coat ----
-    if (coat > 0.0f && entering) {
-      Vec3 cn = nf;
-      if (coatBump_) {
-        ShadeContext cs = sc;
-        cs.ns = sc.ns;
-        applyBump(cs, coatBump_.get(), coatBumpAmount_);
-        cn = viewerNormal(sc, cs.ns);
-      }
-      Lobe c;
-      c.category = LobeCategory::Specular;
-      c.frame = Frame(cn);
-      c.fresnel = FresnelMode::Dielectric;
-      c.tint = one();
-      c.fresnelEta = c.eta = coatIor_;
-      c.weight = Vec3(coat);
-      float cg = coatGloss_.eval(sc);
-      if (cg >= kDeltaGloss) {
-        c.kind = LobeKind::SpecularReflect;
-      } else {
-        c.kind = LobeKind::GgxReflect;
-        c.ax = c.ay = glossToAlpha(cg);
-      }
-      out.bsdf.add(c);
-    }
+    if (coat > 0.0f && entering) out.bsdf.add(c);
 
     if (emits_ && sc.outside) {
       out.emission = selfIllum_.eval(sc) * selfMult_;
@@ -409,6 +450,10 @@ class VeraaMtl : public ShadeMaterial {
   float abbe_ = 0, fogMult_ = 1, selfMult_ = 1, coatIor_ = 1.6f;
   bool useRoughness_ = false, fresnel_ = true, lockIor_ = false, thin_ = false, affectShadows_ = true;
   bool exitOn_ = false, selfGI_ = true, clip_ = false;
+  bool metalNk_ = false, thinFilm_ = false, filmOnCoat_ = false;
+  Vec3 metalN_, metalK_;
+  FloatInput filmThickness_;
+  float filmIor_ = 1.45f;
   int translucency_ = 0;
   Vec3 exitColor_;
   bool hasRefraction_ = false, hasOpacity_ = false, emits_ = false, hasFog_ = false;

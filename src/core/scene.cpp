@@ -330,7 +330,11 @@ void defineRenderSettings(ParamBlock& p) {
   p.addFloat("clampIndirect", "Clamp indirect (0 = off)", 10.0, 0.0, 1e6, 1.0, 1);
   p.beginGroup("Color mapping");
   p.addFloat("exposure", "Exposure (EV)", 0.0, -20.0, 20.0, 0.1, 2);
-  p.addEnum("tonemap", "Tone mapping", {"Filmic (ACES)", "Reinhard", "Linear"}, 0);
+  // Values are stored in files: new types are appended (see render::ColorMappingType).
+  p.addEnum("tonemap", "Color mapping type",
+            {"Filmic (ACES fitted)", "Reinhard", "Linear multiply", "Exponential", "HSV exponential",
+             "Intensity exponential", "Gamma correction", "Intensity gamma", "AgX (filmic view)"},
+            0);
   p.addFloat("contrast", "Contrast", 1.0, 0.0, 3.0, 0.05, 2);
   p.addFloat("saturation", "Saturation", 1.0, 0.0, 3.0, 0.05, 2);
   p.addBool("denoise", "Denoiser", true);
@@ -746,7 +750,12 @@ bool Scene::fromJson(const json& j, std::string* error) {
     std::string keepPath = filePath;
     clear();
     filePath = keepPath;
-    if (j.contains("renderSettings")) renderSettings.fromJson(j["renderSettings"]);
+    if (j.contains("renderSettings")) {
+      const json& rs = j["renderSettings"];
+      renderSettings.fromJson(rs);
+      // Scenes saved before the physical sky models existed keep their Preetham sky.
+      if (rs.is_object() && !rs.contains("skyModel")) renderSettings.setNumber("skyModel", 0);
+    }
     if (j.contains("time")) time.fromJson(j["time"]);
     if (j.contains("extensions") && j["extensions"].is_object()) extensions = j["extensions"];
     uint32_t maxLayer = 0, maxMat = 0, maxNode = 0;

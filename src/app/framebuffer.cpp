@@ -398,11 +398,27 @@ FrameBufferWindow::FrameBufferWindow(QWidget* parent) : QMainWindow(parent, Qt::
   auto* dv = new QFormLayout(disp);
   exposure_ = spin(disp, -20, 20, 0.1, 2, " EV");
   tonemap_ = new QComboBox(disp);
-  tonemap_->addItems({tr("Filmic (ACES)"), tr("Reinhard"), tr("Linear")});
+  // Same order as render::ColorMappingType and the "tonemap" render setting.
+  tonemap_->addItems({tr("Filmic (ACES fitted)"), tr("Reinhard"), tr("Linear multiply"), tr("Exponential"),
+                      tr("HSV exponential"), tr("Intensity exponential"), tr("Gamma correction"),
+                      tr("Intensity gamma"), tr("AgX (filmic view)")});
+  mapDark_ = spin(disp, 0, 100, 0.05, 3);
+  mapBright_ = spin(disp, 0, 100, 0.05, 3);
+  mapGamma_ = spin(disp, 0.05, 10, 0.05, 3);
+  mapBurn_ = spin(disp, 0, 1, 0.05, 3);
+  mapBurn_->setToolTip(tr("Reinhard: 1 = linear, 0 = full highlight compression"));
+  mapAffectBg_ = new QCheckBox(tr("Affect background"), disp);
+  mapAdaptOnly_ = new QCheckBox(tr("Don't affect colors (adaptation only)"), disp);
   contrast_ = spin(disp, 0, 3, 0.05, 2);
   saturation_ = spin(disp, 0, 3, 0.05, 2);
   dv->addRow(tr("Exposure:"), exposure_);
-  dv->addRow(tr("Tone mapping:"), tonemap_);
+  dv->addRow(tr("Color mapping:"), tonemap_);
+  dv->addRow(tr("Dark multiplier:"), mapDark_);
+  dv->addRow(tr("Bright multiplier:"), mapBright_);
+  dv->addRow(tr("Gamma:"), mapGamma_);
+  dv->addRow(tr("Burn value:"), mapBurn_);
+  dv->addRow(mapAffectBg_);
+  dv->addRow(mapAdaptOnly_);
   dv->addRow(tr("Contrast:"), contrast_);
   dv->addRow(tr("Saturation:"), saturation_);
   auto* saveDisp = new QPushButton(tr("Save Display Settings to Scene"), disp);
@@ -516,11 +532,14 @@ FrameBufferWindow::FrameBufferWindow(QWidget* parent) : QMainWindow(parent, Qt::
 
   // ---- Connections ----
   auto changed = [this] { redisplay(); };
-  for (QDoubleSpinBox* s : {exposure_, contrast_, saturation_, wbK_, tint_, hue_, burn_, levelsBlack_, levelsWhite_,
-                            levelsGamma_, lutStrength_, bloomI_, bloomS_, glareI_, glareS_, glareRot_, vignette_})
+  for (QDoubleSpinBox* s : {exposure_, mapDark_, mapBright_, mapGamma_, mapBurn_, contrast_, saturation_, wbK_, tint_,
+                            hue_, burn_, levelsBlack_, levelsWhite_, levelsGamma_, lutStrength_, bloomI_, bloomS_,
+                            glareI_, glareS_, glareRot_, vignette_})
     connect(s, &QDoubleSpinBox::valueChanged, this, changed);
   connect(glareRays_, &QSpinBox::valueChanged, this, changed);
   connect(tonemap_, &QComboBox::currentIndexChanged, this, changed);
+  connect(mapAffectBg_, &QCheckBox::toggled, this, changed);
+  connect(mapAdaptOnly_, &QCheckBox::toggled, this, changed);
   connect(channel_, &QComboBox::currentIndexChanged, this, changed);
   connect(element_, &QComboBox::currentIndexChanged, this, changed);
   connect(ccOn_, &QCheckBox::toggled, this, changed);
@@ -598,9 +617,16 @@ void FrameBufferWindow::loadDisplay(const DisplaySettings& d) {
   QSignalBlocker b1(exposure_), b2(tonemap_), b3(contrast_), b4(saturation_), b5(denoiseAct_), b6(ccOn_), b7(wbK_),
       b8(tint_), b9(hue_), b10(burn_), b11(levelsBlack_), b12(levelsWhite_), b13(levelsGamma_), b14(lutStrength_),
       b15(bloomI_), b16(bloomS_), b17(glareI_), b18(glareS_), b19(glareRays_), b20(glareRot_), b21(vignette_),
-      b22(lensAct_), b23(lightMixOn_);
+      b22(lensAct_), b23(lightMixOn_), b24(mapDark_), b25(mapBright_), b26(mapGamma_), b27(mapBurn_),
+      b28(mapAffectBg_), b29(mapAdaptOnly_);
   exposure_->setValue(d.exposureEV);
   tonemap_->setCurrentIndex(d.tonemap);
+  mapDark_->setValue(d.mapDark);
+  mapBright_->setValue(d.mapBright);
+  mapGamma_->setValue(d.mapGamma);
+  mapBurn_->setValue(d.mapBurn);
+  mapAffectBg_->setChecked(d.mapAffectBackground);
+  mapAdaptOnly_->setChecked(d.mapAdaptationOnly);
   contrast_->setValue(d.contrast);
   saturation_->setValue(d.saturation);
   denoiseAct_->setChecked(d.denoise && Renderer::denoiserAvailable());
@@ -631,6 +657,12 @@ DisplaySettings FrameBufferWindow::display() const {
   DisplaySettings d;
   d.exposureEV = static_cast<float>(exposure_->value());
   d.tonemap = tonemap_->currentIndex();
+  d.mapDark = static_cast<float>(mapDark_->value());
+  d.mapBright = static_cast<float>(mapBright_->value());
+  d.mapGamma = static_cast<float>(mapGamma_->value());
+  d.mapBurn = static_cast<float>(mapBurn_->value());
+  d.mapAffectBackground = mapAffectBg_->isChecked();
+  d.mapAdaptationOnly = mapAdaptOnly_->isChecked();
   d.contrast = static_cast<float>(contrast_->value());
   d.saturation = static_cast<float>(saturation_->value());
   d.denoise = denoiseAct_->isChecked() && Renderer::denoiserAvailable();
@@ -992,6 +1024,12 @@ void FrameBufferWindow::saveDisplayToScene() {
   ParamBlock& p = doc->scene().renderSettings;
   p.setNumber("exposure", d.exposureEV);
   p.setNumber("tonemap", d.tonemap);
+  p.setNumber("cmDarkMultiplier", d.mapDark);
+  p.setNumber("cmBrightMultiplier", d.mapBright);
+  p.setNumber("cmGamma", d.mapGamma);
+  p.setNumber("cmBurn", d.mapBurn);
+  p.setNumber("cmAffectBackground", d.mapAffectBackground ? 1 : 0);
+  p.setNumber("cmAdaptationOnly", d.mapAdaptationOnly ? 1 : 0);
   p.setNumber("contrast", d.contrast);
   p.setNumber("saturation", d.saturation);
   p.setNumber("denoise", d.denoise ? 1 : 0);

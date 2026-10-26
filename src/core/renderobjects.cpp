@@ -104,8 +104,16 @@ VeraaSunObject::VeraaSunObject(bool positioner) : positioner_(positioner) {
   p.addColor("filterColor", "Filter color", Vec3(1.0f));
   p.addFloat("turbidity", "Turbidity", 2.5, 1.7, 20.0, 0.1);
   p.addFloat("ozone", "Ozone", 0.35, 0.0, 1.0, 0.05);
-  p.addEnum("skyModel", "Sky model", {"Preetham et al.", "Physical (single scattering)"}, 1);
+  // Values are stored in files: 1 was the single scattering model, now the full physical atmosphere.
+  p.addEnum("skyModel", "Sky model", {"Preetham et al.", "Physical atmosphere", "Hosek-Wilkie 2012"}, 1).tooltip =
+      "Physical atmosphere: spectral single and multiple scattering with ozone, valid through sunset and "
+      "twilight. Hosek-Wilkie: the analytic clear-sky fit (sun above the horizon). Preetham: the classic "
+      "analytic model";
   p.addColor("groundAlbedo", "Ground albedo", Vec3(0.2f));
+  p.addFloat("skyIntensity", "Sky intensity multiplier", 1.0, 0.0, 1e6, 0.05, 3).tooltip =
+      "Scales the sky only (the sun keeps its intensity)";
+  p.addFloat("horizonBlur", "Horizon blur (deg)", 1.5, 0.0, 30.0, 0.1, 2).tooltip =
+      "Width of the soft transition from the horizon haze to the ground below the horizon";
   p.beginGroup("Location and time");
   p.addEnum("positionMode", "Position", {"Manual (node orientation)", "Date, time and location"}, positioner ? 1 : 0);
   p.addFloat("latitude", "Latitude", 48.86, -90.0, 90.0, 0.01, 3);

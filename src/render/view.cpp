@@ -98,6 +98,12 @@ DisplaySettings displaySettingsFromScene(const Scene& scene) {
   DisplaySettings d;
   d.exposureEV = p.getFloat("exposure");
   d.tonemap = p.getInt("tonemap");
+  d.mapDark = p.getFloat("cmDarkMultiplier");
+  d.mapBright = p.getFloat("cmBrightMultiplier");
+  d.mapGamma = p.getFloat("cmGamma");
+  d.mapBurn = p.getFloat("cmBurn");
+  d.mapAffectBackground = p.getBool("cmAffectBackground");
+  d.mapAdaptationOnly = p.getBool("cmAdaptationOnly");
   d.contrast = p.getFloat("contrast");
   d.saturation = p.getFloat("saturation");
   d.denoise = p.getBool("denoise");

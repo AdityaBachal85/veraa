@@ -32,6 +32,11 @@ target_link_libraries(renderfeature_tests PRIVATE veraa_render)
 target_compile_definitions(renderfeature_tests PRIVATE VERAA_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 add_test(NAME renderfeature_tests COMMAND renderfeature_tests)
 
+# Realism: color mapping, physical sky, BSDF energy and metal Fresnel.
+add_executable(realism_tests realism_tests.cpp)
+target_link_libraries(realism_tests PRIVATE veraa_render)
+target_compile_definitions(realism_tests PRIVATE VERAA_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
+add_test(NAME realism_tests COMMAND realism_tests)
 add_executable(guiding_tests guiding_tests.cpp)
 target_link_libraries(guiding_tests PRIVATE veraa_render)
 add_test(NAME guiding_tests COMMAND guiding_tests)

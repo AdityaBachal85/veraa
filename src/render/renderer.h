@@ -70,7 +70,11 @@ struct LightMixGroup {
 // Post-processing applied when resolving the image; can change while rendering (like a VFB).
 struct DisplaySettings {
   float exposureEV = 0.0f;
-  int tonemap = 0;           // 0 Filmic (ACES), 1 Reinhard, 2 Linear
+  int tonemap = 0;           // color mapping type, see render::ColorMappingType (0 Filmic ACES, 1 Reinhard, 2 Linear, ...)
+  // Color mapping parameters (see postprocess.h).
+  float mapDark = 1.0f, mapBright = 1.0f, mapGamma = 1.0f, mapBurn = 0.0f;
+  bool mapAffectBackground = true;
+  bool mapAdaptationOnly = false;  // compute but do not apply the mapping (linear output)
   float contrast = 1.0f;
   float saturation = 1.0f;
   bool denoise = false;      // ignored when Renderer::denoiserAvailable() is false
