@@ -71,6 +71,10 @@ class UiState : public QObject {
   // Display panel > Hide Frozen Objects.
   bool hideFrozen() const { return hideFrozen_; }
   void setHideFrozen(bool on);
+  // Axis Constraints toolbar > Snaps Use Axis Constraint Toggle: snapped moves stay on the
+  // constrained axes.
+  bool snapUseAxisConstraint() const { return snapAxisConstraint_; }
+  void setSnapUseAxisConstraint(bool on);
 
  Q_SIGNALS:
   void changed();
@@ -98,6 +102,7 @@ class UiState : public QObject {
   bool shadedObjectColor_ = false;
   int hiddenCategories_ = 0;
   bool hideFrozen_ = false;
+  bool snapAxisConstraint_ = false;
 };
 
 }  // namespace veraa

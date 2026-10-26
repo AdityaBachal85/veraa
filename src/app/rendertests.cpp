@@ -17,6 +17,7 @@
 #include "materialwidgets.h"
 #include "renderdialogs.h"
 #include "renderobjects.h"
+#include "rendersettings.h"
 #include "rendersetup.h"
 #include "rendertools.h"
 #include "selftest.h"
@@ -133,6 +134,24 @@ void testRenderSetup(MainWindow& w) {
   check(tabs.size() == 7 && tabs.contains("Sampler") && tabs.contains("Render Elements"), "render setup has its tabs");
   check(rs->showTab("Sampler"), "render setup shows the Sampler tab");
   grab(rs, "rs_sampler");
+  {
+    // Quality presets: Supreme turns on guiding and deep paths; undo restores the settings.
+    SceneDocument* doc = w.document();
+    ParamBlock& p = doc->scene().renderSettings;
+    int samplesBefore = p.getInt("samples");
+    int supreme = renderQualityPresetIndex("Supreme");
+    rs->applyQualityPreset(supreme);
+    check(rs->qualityPreset() == supreme && p.getBool("pathGuiding") && p.getInt("maxDepth") >= 16 &&
+              p.getFloat("noiseThreshold") < 0.005f,
+          "Supreme quality preset sets guiding, depth and noise threshold");
+    p.setNumber("samples", p.getInt("samples") + 1);
+    doc->notifyRenderSettingsChanged();
+    check(rs->qualityPreset() == -1, "editing a preset setting shows Custom");
+    doc->undoStack()->undo();
+    check(p.getInt("samples") == samplesBefore, "undo the quality preset");
+  }
+  rs->showTab("GI");
+  grab(rs, "rs_gi");
   rs->showTab("Common");
   grab(rs, "rs_common");
   rs->showTab("Render Elements");

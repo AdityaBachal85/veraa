@@ -29,6 +29,7 @@
 
 #include "commandpanel.h"
 #include "commandtabs.h"
+#include "createlayout.h"
 #include "customize.h"
 #include "dialogs.h"
 #include "edittools.h"
@@ -70,11 +71,7 @@ const char* const kModifierCategories[] = {
     "Animation",            "Cloth",                "Hair and Fur",        "UV Coordinates",
     "Cache Tools",          "Subdivision Surfaces", "Free Form Deformers", "Parametric Deformers",
     "Surface",              "NURBS Editing",        "Radiosity",           "Cameras",
-    "Rendering"};
-
-// Create menu sections in Create panel order.
-const char* const kCreateCategories[] = {"Geometry", "Shapes", "Lights", "Cameras", "Helpers", "Space Warps",
-                                         "Systems"};
+    "Rendering"};  // shown as "Veraa" (the renderer's modifiers, in the reference's V-Ray slot)
 
 // Command panel tab order.
 int commandTabRank(const QString& title) {
@@ -159,6 +156,7 @@ MainWindow::MainWindow() {
   // Feature modules add their menus, toolbars and panels (see extension.h).
   runAppExtensions(*this);
   resolveProxyCommands();
+  arrangeInterface();
   ScriptEngine::instance().attach(this);
   QTimer::singleShot(0, this, [] { ScriptEngine::instance().runStartupScripts(); });
   auto updateEnabled = [this] {
@@ -904,32 +902,94 @@ void MainWindow::createMenus() {
   });
   views->addAction(expertAct_);
 
-  // ---- Create and Modifiers: every registered type, rebuilt when opened ----
+  // ---- Create and Modifiers: every registered type, rebuilt when opened (3ds Max grouping) ----
   QMenu* create = menuAt("Create");
   connect(create, &QMenu::aboutToShow, this, [this, create] {
     create->clear();
-    auto addType = [this](QMenu* m, const ObjectTypeInfo* t) {
-      QString type = QString::fromStdString(t->type);
-      QString name = QString::fromStdString(t->displayName);
-      m->addAction(name, this, [this, type, name] {
-        state_->setCreateType(type);
-        commandPanel_->showCreate();
-        setPrompt(tr("Click and drag in a viewport to create a %1").arg(name));
-      });
+    // Lists of each category by name; the menu takes them in 3ds Max order and appends the rest.
+    QHash<QString, std::vector<CreateList>> lists;
+    QSet<QString> taken;
+    for (const QString& cat : createCategories()) lists.insert(cat, createLists(cat));
+    auto listOf = [&](const QString& cat, const QString& name) -> const CreateList* {
+      for (const CreateList& l : lists[cat])
+        if (l.name == name) {
+          taken.insert(cat + '/' + name);
+          return &l;
+        }
+      return nullptr;
     };
-    for (const char* cat : kCreateCategories) {
-      std::vector<std::string> subs = objectSubcategories(cat);
-      if (subs.empty()) continue;
-      if (std::string(cat) != "Geometry") create->addSeparator();
-      for (const std::string& sub : subs) {
-        QString title = sub.empty() || std::string(cat) != "Geometry" ? QString::fromStdString(cat)
-                                                                     : QString::fromStdString(sub);
-        if (std::string(cat) != "Geometry" && subs.size() > 1 && !sub.empty())
-          title = QString::fromStdString(cat) + " - " + QString::fromStdString(sub);
-        QMenu* m = create->addMenu(title);
-        for (const ObjectTypeInfo* t : objectTypesIn(cat, sub)) addType(m, t);
+    auto addButtons = [this](QMenu* m, const CreateList& l, const QString& suffix) {
+      for (const CreateButton& b : l.buttons) {
+        if (b.type.isEmpty()) continue;
+        QString text = suffix.isEmpty() || b.label.endsWith(suffix) ? b.label : b.label + ' ' + suffix;
+        QString type = b.type, label = b.label;
+        m->addAction(text, this, [this, type, label] {
+          commandPanel_->showCreate();
+          commandPanel_->beginCreate(type, label);
+        });
       }
+    };
+    auto addMenu = [&](const QString& title, const std::vector<std::pair<const CreateList*, QString>>& parts) {
+      QMenu* m = create->addMenu(title);
+      for (const auto& [l, suffix] : parts) {
+        if (!l || !l->available()) continue;
+        if (!m->isEmpty()) m->addSeparator();
+        addButtons(m, *l, suffix);
+      }
+      if (m->isEmpty()) {
+        QAction* a = placeholderAction(title);
+        a->setParent(m);  // rebuilt with the menu
+        m->addAction(a);
+      }
+      return m;
+    };
+    addMenu(tr("Standard Primitives"), {{listOf("Geometry", "Standard Primitives"), {}}});
+    addMenu(tr("Extended Primitives"), {{listOf("Geometry", "Extended Primitives"), {}}});
+    addMenu(tr("AEC Objects"), {{listOf("Geometry", "AEC Extended"), {}},
+                                {listOf("Geometry", "Doors"), tr("Door")},
+                                {listOf("Geometry", "Stairs"), {}},
+                                {listOf("Geometry", "Windows"), tr("Window")}});
+    addMenu(tr("Compound"), {{listOf("Geometry", "Compound Objects"), {}}});
+    addMenu(tr("Particles"), {{listOf("Geometry", "Particle Systems"), {}}});
+    addMenu(tr("Patch Grids"), {{listOf("Geometry", "Patch Grids"), {}}});
+    addMenu(tr("NURBS"), {{listOf("Geometry", "NURBS Surfaces"), {}}, {listOf("Shapes", "NURBS Curves"), {}}});
+    addMenu(tr("Point Cloud"), {{listOf("Geometry", "Point Cloud Objects"), {}}});
+    addMenu(tr("Dynamics"), {{listOf("Geometry", "Dynamics Objects"), {}}});
+    {
+      // Veraa's renderer objects take the reference's V-Ray slot.
+      std::vector<std::pair<const CreateList*, QString>> renderer;
+      for (const QString& cat : createCategories()) renderer.push_back({listOf(cat, "Veraa"), {}});
+      addMenu(tr("Veraa"), renderer);
     }
+    create->addSeparator();
+    addMenu(tr("Shapes"), {{listOf("Shapes", "Splines"), {}}});
+    addMenu(tr("Extended Shapes"), {{listOf("Shapes", "Extended Splines"), {}}});
+    create->addSeparator();
+    QMenu* lights = create->addMenu(tr("Lights"));
+    for (const char* l : {"Photometric", "Standard"}) {
+      QMenu* m = lights->addMenu(tr("%1 Lights").arg(tr(l)));
+      if (const CreateList* list = listOf("Lights", l)) addButtons(m, *list, {});
+    }
+    QMenu* cameras = addMenu(tr("Cameras"), {{listOf("Cameras", "Standard"), tr("Camera")}});
+    cameras->addSeparator();
+    cameras->addAction(cameraFromViewAct_);
+    create->addSeparator();
+    addMenu(tr("Helpers"), {{listOf("Helpers", "Standard"), {}}});
+    addMenu(tr("SpaceWarps"), {{listOf("Space Warps", "Forces"), {}},
+                               {listOf("Space Warps", "Deflectors"), {}},
+                               {listOf("Space Warps", "Geometric/Deformable"), {}}});
+    addMenu(tr("Systems"), {{listOf("Systems", "Standard"), {}}});
+    create->addSeparator();
+    addMenu(tr("Fluids"), {{listOf("Geometry", "Fluids"), {}}});
+    // Lists from modules the layout does not know.
+    bool first = true;
+    for (const QString& cat : createCategories())
+      for (const CreateList& l : lists[cat]) {
+        if (taken.contains(cat + '/' + l.name) || !l.available()) continue;
+        if (first) create->addSeparator();
+        first = false;
+        addMenu(cat + " - " + l.name, {{&l, {}}});
+      }
   });
 
   QMenu* mods = menuAt("Modifiers");
@@ -947,13 +1007,21 @@ void MainWindow::createMenus() {
       std::vector<const ModifierTypeInfo*> list;
       for (const auto& t : modifierTypeInfos())
         if (t.category == cat) list.push_back(&t);
-      if (list.empty()) continue;
       std::sort(list.begin(), list.end(),
                 [](const ModifierTypeInfo* a, const ModifierTypeInfo* b) { return a->displayName < b->displayName; });
-      QMenu* m = mods->addMenu(QString::fromStdString(cat.empty() ? std::string("Other") : cat));
+      // The renderer's modifiers take the reference's V-Ray slot.
+      QString title = QString::fromStdString(cat.empty() ? std::string("Other") : cat == "Rendering" ? std::string("Veraa") : cat);
+      QMenu* m = mods->addMenu(title);
       for (const ModifierTypeInfo* t : list) {
         QString type = QString::fromStdString(t->type);
         m->addAction(QString::fromStdString(t->displayName), this, [this, type] { commandPanel_->addModifier(type); });
+      }
+      // Groups of the reference layout without modifiers yet.
+      if (list.empty()) {
+        QAction* a = placeholderAction(title + tr(" Modifiers"));
+        a->setText(tr("Not Available Yet"));
+        a->setParent(m);  // rebuilt with the menu
+        m->addAction(a);
       }
     }
   });
@@ -1103,6 +1171,7 @@ void MainWindow::createMenus() {
 
 void MainWindow::createDocks() {
   commandPanel_ = new CommandPanel(doc_, state_, this);
+  connect(commandPanel_, &CommandPanel::featureNotAvailable, this, &MainWindow::showNotAvailable);
   commandPanel_->setTabToolTip(0, "Create");
   commandPanel_->setTabToolTip(1, "Modify");
   commandPanel_->setTabIcon(0, icons::create());
@@ -1496,8 +1565,7 @@ void MainWindow::showContextMenu(Viewport* vp, const QPoint& pos) {
   menu.addSeparator();
   QMenu* convert = menu.addMenu(tr("Convert To:"));
   convert->addAction(command("tools.convertToPoly"));
-  for (QAction* t : menuAt("Tools")->actions())
-    if (t->text() == tr("Convert to Editable Spline")) convert->addAction(t);
+  if (QAction* spline = command("convertToEditableSpline")) convert->addAction(spline);
   // Feature modules mark actions for this menu with the "quadMenu" property.
   for (QAction* t : findChildren<QAction*>())
     if (t->property("quadMenu").toBool() && t->isVisible()) menu.addAction(t);

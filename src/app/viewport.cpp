@@ -11,6 +11,7 @@
 #include <QWheelEvent>
 
 #include "dialogs.h"
+#include "edittools.h"
 #include "materialeditor.h"
 #include "interfacedata.h"
 #include "theme.h"
@@ -1315,8 +1316,17 @@ void Viewport::updateTransformDrag(float px, float py) {
   if (tool == TransformTool::Move) {
     Vec3 d = gizmoDrag_.translation(cam_, px, py);
     Vec3 snapped;
-    if (!dragStart_.empty() && state_->snapPoint(*this, px, py, dragStart_[0].worldPos + d, snapped))
+    if (!dragStart_.empty() && state_->snapPoint(*this, px, py, dragStart_[0].worldPos + d, snapped)) {
       d = snapped - dragStart_[0].worldPos;
+      // Snaps Use Axis Constraint: keep only the movement along the constrained axes.
+      int mask = handleAxisMask(state_->constraint());
+      if (ui.snapUseAxisConstraint() && mask != 0 && mask != 7) {
+        Vec3 kept;
+        for (int i = 0; i < 3; ++i)
+          if (mask & (1 << i)) kept = kept + dragAxes_[i] * dot(d, dragAxes_[i]);
+        d = kept;
+      }
+    }
     dragDisplay_ = d;
     for (const auto& s : dragStart_)
       if (Node* n = scene.findNode(s.id)) {
@@ -1412,6 +1422,7 @@ bool Viewport::cancelInteraction() {
     return true;
   }
   if (createStage_ > 0) {
+    autoGridOn_ = false;
     createStage_ = 0;
     createNode_ = 0;
     drag_ = Drag::None;
@@ -1442,6 +1453,10 @@ bool Viewport::cancelInteraction() {
 bool Viewport::constructionHit(float px, float py, Vec3& hit) const {
   Vec3 p0, n;
   cam_.constructionPlane(p0, n);
+  if (autoGridOn_) {
+    p0 = autoGridP0_;
+    n = autoGridN_;
+  }
   Ray r = cam_.rayAt(px, py);
   float denom = dot(r.d, n);
   if (std::fabs(denom) < 1e-5f) return false;
@@ -1455,6 +1470,14 @@ bool Viewport::constructionHit(float px, float py, Vec3& hit) const {
 
 void Viewport::createPress(float px, float py) {
   updateCamera();
+  // AutoGrid: build on the surface under the cursor, aligned to its normal.
+  autoGridOn_ = false;
+  Vec3 surfP, surfN;
+  if (state_->autoGrid() && surfaceFrameAt(*this, px, py, surfP, surfN)) {
+    autoGridOn_ = true;
+    autoGridP0_ = surfP;
+    autoGridN_ = surfN;
+  }
   Vec3 hit;
   if (!constructionHit(px, py, hit)) return;
   QString type = state_->createType();
@@ -1469,8 +1492,21 @@ void Viewport::createPress(float px, float py) {
   createP0_ = hit;
   Vec3 p0, normal;
   cam_.constructionPlane(p0, normal);
-  createPlaneN_ = normal;
   Vec3 rot = cam_.creationRotation();
+  if (autoGridOn_) {
+    normal = autoGridN_;
+    Vec3 x = std::fabs(normal.z) < 0.95f ? normalize(cross(Vec3(0, 0, 1), normal)) : Vec3(1, 0, 0);
+    Vec3 y = normalize(cross(normal, x));
+    x = cross(y, normal);
+    Mat4 basis;
+    for (int r = 0; r < 3; ++r) {
+      basis.m[r][0] = x[r];
+      basis.m[r][1] = y[r];
+      basis.m[r][2] = normal[r];
+    }
+    rot = eulerDegFromMatrix(basis);
+  }
+  createPlaneN_ = normal;
   createRot_ = Mat4::fromEulerDeg(rot);
   n->transform.rotation = rot;
   n->transform.position = hit;
@@ -1583,6 +1619,7 @@ void Viewport::createRelease(float px, float py) {
 }
 
 void Viewport::finishCreate() {
+  autoGridOn_ = false;
   createStage_ = 0;
   createNode_ = 0;
   drag_ = Drag::None;

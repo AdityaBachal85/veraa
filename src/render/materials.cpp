@@ -196,6 +196,12 @@ class VeraaMtl : public ShadeMaterial {
   }
   bool hasOpacity() const override { return hasOpacity_; }
   bool shadowTransparent() const override { return hasOpacity_ || (hasRefraction_ && affectShadows_); }
+  bool smoothShadowRefraction(const ShadeContext& sc) const override {
+    // Thin-walled glass transmits straight through: paths cross it like shadow rays do.
+    if (!hasRefraction_ || !affectShadows_ || thin_) return false;
+    float rg = refrGloss_.eval(sc);
+    return useRoughness_ ? rg <= 1.0f - kDeltaGloss : rg >= kDeltaGloss;
+  }
   bool emits() const override { return emits_; }
   bool isRefractiveSolid() const override { return hasRefraction_ && !thin_; }
 
@@ -734,6 +740,9 @@ class WrapperMtl : public ShadeMaterial {
   bool shadowTransparent() const override { return base_->shadowTransparent(); }
   Vec3 shadowTransmission(const ShadeContext& sc, float cosAbs) const override {
     return base_->resolve(sc)->shadowTransmission(sc, cosAbs);
+  }
+  bool smoothShadowRefraction(const ShadeContext& sc) const override {
+    return base_->resolve(sc)->smoothShadowRefraction(sc);
   }
   bool emits() const override { return base_->emits(); }
   void shade(ShadeContext& sc, SurfaceShade& out) const override {

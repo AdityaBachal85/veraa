@@ -32,6 +32,8 @@ void usage() {
       "  --light-mix            render Light Mix groups (saved as LightMix_<group> with --elements)\n"
       "\n"
       "Sampling:\n"
+      "  --preset NAME          quality preset: draft, medium, high, veryhigh or supreme (applied before\n"
+      "                         the other options, which override it)\n"
       "  --width W --height H   image size (default: scene setting)\n"
       "  --samples N            maximum samples per pixel\n"
       "  --min-samples N        samples before adaptive sampling may stop a pixel\n"
@@ -119,7 +121,7 @@ std::string extensionOf(const std::string& path) {
 }  // namespace
 
 int main(int argc, char** argv) {
-  std::string scenePath, outPath, hdrPath, cameraName, elementsDir;
+  std::string scenePath, outPath, hdrPath, cameraName, elementsDir, preset;
   int width = 0, height = 0, samples = 0, minSamples = -1, sampler = -1;
   double timeLimit = -1.0, exposure = 0.0, noise = -1.0, frame = -1e30;
   bool exposureSet = false, quiet = false, alpha = false, allElements = false, lightMix = false;
@@ -143,6 +145,12 @@ int main(int argc, char** argv) {
       return 0;
     } else if (a == "-o" || a == "--output") {
       outPath = next("--output");
+    } else if (a == "--preset") {
+      preset = next("--preset");
+      if (renderQualityPresetIndex(preset) < 0) {
+        std::fprintf(stderr, "Unknown --preset %s (draft, medium, high, veryhigh, supreme)\n", preset.c_str());
+        return 2;
+      }
     } else if (a == "--width") {
       if (!parseInt(next("--width"), width) || width <= 0) { std::fprintf(stderr, "Invalid --width\n"); return 2; }
     } else if (a == "--height") {
@@ -221,6 +229,7 @@ int main(int argc, char** argv) {
     std::fprintf(stderr, "Unknown --look preset: %s\n", look.c_str());
     return 2;
   }
+  if (!preset.empty()) applyRenderQualityPreset(rs, renderQualityPresetIndex(preset));
   for (const auto& kv : settings)
     if (!applySetting(rs, kv, error)) {
       std::fprintf(stderr, "Error: %s\n", error.c_str());

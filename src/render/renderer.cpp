@@ -18,6 +18,7 @@ namespace {
 
 constexpr int kTileSize = 32;
 constexpr int kAovPasses = 16;  // samples averaged into the albedo/normal guides
+constexpr int kBucketTrainingPasses = 16;  // progressive passes that train path guiding before buckets
 
 int64_t nowNs() {
   return std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch())
@@ -124,7 +125,20 @@ void Renderer::Impl::prepare() {
   bool cameraExposure = view.exposure != 1.0f;
   cam.scale = (cameraExposure ? Vec3(view.exposure) * view.whiteBalance : Vec3(physicalExposure) * settingsWhiteBalance);
   if (cameraExposure && view.whiteBalance == Vec3(1.0f)) cam.scale = Vec3(view.exposure);
-  clampUnit = 1.0f / std::max(luminance(cam.scale), 1e-20f);
+  // The clamps are pixel values after the camera exposure, so they work the same for scenes in
+  // real-world units (physical sun and sky) and for plain ones.
+  float exposureLum = std::max(luminance(cam.scale), 1e-20f);
+  clampIndirectScene = clampIndirect > 0.0f ? clampIndirect / exposureLum : 0.0f;
+  clampDirectScene = clampDirect > 0.0f ? clampDirect / exposureLum : 0.0f;
+
+  // Path guiding learns afresh for every render.
+  guideTraining = false;
+  if (guidingOn) {
+    if (!guide) guide = std::make_unique<PathGuide>();
+    guide->reset(sceneBounds, guidingFraction);
+  } else {
+    guide.reset();
+  }
 
   if (!pool) {
     int threads = static_cast<int>(std::thread::hardware_concurrency());
@@ -229,41 +243,60 @@ bool Renderer::Impl::timeUp() const {
   return timeLimit > 0.0 && static_cast<double>(nowNs() - startNs.load()) * 1e-9 >= timeLimit;
 }
 
-void Renderer::Impl::runProgressive() {
+bool Renderer::Impl::renderPass(int pass) {
   int tilesX = (rx1 - rx0 + kTileSize - 1) / kTileSize, tilesY = (ry1 - ry0 + kTileSize - 1) / kTileSize;
+  std::atomic<bool> aborted{false};
+  std::atomic<int64_t> taken{0};
+  pool->run(tilesX * tilesY, [&](int tile, int) {
+    if (stopFlag.load(std::memory_order_relaxed)) {
+      aborted = true;
+      return;
+    }
+    int x0 = rx0 + (tile % tilesX) * kTileSize, y0 = ry0 + (tile / tilesX) * kTileSize;
+    int x1 = std::min(x0 + kTileSize, rx1), y1 = std::min(y0 + kTileSize, ry1);
+    int64_t n = 0;
+    for (int y = y0; y < y1; ++y)
+      for (int x = x0; x < x1; ++x) {
+        size_t pi = static_cast<size_t>(y) * w + x;
+        if (converged[pi]) continue;
+        Rng rng(hash64((static_cast<uint64_t>(pass) << 32) ^ pi ^ 0x9E3779B97F4A7C15ULL), pi);
+        samplePixel(x, y, pass, rng);
+        ++n;
+      }
+    taken += n;
+  });
+  samplesTaken += taken.load();
+  return !aborted;
+}
+
+void Renderer::Impl::beginGuidePass(int pass, int end) { guideTraining = guide && pass < end; }
+
+void Renderer::Impl::endGuidePass(int pass, int end) {
+  if (!guideTraining) return;
+  guideTraining = false;
+  guide->adaptSelection();
+  // Iterations of doubling length: the guide is rebuilt after 1, 2, 4, 8, ... passes.
+  int done = pass + 1;
+  if ((done & (done - 1)) == 0 || done == end) guide->update();
+}
+
+void Renderer::Impl::runProgressive() {
   size_t regionPixels = static_cast<size_t>(rx1 - rx0) * (ry1 - ry0);
+  int trainEnd = guide ? std::min(guidingTrainSpp, targetPasses) : 0;
   bool natural = true;
   for (int pass = 0; pass < targetPasses; ++pass) {
     if (stopFlag) {
       natural = false;
       break;
     }
-    std::atomic<bool> aborted{false};
-    std::atomic<int64_t> taken{0};
-    pool->run(tilesX * tilesY, [&](int tile, int) {
-      if (stopFlag.load(std::memory_order_relaxed)) {
-        aborted = true;
-        return;
-      }
-      int x0 = rx0 + (tile % tilesX) * kTileSize, y0 = ry0 + (tile / tilesX) * kTileSize;
-      int x1 = std::min(x0 + kTileSize, rx1), y1 = std::min(y0 + kTileSize, ry1);
-      int64_t n = 0;
-      for (int y = y0; y < y1; ++y)
-        for (int x = x0; x < x1; ++x) {
-          size_t pi = static_cast<size_t>(y) * w + x;
-          if (converged[pi]) continue;
-          Rng rng(hash64((static_cast<uint64_t>(pass) << 32) ^ pi ^ 0x9E3779B97F4A7C15ULL), pi);
-          samplePixel(x, y, pass, rng);
-          ++n;
-        }
-      taken += n;
-    });
-    samplesTaken += taken.load();
-    if (aborted) {
+    beginGuidePass(pass, trainEnd);
+    if (!renderPass(pass)) {
+      guideTraining = false;
       natural = false;
       ++version;
       break;
     }
+    endGuidePass(pass, trainEnd);
     passesDone = pass + 1;
     ++version;
     elapsedNs = nowNs() - startNs;
@@ -281,6 +314,26 @@ void Renderer::Impl::runProgressive() {
 }
 
 void Renderer::Impl::runBuckets() {
+  // Path guiding learns from the whole image: a few progressive passes train it before the
+  // buckets start (their samples are kept, and the buckets continue from there).
+  int start = 0;
+  if (guide) {
+    int prepass = std::min({guidingTrainSpp, std::max(1, targetPasses / 4), kBucketTrainingPasses});
+    for (int pass = 0; pass < prepass && !stopFlag && !timeUp(); ++pass) {
+      beginGuidePass(pass, prepass);
+      if (!renderPass(pass)) {
+        guideTraining = false;
+        finished = false;
+        ++version;
+        return;
+      }
+      endGuidePass(pass, prepass);
+      start = pass + 1;
+      passesDone = start;
+      ++version;
+      elapsedNs = nowNs() - startNs;
+    }
+  }
   int bs = std::max(bucketSize, 8);
   int bx = (rx1 - rx0 + bs - 1) / bs, by = (ry1 - ry0 + bs - 1) / bs;
   // Spiral order from the image center.
@@ -310,7 +363,7 @@ void Renderer::Impl::runBuckets() {
       activeBuckets.insert(box);
     }
     int64_t n = 0;
-    for (int s = 0; s < targetPasses; ++s) {
+    for (int s = start; s < targetPasses; ++s) {
       if (stopFlag.load(std::memory_order_relaxed)) {
         aborted = true;
         break;

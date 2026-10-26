@@ -17,7 +17,9 @@
 #include "bsdf.h"
 #include "common.h"
 #include "environment.h"
+#include "guiding.h"
 #include "lights.h"
+#include "lighttree.h"
 #include "materials.h"
 #include "renderer.h"
 #include "texture.h"
@@ -188,9 +190,11 @@ struct Renderer::Impl : public render::Tracer {
   std::unique_ptr<render::TextureCache> textures = std::make_unique<render::TextureCache>();
   std::vector<render::Light> lights;
   std::vector<int> areaLights;   // analytic area lights hit by rays (rect, disc, sphere, portal)
-  std::vector<float> lightCdf;   // power-based light selection
+  std::vector<int> distantLights;  // suns: sampled at every vertex
+  std::vector<int> localLights;    // everything else: picked by the light tree (or the other modes)
+  render::LightTree lightTree;
+  std::vector<float> lightCdf;   // power-based selection among the local lights
   std::vector<float> lightProb;
-  bool sampleAllLights = true;
   bool hasPortals = false;
   std::vector<int> portals;
   render::Environment env;       // lighting
@@ -210,10 +214,16 @@ struct Renderer::Impl : public render::Tracer {
   double sceneTime = 0.0;
   int maxDepth = 8;
   float clampIndirect = 10.0f, clampDirect = 0.0f, giMultiplier = 1.0f;
-  // Scene units per exposed (display) unit: the clamp levels apply to the exposed image, so they
-  // mean the same with physical exposure (cd/m²) as without.
-  float clampUnit = 1.0f;
+  float clampIndirectScene = 10.0f, clampDirectScene = 0.0f;  // the clamps before the camera exposure
   bool caustics = false;
+  // Sampling quality: light selection (0 light tree, 1 all lights, 2 one light by power), glossy
+  // filter and path guiding.
+  int lightSampling = 0;
+  float filterGlossy = 0.0f;
+  bool guidingOn = false;
+  int guidingTrainSpp = 64;
+  float guidingFraction = 0.5f;
+  Aabb sceneBounds;
   int samplerType = 0, minSamples = 16, bucketSize = 48;
   float noiseThreshold = 0.0f;
   bool sceneRegion = false;
@@ -260,6 +270,8 @@ struct Renderer::Impl : public render::Tracer {
   std::atomic<int64_t> startNs{0}, elapsedNs{0};
   std::atomic<int64_t> samplesTaken{0};
   std::atomic<float> convergedFraction{0.0f};
+  std::unique_ptr<render::PathGuide> guide;  // learned while rendering (null when guiding is off)
+  std::atomic<bool> guideTraining{false};    // paths record their radiance into the guide
   int targetPasses = 0;
   double timeLimit = 0.0;
   std::thread controller;
@@ -276,6 +288,12 @@ struct Renderer::Impl : public render::Tracer {
   bool timeUp() const;
   void runProgressive();
   void runBuckets();
+  // One sample for every unconverged pixel of the region. Returns false when stopped.
+  bool renderPass(int pass);
+  // Path guiding training: passes [0, end) record radiance; the guide is updated after passes
+  // 1, 2, 4, 8, ... and after the last one.
+  void beginGuidePass(int pass, int end);
+  void endGuidePass(int pass, int end);
   void samplePixel(int x, int y, int sampleIndex, render::Rng& rng);
   void updateConvergence(int x0, int y0, int x1, int y1);
   float pixelNoise(size_t pi) const;
@@ -286,7 +304,10 @@ struct Renderer::Impl : public render::Tracer {
   void surface(const RTCRayHit& rh, int planeHit, const Vec3& o, const Vec3& d, float time,
                render::SurfaceHit& s) const;
   // Light from o toward d reaching tMax (shadow rays): opaque blockers, cut-outs and glass.
-  Vec3 transmittance(Vec3 o, const Vec3& d, float tMax, float time, const render::Light* light) const;
+  // With viaOpenings, also the part that crossed no smooth refractive surface (only openings,
+  // cut-outs and rough glass), which a scattered path could reach as well.
+  Vec3 transmittance(Vec3 o, const Vec3& d, float tMax, float time, const render::Light* light,
+                     Vec3* viaOpenings = nullptr) const;
   void cameraRay(float px, float py, render::Rng& rng, Vec3& o, Vec3& d, float& weight, float& time,
                  float& tNear, float& tFar) const;
   render::ShadeContext makeContext(const render::SurfaceHit& s, const Vec3& wo, render::RayKind kind, int depth,
@@ -297,7 +318,9 @@ struct Renderer::Impl : public render::Tracer {
   float fogTransmittanceTau(const Vec3& o, const Vec3& d, float t) const;
   bool sampleFog(const Vec3& o, const Vec3& d, float tMax, float u, float& t) const;
   int pickLight(float u, float& prob) const;
-  float lightPickProb(int index) const;
+  // Probability that next-event estimation at a vertex (p, geometric normal n, zero in volumes)
+  // picks light `index`.
+  float lightSelectProb(int index, const Vec3& p, const Vec3& n, bool twoSided) const;
 
   // Tracer (texture maps)
   float traceDistance(const Vec3& o, const Vec3& d, float tMax, uint32_t* nodeId) const override;
