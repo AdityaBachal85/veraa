@@ -532,10 +532,10 @@ void Renderer::Impl::trace(Vec3 o, Vec3 d, float tNear, float tFar, float time, 
   auto add = [&](Vec3 c, int receivingVertex, int elemIfDirect, int group) {
     if (!isFiniteColor(c)) return;
     if (receivingVertex >= 1) {
-      c = clampLuminance(c, clampIndirect);
+      c = clampLuminance(c, clampIndirect * clampUnit);
       c *= giScale;
     } else if (clampDirect > 0.0f) {
-      c = clampLuminance(c, clampDirect);
+      c = clampLuminance(c, clampDirect * clampUnit);
     }
     out.L += c;
     if (anyBeautyElement) {

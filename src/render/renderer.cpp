@@ -124,6 +124,7 @@ void Renderer::Impl::prepare() {
   bool cameraExposure = view.exposure != 1.0f;
   cam.scale = (cameraExposure ? Vec3(view.exposure) * view.whiteBalance : Vec3(physicalExposure) * settingsWhiteBalance);
   if (cameraExposure && view.whiteBalance == Vec3(1.0f)) cam.scale = Vec3(view.exposure);
+  clampUnit = 1.0f / std::max(luminance(cam.scale), 1e-20f);
 
   if (!pool) {
     int threads = static_cast<int>(std::thread::hardware_concurrency());

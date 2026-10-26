@@ -101,6 +101,8 @@ std::string materialDisplayName(const std::string& type);
 //                anisotropy, anisoRotation
 //  Refraction:   refract, refractGlossiness, ior, abbe, fogColor, fogMultiplier, thinWalled,
 //                affectShadows, exitColorOn, exitColor
+//  Metal:        metalFresnel (0 artist F0, 1 custom n/k, 2+ measured metals), metalNr/Ng/Nb, metalKr/Kg/Kb
+//  Thin film:    thinFilm, thinFilmLayer (0 reflection, 1 coat), thinFilmThickness (nm), thinFilmIor
 //  Translucency: translucency (0 none, 1 thin, 2 volumetric), translucencyColor
 //  Coat:         coatAmount, coatColor, coatGlossiness, coatIor        (map-only slot: coatBump)
 //  Sheen:        sheenColor, sheenGlossiness

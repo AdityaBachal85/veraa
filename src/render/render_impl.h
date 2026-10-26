@@ -210,6 +210,9 @@ struct Renderer::Impl : public render::Tracer {
   double sceneTime = 0.0;
   int maxDepth = 8;
   float clampIndirect = 10.0f, clampDirect = 0.0f, giMultiplier = 1.0f;
+  // Scene units per exposed (display) unit: the clamp levels apply to the exposed image, so they
+  // mean the same with physical exposure (cd/m²) as without.
+  float clampUnit = 1.0f;
   bool caustics = false;
   int samplerType = 0, minSamples = 16, bucketSize = 48;
   float noiseThreshold = 0.0f;

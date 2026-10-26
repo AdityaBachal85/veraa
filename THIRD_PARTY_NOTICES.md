@@ -22,6 +22,7 @@ Veraa uses the following open-source components. Each is used under its own lice
 | Hosek-Wilkie sky model 1.4a (Lukas Hosek, Alexander Wilkie), reference implementation and coefficient data | Hosek-Wilkie 2012 physical sky | BSD 3-Clause (third_party/hosekwilkie/LICENSE) | https://cgg.mff.cuni.cz/projects/SkylightModelling/ |
 | Microsoft Visual C++ runtime (Windows builds) | C++ runtime DLLs | Microsoft Visual Studio redistributable terms | https://learn.microsoft.com/cpp/windows/redistributing-visual-cpp-files |
 | Sample HDRI from Poly Haven | Sample scenes | CC0 | https://polyhaven.com/ |
+| refractiveindex.info database (measured n, k of metals; reduced to RGB in src/render/bsdf.cpp) | Measured metal presets | CC0 | https://github.com/polyanskiy/refractiveindex.info-database |
 
 Qt is linked dynamically, so you can replace the Qt DLLs shipped with Veraa with your own
 build of the same Qt version. Qt's source code is available from https://download.qt.io/.

@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <vector>
 
+#include "bsdf.h"
 #include "common.h"
 #include "postprocess.h"
 #include "renderer.h"
@@ -301,6 +302,250 @@ static void testSolarDisk() {
   CHECK_NEAR(render::kSunSolidAngle, kTwoPi * (1.0 - std::cos(radians(render::kSunAngularRadiusDeg))), 2e-6);
 }
 
+// ---------------------------------------------------------------------------------------------
+// BSDF energy (white furnace) and Fresnel
+
+// Directional albedo of a BSDF by sampling it (mean of the sample weights).
+static Vec3 bsdfAlbedo(render::Bsdf& b, float cosO) {
+  Vec3 wo(std::sqrt(1.0f - cosO * cosO), 0.0f, cosO);
+  b.finalize(wo);
+  render::Rng rng(7, 3);
+  Vec3 sum(0.0f);
+  const int n = 200000;
+  for (int i = 0; i < n; ++i) {
+    render::BsdfSample s;
+    if (b.sample(wo, rng.next(), rng.next(), rng.next(), s)) sum += s.weight;
+  }
+  return sum / static_cast<float>(n);
+}
+
+static render::Lobe ggxLobe(render::LobeKind kind, float alpha) {
+  render::Lobe l;
+  l.kind = kind;
+  l.category = kind == render::LobeKind::GgxRefract ? render::LobeCategory::Transmission : render::LobeCategory::Specular;
+  l.frame = render::Frame(Vec3(0, 0, 1));
+  l.ax = l.ay = alpha;
+  return l;
+}
+
+static void testBsdfFurnace() {
+  for (float alpha : {0.25f, 0.6f, 1.0f})
+    for (float mu : {0.15f, 0.5f, 0.95f}) {
+      // Perfect conductor (F = 1): multiple scattering compensation restores all energy.
+      render::Bsdf metal;
+      render::Lobe m = ggxLobe(render::LobeKind::GgxReflect, alpha);
+      metal.add(m);
+      float em = luminance(bsdfAlbedo(metal, mu));
+      // Rough dielectric interface, entering and leaving: reflection + transmission = 1.
+      float eg[2];
+      for (int side = 0; side < 2; ++side) {
+        render::Bsdf glass;
+        float eta = side == 0 ? 1.5f : 1.0f / 1.5f;
+        render::Lobe r = ggxLobe(render::LobeKind::GgxReflect, alpha);
+        r.fresnel = render::FresnelMode::Dielectric;
+        r.fresnelEta = r.eta = eta;
+        render::Lobe t = ggxLobe(render::LobeKind::GgxRefract, alpha);
+        t.fresnel = render::FresnelMode::Dielectric;
+        t.fresnelEta = t.eta = eta;
+        glass.add(r);
+        glass.add(t);
+        eg[side] = luminance(bsdfAlbedo(glass, mu));
+      }
+      // Without compensation a rough conductor loses energy (the reason for the compensation).
+      render::Bsdf raw;
+      m.msCompensate = false;
+      raw.add(m);
+      float er = luminance(bsdfAlbedo(raw, mu));
+      if (alpha == 1.0f)
+        std::printf("  furnace alpha %.2f mu %.2f: conductor %.4f (uncompensated %.4f), glass in %.4f out %.4f\n", alpha,
+                    mu, em, er, eg[0], eg[1]);
+      CHECK(em > 0.98f && em < 1.02f);
+      CHECK(eg[0] > 0.98f && eg[0] < 1.02f);
+      CHECK(eg[1] > 0.97f && eg[1] < 1.02f);
+      if (alpha == 1.0f) CHECK(er < 0.9f);
+    }
+}
+
+// Rendered furnaces through VeraaMtl: a sphere in a white environment looks white.
+static double materialFurnace(void (*setup)(Material&)) {
+  Scene s;
+  ParamBlock& rs = s.renderSettings;
+  rs.setNumber("width", 40);
+  rs.setNumber("height", 40);
+  rs.setNumber("samples", 192);
+  rs.setNumber("maxDepth", 64);
+  rs.setNumber("clampIndirect", 0);
+  rs.setNumber("envMode", 0);
+  rs.setColor("envColor", Vec3(1.0f));
+  rs.setNumber("noiseThreshold", 0.0);
+  Material* m = s.createMaterial("M");
+  setup(*m);
+  Node* sphere = s.createNode("Sphere");
+  sphere->object->params.setNumber("segments", 96);
+  sphere->materialId = m->id;
+  Renderer r;
+  r.setScene(s);
+  RenderView v;
+  v.position = Vec3(0, -400, 0);
+  v.target = Vec3(0, 0, 0);
+  v.fovYDeg = 10.0f;
+  r.setView(v);
+  r.renderBlocking();
+  std::vector<float> hdr;
+  r.resolveHdr(hdr);
+  double sum = 0.0;
+  int n = 0;
+  for (int y = 12; y < 28; ++y)
+    for (int x = 12; x < 28; ++x) {
+      const float* p = &hdr[(static_cast<size_t>(y) * 40 + x) * 3];
+      sum += luminance(Vec3(p[0], p[1], p[2]));
+      ++n;
+    }
+  return sum / n;
+}
+
+static void testMaterialFurnace() {
+  double metal = materialFurnace([](Material& m) {
+    m.params.setColor("diffuse", Vec3(1.0f));
+    m.params.setColor("reflect", Vec3(1.0f));
+    m.params.setNumber("metalness", 1.0);
+    m.params.setNumber("useRoughness", 1);
+    m.params.setNumber("reflectGlossiness", 1.0);  // roughness 1
+  });
+  double plastic = materialFurnace([](Material& m) {
+    m.params.setColor("diffuse", Vec3(1.0f));
+    m.params.setColor("reflect", Vec3(1.0f));
+    m.params.setNumber("useRoughness", 1);
+    m.params.setNumber("reflectGlossiness", 1.0);
+  });
+  double glass = materialFurnace([](Material& m) {
+    m.params.setColor("diffuse", Vec3(0.0f));
+    m.params.setColor("reflect", Vec3(1.0f));
+    m.params.setColor("refract", Vec3(1.0f));
+    m.params.setNumber("ior", 1.5);
+    m.params.setNumber("fresnelIor", 1.5);
+    m.params.setNumber("useRoughness", 1);
+    m.params.setNumber("reflectGlossiness", 1.0);
+    m.params.setNumber("refractGlossiness", 1.0);
+    // Path-traced transmission only: "affect shadows" lets shadow rays pass straight through glass
+    // (a caustics-free approximation that is not energy conserving by design).
+    m.params.setNumber("affectShadows", 0);
+  });
+  double coat = materialFurnace([](Material& m) {
+    m.params.setColor("diffuse", Vec3(1.0f));
+    m.params.setNumber("coatAmount", 1.0);
+    m.params.setNumber("coatGlossiness", 0.3);
+  });
+  double sheen = materialFurnace([](Material& m) {
+    m.params.setColor("diffuse", Vec3(1.0f));
+    m.params.setColor("sheenColor", Vec3(1.0f));
+    m.params.setNumber("sheenGlossiness", 0.4);
+  });
+  std::printf("  material furnace (roughness 1): metal %.4f plastic %.4f glass %.4f; coat %.4f sheen %.4f\n", metal,
+              plastic, glass, coat, sheen);
+  CHECK(metal > 0.98 && metal < 1.02);
+  CHECK(plastic > 0.98 && plastic < 1.02);
+  CHECK(glass > 0.97 && glass < 1.03);
+  CHECK(coat > 0.95 && coat < 1.02);
+  CHECK(sheen > 0.93 && sheen < 1.03);
+}
+
+static void testFresnel() {
+  // Conductor at normal incidence: ((n-1)^2 + k^2) / ((n+1)^2 + k^2), grazing -> 1.
+  int count = 0;
+  const render::MetalPreset* metals = render::metalPresets(count);
+  CHECK(count >= 10);
+  for (int i = 0; i < count; ++i) {
+    Vec3 f = render::fresnelConductor(1.0f, metals[i].n, metals[i].k);
+    for (int c = 0; c < 3; ++c) {
+      float n = metals[i].n[c], k = metals[i].k[c];
+      CHECK_NEAR(f[c], ((n - 1) * (n - 1) + k * k) / ((n + 1) * (n + 1) + k * k), 1e-4);
+    }
+    CHECK(minComponent(render::fresnelConductor(0.001f, metals[i].n, metals[i].k)) > 0.95f);
+  }
+  // Reflectance at normal incidence against the spectral reference data (Johnson & Christy,
+  // Rakic) converted to RGB.
+  struct Ref {
+    const char* name;
+    Vec3 f0;
+  } refs[] = {{"Gold", Vec3(0.995f, 0.733f, 0.366f)}, {"Silver", Vec3(0.989f, 0.984f, 0.978f)},
+              {"Copper", Vec3(0.922f, 0.625f, 0.521f)}, {"Aluminium", Vec3(0.908f, 0.916f, 0.922f)},
+              {"Iron", Vec3(0.529f, 0.514f, 0.494f)},   {"Chromium", Vec3(0.550f, 0.556f, 0.554f)}};
+  for (const Ref& r : refs)
+    for (int i = 0; i < count; ++i)
+      if (std::string(metals[i].name) == r.name) {
+        Vec3 f = render::fresnelConductor(1.0f, metals[i].n, metals[i].k);
+        for (int c = 0; c < 3; ++c) CHECK_NEAR(f[c], r.f0[c], 0.02);
+      }
+  // Thin sheet: 2R / (1 + R) at normal incidence.
+  CHECK_NEAR(render::fresnelThinSlab(1.0f, 1.5f), 2 * 0.04 / 1.04, 1e-4);
+  // Thin film: no film (or a film matching the base) is the plain Fresnel term; a soap-like film
+  // is colored and never reflects more than all the light.
+  Vec3 none = render::thinFilmReflectance(0.8f, 1.33f, 0.0f, Vec3(1.5f), Vec3(0.0f));
+  CHECK_NEAR(none.y, render::fresnelDielectric(0.8f, 1.5f), 0.003);
+  Vec3 same = render::thinFilmReflectance(0.8f, 1.5f, 350.0f, Vec3(1.5f), Vec3(0.0f));
+  CHECK_NEAR(same.x, render::fresnelDielectric(0.8f, 1.5f), 0.003);
+  float spread = 0.0f;
+  for (float d = 100.0f; d <= 900.0f; d += 50.0f) {
+    Vec3 f = render::thinFilmReflectance(1.0f, 1.33f, d, Vec3(1.0f), Vec3(0.0f));  // soap bubble in air
+    CHECK(maxComponent(f) <= 1.0f && minComponent(f) >= 0.0f);
+    spread = std::max(spread, maxComponent(f) - minComponent(f));
+  }
+  CHECK(spread > 0.03f);
+  // Film on gold changes its color but keeps it metallic.
+  int g = 0;
+  Vec3 gold = render::thinFilmReflectance(1.0f, 1.5f, 250.0f, metals[g].n, metals[g].k);
+  CHECK(luminance(gold) > 0.3f);
+}
+
+// Clamping levels apply to the exposed image: with physical exposure (cd/m²) a light seen through
+// glass (an indirect path) must not be crushed by the default clamp.
+static void testClampWithPhysicalExposure() {
+  Scene s;
+  ParamBlock& rs = s.renderSettings;
+  rs.setNumber("width", 16);
+  rs.setNumber("height", 16);
+  rs.setNumber("samples", 8);
+  rs.setNumber("envMode", 0);
+  rs.setColor("envColor", Vec3(0.0f));
+  rs.setNumber("clampIndirect", 1.0);
+  rs.setNumber("exposureControl", 1);
+  rs.setNumber("ev100", 10.0);  // 1000 cd/m² -> 0.81
+  Material* glass = s.createMaterial("Glass");
+  glass->params.setColor("diffuse", Vec3(0.0f));
+  glass->params.setColor("reflect", Vec3(1.0f));
+  glass->params.setColor("refract", Vec3(1.0f));
+  glass->params.setNumber("ior", 1.5);
+  glass->params.setNumber("fresnelIor", 1.5);
+  Node* slab = s.createNode("Box");
+  slab->object->params.setNumber("width", 300);
+  slab->object->params.setNumber("length", 300);
+  slab->object->params.setNumber("height", 2);
+  slab->transform.position = Vec3(0, 0, 50);
+  slab->materialId = glass->id;
+  Node* light = s.createNode("VeraaLight");
+  light->object->params.setNumber("width", 400);
+  light->object->params.setNumber("length", 400);
+  light->object->params.setNumber("units", 2);  // luminance
+  light->object->params.setNumber("intensity", 1000);
+  light->transform.position = Vec3(0, 0, 0);
+  light->transform.rotation = Vec3(180, 0, 0);  // emits upward (+Z) toward the camera
+  Renderer r;
+  CHECK(r.setScene(s));
+  RenderView v;
+  v.position = Vec3(0, 0, 200);
+  v.target = Vec3(0, 0, 0);
+  v.up = Vec3(0, 1, 0);
+  v.fovYDeg = 10.0f;
+  r.setView(v);
+  r.renderBlocking();
+  std::vector<float> hdr;
+  r.resolveHdr(hdr);
+  float c = luminance(Vec3(hdr[(8 * 16 + 8) * 3], hdr[(8 * 16 + 8) * 3 + 1], hdr[(8 * 16 + 8) * 3 + 2]));
+  std::printf("  light through glass at EV 10 with clamp 1: %.3f (clamped to ~0.001 before the fix)\n", c);
+  CHECK(c > 0.4f && c < 0.9f);  // was ~0.001 when the clamp ignored the exposure
+}
+
 int main() {
   testColorMappingMonotonic();
   testColorMappingIdentities();
@@ -309,6 +554,10 @@ int main() {
   testSkyContinuity();
   testSkyBackCompat();
   testSolarDisk();
+  testFresnel();
+  testBsdfFurnace();
+  testMaterialFurnace();
+  testClampWithPhysicalExposure();
   if (g_failures) {
     std::printf("%d check(s) failed\n", g_failures);
     return 1;

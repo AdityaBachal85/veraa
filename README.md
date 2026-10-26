@@ -43,7 +43,9 @@ needed.
 
 - **Lights:** Plane (area) light, Sphere light, Omni, Spot, Sun, all with soft shadows.
 - **Environment:** flat color, sky gradient, HDRI image (with importance sampling) or a
-  physical sky driven by the Sun light.
+  physical sky driven by the Sun light: a spectral atmosphere with multiple scattering and
+  ozone (valid through sunset and twilight), the Hosek-Wilkie 2012 sky, or Preetham. Sun and
+  sky are in real units (a sunny day is right at EV 15) and the sun disk has limb darkening.
 - **Cameras** with field of view and depth of field; create a camera from any view.
 - **Scene Explorer**, select by name, hide/unhide, clone with copies, object properties.
 - Unlimited **undo/redo**.
@@ -52,26 +54,36 @@ needed.
 
 Diffuse color and map, reflection with glossiness, Fresnel and metalness, refraction with
 IOR, fog (colored absorption) and thin-walled mode, self-illumination, opacity, bump maps
-and tiling. The material editor renders a sample sphere for each material and ships with
-presets such as glass, chrome, gold, plastic and matte.
+and tiling. Metals can use measured complex IORs (gold, silver, copper, aluminium, chromium,
+iron, titanium, nickel, cobalt, brass), reflections and coats can carry a thin-film
+interference layer (soap, oil, anodized titanium), sheen follows Estevez-Kulla, and rough
+GGX reflection and refraction are energy-compensated for multiple scattering. The material
+editor renders a sample sphere for each material and ships with presets such as glass,
+measured metals, high-gloss lacquer, thin-film and velvet.
 
 ### Rendering
 
 - Unbiased **path tracing** with global illumination, next-event estimation and multiple
   importance sampling, built on Intel Embree.
 - **Progressive** rendering in the frame window: the image refines while you watch, with
-  live exposure, tone mapping (Filmic/ACES, Reinhard, Linear), contrast and saturation.
+  live exposure and color mapping (Filmic ACES, AgX-style filmic view, Reinhard with burn,
+  Linear, Exponential, HSV/Intensity exponential, Gamma; dark/bright multipliers, affect
+  background, adaptation only), contrast and saturation. Look presets: Interior (archviz),
+  Exterior daylight, Product studio.
 - **Denoiser:** Intel Open Image Denoise turns a few seconds of noise into a clean image.
 - Depth of field, sunlight through glass, caustics-free glass via shadow transparency,
   clamping for firefly control, time or sample limits.
 - Save renders as PNG, JPG, BMP or HDR.
 - **Command-line renderer:** `veraa-render scene.veraa -o image.png --width 1920 --height 1080 --samples 256`
 
-| Interior with sun and physical sky | Product shot under an HDRI |
+| Kitchen (IES downlights, LED strips, frosted daylight) | Exterior under the physical sky |
 |---|---|
-| ![Living room](docs/images/living-room.png) | ![Product shot](docs/images/product-shot.png) |
+| ![Kitchen](docs/images/kitchen.png) | ![Exterior daylight](docs/images/exterior-daylight.png) |
+| **Studio product shot (measured metals, thin film, sheen)** | **Interior with sun and physical sky** |
+| ![Studio product](docs/images/studio-product.png) | ![Living room](docs/images/living-room.png) |
 
-Sample scenes are in the `scenes` folder: `living_room.veraa`, `product_shot.veraa`,
+Sample scenes are in the `scenes` folder (made by `scenes/generate_scenes.py`): `kitchen.veraa`,
+`exterior_daylight.veraa`, `studio_product.veraa`, `living_room.veraa`, `product_shot.veraa`,
 `cornell_box.veraa`.
 
 ## Keyboard shortcuts

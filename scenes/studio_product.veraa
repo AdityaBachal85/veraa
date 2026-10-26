@@ -1,0 +1,729 @@
+{
+ "format": "veraa-scene",
+ "version": 1,
+ "renderSettings": {
+  "width": 1280,
+  "height": 720,
+  "samples": 256,
+  "maxDepth": 12,
+  "clampIndirect": 8,
+  "envMode": 0,
+  "envColor": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "camera": "Camera",
+  "denoise": true,
+  "tonemap": 0,
+  "exposure": 0.7,
+  "contrast": 1.0,
+  "saturation": 1.0
+ },
+ "materials": [
+  {
+   "id": 1,
+   "name": "Backdrop paper",
+   "type": "VeraaMtl",
+   "params": {
+    "diffuse": [
+     0.42,
+     0.43,
+     0.45
+    ],
+    "roughness": 0.5
+   }
+  },
+  {
+   "id": 2,
+   "name": "Satin plinth",
+   "type": "VeraaMtl",
+   "params": {
+    "diffuse": [
+     0.08,
+     0.08,
+     0.085
+    ],
+    "reflect": [
+     1,
+     1,
+     1
+    ],
+    "fresnelIor": 1.5,
+    "reflectGlossiness": 0.75
+   }
+  },
+  {
+   "id": 3,
+   "name": "Gold",
+   "type": "VeraaMtl",
+   "params": {
+    "diffuse": [
+     0.9,
+     0.9,
+     0.9
+    ],
+    "reflect": [
+     1,
+     1,
+     1
+    ],
+    "metalness": 1.0,
+    "metalFresnel": 2,
+    "reflectGlossiness": 0.93
+   }
+  },
+  {
+   "id": 4,
+   "name": "Silver",
+   "type": "VeraaMtl",
+   "params": {
+    "diffuse": [
+     0.9,
+     0.9,
+     0.9
+    ],
+    "reflect": [
+     1,
+     1,
+     1
+    ],
+    "metalness": 1.0,
+    "metalFresnel": 3,
+    "reflectGlossiness": 0.97
+   }
+  },
+  {
+   "id": 5,
+   "name": "Copper",
+   "type": "VeraaMtl",
+   "params": {
+    "diffuse": [
+     0.9,
+     0.9,
+     0.9
+    ],
+    "reflect": [
+     1,
+     1,
+     1
+    ],
+    "metalness": 1.0,
+    "metalFresnel": 4,
+    "reflectGlossiness": 0.8
+   }
+  },
+  {
+   "id": 6,
+   "name": "Anodized titanium",
+   "type": "VeraaMtl",
+   "params": {
+    "diffuse": [
+     0.9,
+     0.9,
+     0.9
+    ],
+    "reflect": [
+     1,
+     1,
+     1
+    ],
+    "metalness": 1.0,
+    "metalFresnel": 8,
+    "reflectGlossiness": 0.9,
+    "thinFilm": true,
+    "thinFilmThickness": 280,
+    "thinFilmIor": 2.3
+   }
+  },
+  {
+   "id": 7,
+   "name": "Perfume glass",
+   "type": "VeraaMtl",
+   "params": {
+    "diffuse": [
+     0,
+     0,
+     0
+    ],
+    "reflect": [
+     1,
+     1,
+     1
+    ],
+    "refract": [
+     1,
+     1,
+     1
+    ],
+    "ior": 1.5,
+    "fresnelIor": 1.5,
+    "fogColor": [
+     0.95,
+     0.82,
+     0.6
+    ],
+    "fogMultiplier": 0.06
+   }
+  },
+  {
+   "id": 8,
+   "name": "Velvet",
+   "type": "VeraaMtl",
+   "params": {
+    "diffuse": [
+     0.12,
+     0.02,
+     0.05
+    ],
+    "sheenColor": [
+     0.9,
+     0.45,
+     0.6
+    ],
+    "sheenGlossiness": 0.55
+   }
+  },
+  {
+   "id": 9,
+   "name": "Pearl",
+   "type": "VeraaMtl",
+   "params": {
+    "diffuse": [
+     0.85,
+     0.82,
+     0.8
+    ],
+    "coatAmount": 1.0,
+    "coatGlossiness": 0.97,
+    "thinFilm": true,
+    "thinFilmLayer": 1,
+    "thinFilmThickness": 520,
+    "thinFilmIor": 1.6
+   }
+  }
+ ],
+ "nodes": [
+  {
+   "id": 1,
+   "name": "BackdropFloor",
+   "transform": {
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 1,
+   "object": {
+    "type": "Plane",
+    "params": {
+     "length": 3000,
+     "width": 3000
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 2,
+   "name": "Plinth",
+   "transform": {
+    "position": [
+     0,
+     60,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 2,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 70,
+     "height": 24,
+     "sides": 96,
+     "capSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 3,
+   "name": "VelvetCloth",
+   "transform": {
+    "position": [
+     -20,
+     95,
+     24
+    ],
+    "rotation": [
+     0,
+     0,
+     -8
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 8,
+   "object": {
+    "type": "ChamferBox",
+    "params": {
+     "width": 110,
+     "length": 60,
+     "height": 1.5,
+     "fillet": 0.6,
+     "filletSegs": 3
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 4,
+   "name": "GoldRing",
+   "transform": {
+    "position": [
+     -28,
+     50,
+     25.8
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 3,
+   "object": {
+    "type": "Torus",
+    "params": {
+     "radius1": 12,
+     "radius2": 1.8,
+     "segments": 96,
+     "sides": 32
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 5,
+   "name": "SilverBall",
+   "transform": {
+    "position": [
+     22,
+     30,
+     24
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 4,
+   "object": {
+    "type": "Sphere",
+    "params": {
+     "radius": 9,
+     "segments": 64,
+     "basePivot": true
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 6,
+   "name": "TitaniumCap",
+   "transform": {
+    "position": [
+     -2,
+     85,
+     25.5
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 6,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 7,
+     "height": 9,
+     "sides": 64
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 7,
+   "name": "Bottle",
+   "transform": {
+    "position": [
+     -2,
+     85,
+     34.5
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 7,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 11,
+     "height": 30,
+     "sides": 96
+    }
+   },
+   "modifiers": [
+    {
+     "type": "Taper",
+     "enabled": true,
+     "params": {
+      "amount": -0.15,
+      "curve": 0.3
+     }
+    }
+   ]
+  },
+  {
+   "id": 8,
+   "name": "Pearl",
+   "transform": {
+    "position": [
+     36,
+     70,
+     25.5
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 9,
+   "object": {
+    "type": "Sphere",
+    "params": {
+     "radius": 4,
+     "segments": 48,
+     "basePivot": true
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 9,
+   "name": "CopperCup",
+   "transform": {
+    "position": [
+     45,
+     100,
+     24
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 5,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 9,
+     "height": 14,
+     "sides": 64
+    }
+   },
+   "modifiers": [
+    {
+     "type": "Taper",
+     "enabled": true,
+     "params": {
+      "amount": 0.25,
+      "curve": 0.0
+     }
+    }
+   ]
+  },
+  {
+   "id": 10,
+   "name": "KeySoftbox",
+   "transform": {
+    "position": [
+     -170,
+     -60,
+     230
+    ],
+    "rotation": [
+     46.93804858054488,
+     -0.0,
+     -52.59464336859145
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.95,
+    0.85,
+    0.2
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 0,
+   "object": {
+    "type": "VeraaLight",
+    "params": {
+     "lightType": 0,
+     "width": 120,
+     "length": 90,
+     "intensity": 24,
+     "invisible": true
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 11,
+   "name": "RimStrip",
+   "transform": {
+    "position": [
+     190,
+     230,
+     120
+    ],
+    "rotation": [
+     71.10920143767157,
+     -0.0,
+     130.10090754621226
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.95,
+    0.85,
+    0.2
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 0,
+   "object": {
+    "type": "VeraaLight",
+    "params": {
+     "lightType": 0,
+     "width": 30,
+     "length": 160,
+     "intensity": 30,
+     "invisible": true
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 12,
+   "name": "Fill",
+   "transform": {
+    "position": [
+     150,
+     -200,
+     90
+    ],
+    "rotation": [
+     79.0067985014031,
+     0.0,
+     29.054604099077146
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.95,
+    0.85,
+    0.2
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 0,
+   "object": {
+    "type": "VeraaLight",
+    "params": {
+     "lightType": 0,
+     "width": 100,
+     "length": 100,
+     "intensity": 3.0,
+     "invisible": true
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 13,
+   "name": "Camera",
+   "transform": {
+    "position": [
+     25,
+     -165,
+     85
+    ],
+    "rotation": [
+     77.3349117219482,
+     0.0,
+     4.864514437760526
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.3,
+    0.6,
+    1.0
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 0,
+   "object": {
+    "type": "Camera",
+    "params": {
+     "fov": 36
+    }
+   },
+   "modifiers": []
+  }
+ ],
+ "nextNodeId": 14,
+ "nextMaterialId": 10
+}

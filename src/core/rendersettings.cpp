@@ -119,4 +119,47 @@ void defineRealismRenderSettings(ParamBlock& p) {
       "Width of the soft transition from the horizon haze to the ground below the horizon";
 }
 
+const std::vector<std::string>& renderLookPresetNames() {
+  static const std::vector<std::string> names = {"Interior (archviz)", "Exterior daylight", "Product studio"};
+  return names;
+}
+
+bool applyRenderLookPreset(ParamBlock& p, const std::string& name) {
+  auto common = [&](int tonemap, float burn, float contrast, float saturation) {
+    p.setNumber("tonemap", tonemap);
+    p.setNumber("cmBurn", burn);
+    p.setNumber("cmDarkMultiplier", 1.0);
+    p.setNumber("cmBrightMultiplier", 1.0);
+    p.setNumber("cmGamma", 1.0);
+    p.setNumber("cmAffectBackground", 1);
+    p.setNumber("cmAdaptationOnly", 0);
+    p.setNumber("contrast", contrast);
+    p.setNumber("saturation", saturation);
+    p.setNumber("denoise", 1);
+  };
+  if (name == "Interior (archviz)") {
+    // Soft Reinhard roll-off for bright windows and light fixtures, physical exposure for a lit
+    // interior and a warm-neutral white balance between 3000 K lamps and daylight.
+    common(1, 0.35f, 1.05f, 1.0f);
+    p.setNumber("exposureControl", 1);
+    p.setNumber("ev100", 8.0);
+    p.setNumber("whiteBalanceK", 4700.0);
+    p.setNumber("clampIndirect", 8.0);
+    return true;
+  }
+  if (name == "Exterior daylight") {
+    // Filmic (AgX-style) view for the sun's dynamic range; sunny-16 exposure.
+    common(8, 0.0f, 1.08f, 1.05f);
+    p.setNumber("exposureControl", 1);
+    p.setNumber("ev100", 14.7);
+    p.setNumber("whiteBalanceK", 6000.0);
+    return true;
+  }
+  if (name == "Product studio") {
+    common(0, 0.0f, 1.0f, 1.0f);
+    return true;
+  }
+  return false;
+}
+
 }  // namespace veraa

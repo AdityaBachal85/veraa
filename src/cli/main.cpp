@@ -44,6 +44,8 @@ void usage() {
       "  --camera NAME          camera node to render from\n"
       "  --frame F              scene time (frame) to render\n"
       "  --set KEY=VALUE        override any render setting (e.g. --set fogOn=1 --set ev100=14)\n"
+      "  --look NAME            look preset (applied before --set): \"Interior (archviz)\",\n"
+      "                         \"Exterior daylight\", \"Product studio\"\n"
       "\n"
       "Display:\n"
       "  --exposure EV          display exposure override\n"
@@ -125,6 +127,7 @@ int main(int argc, char** argv) {
   bool region = false;
   float box[4] = {0, 0, 1, 1};
   std::vector<std::string> settings, elements;
+  std::string look;
 
   for (int i = 1; i < argc; ++i) {
     std::string a = argv[i];
@@ -166,6 +169,8 @@ int main(int argc, char** argv) {
       cameraName = next("--camera");
     } else if (a == "--frame") {
       if (!parseFloat(next("--frame"), frame)) { std::fprintf(stderr, "Invalid --frame\n"); return 2; }
+    } else if (a == "--look") {
+      look = next("--look");
     } else if (a == "--set") {
       settings.push_back(next("--set"));
     } else if (a == "--exposure") {
@@ -212,6 +217,10 @@ int main(int argc, char** argv) {
     return 1;
   }
   ParamBlock& rs = scene.renderSettings;
+  if (!look.empty() && !applyRenderLookPreset(rs, look)) {
+    std::fprintf(stderr, "Unknown --look preset: %s\n", look.c_str());
+    return 2;
+  }
   for (const auto& kv : settings)
     if (!applySetting(rs, kv, error)) {
       std::fprintf(stderr, "Error: %s\n", error.c_str());

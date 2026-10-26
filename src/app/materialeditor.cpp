@@ -80,6 +80,14 @@ void glossy(Material& m, const Vec3& refl, float gloss) {
   m.params.setNumber("reflectGlossiness", gloss);
 }
 
+// A metal whose reflectance comes from measured complex IOR data ("metalFresnel" choice).
+void measuredMetal(Material& m, int metalFresnel, float gloss) {
+  m.params.setColor("diffuse", Vec3(0.9f));
+  glossy(m, Vec3(1.0f), gloss);
+  m.params.setNumber("metalness", 1.0);
+  m.params.setNumber("metalFresnel", metalFresnel);
+}
+
 const Preset kPresets[] = {
     {"Default (matte)", [](Material& m) { m.params.setColor("diffuse", Vec3(0.6f)); }},
     {"Glossy plastic",
@@ -137,6 +145,59 @@ const Preset kPresets[] = {
        m.params.setColor("diffuse", Vec3(0.95f, 0.64f, 0.54f));
        glossy(m, Vec3(1.0f), 0.85f);
        m.params.setNumber("metalness", 1.0);
+     }},
+    // Measured metals: complex IOR reduced from spectral data (metalFresnel index = preset + 2).
+    {"Gold (measured n, k)", [](Material& m) { measuredMetal(m, 2, 0.9f); }},
+    {"Silver (measured n, k)", [](Material& m) { measuredMetal(m, 3, 0.95f); }},
+    {"Copper (measured n, k)", [](Material& m) { measuredMetal(m, 4, 0.88f); }},
+    {"Aluminium, brushed (measured n, k)",
+     [](Material& m) {
+       measuredMetal(m, 5, 0.75f);
+       m.params.setNumber("anisotropy", 0.7);
+     }},
+    {"Chromium (measured n, k)", [](Material& m) { measuredMetal(m, 6, 0.97f); }},
+    {"Iron, satin (measured n, k)", [](Material& m) { measuredMetal(m, 7, 0.7f); }},
+    {"Brass (measured n, k)", [](Material& m) { measuredMetal(m, 11, 0.86f); }},
+    {"Anodized titanium (thin film)",
+     [](Material& m) {
+       measuredMetal(m, 8, 0.9f);
+       m.params.setNumber("thinFilm", 1);
+       m.params.setNumber("thinFilmThickness", 280);
+       m.params.setNumber("thinFilmIor", 2.3);  // titanium oxide
+     }},
+    {"Soap bubble (thin film)",
+     [](Material& m) {
+       m.params.setColor("diffuse", Vec3(0.0f));
+       glossy(m, Vec3(1.0f), 1.0f);
+       m.params.setColor("refract", Vec3(1.0f));
+       m.params.setNumber("ior", 1.33);
+       m.params.setNumber("lockIor", 1);
+       m.params.setNumber("thinWalled", 1);
+       m.params.setNumber("thinFilm", 1);
+       m.params.setNumber("thinFilmThickness", 450);
+       m.params.setNumber("thinFilmIor", 1.33);
+       MapSlot s;
+       s.map = createTexMap("Noise");
+       s.map->params.setColor("color1", Vec3(0.25f));
+       s.map->params.setColor("color2", Vec3(0.75f));
+       s.map->params.setNumber("size", 30.0);
+       m.maps["thinFilmThickness"] = std::move(s);  // map value scales the thickness
+     }},
+    {"Pearlescent coat (thin film)",
+     [](Material& m) {
+       m.params.setColor("diffuse", Vec3(0.82f, 0.8f, 0.78f));
+       m.params.setNumber("coatAmount", 1.0);
+       m.params.setNumber("coatGlossiness", 0.96);
+       m.params.setNumber("thinFilm", 1);
+       m.params.setNumber("thinFilmLayer", 1);
+       m.params.setNumber("thinFilmThickness", 520);
+       m.params.setNumber("thinFilmIor", 1.6);
+     }},
+    {"High-gloss lacquer",
+     [](Material& m) {
+       m.params.setColor("diffuse", Vec3(0.62f, 0.58f, 0.53f));
+       glossy(m, Vec3(1.0f), 0.94f);
+       m.params.setNumber("fresnelIor", 1.5);
      }},
     {"Rubber",
      [](Material& m) {

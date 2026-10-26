@@ -14,6 +14,11 @@ void defineAdvancedRenderSettings(ParamBlock& p);
 // Color mapping parameters and physical sky settings (called by defineAdvancedRenderSettings).
 void defineRealismRenderSettings(ParamBlock& p);
 
+// Look presets (color mapping, exposure and white balance): "Interior (archviz)",
+// "Exterior daylight", "Product studio". Returns false for an unknown name.
+const std::vector<std::string>& renderLookPresetNames();
+bool applyRenderLookPreset(ParamBlock& p, const std::string& name);
+
 // Render elements (AOVs). The key of element i is renderElementKeys()[i]; the setting
 // "elem" + key enables it (e.g. "elemReflection").
 struct RenderElementInfo {

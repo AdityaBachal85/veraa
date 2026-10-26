@@ -304,6 +304,28 @@ void defineVeraaMtl(Material& m) {
   p.addFloat("metalness", "Metalness", 0.0, 0.0, 1.0, 0.05);
   p.addFloat("anisotropy", "Anisotropy", 0.0, -1.0, 1.0, 0.05);
   p.addFloat("anisoRotation", "Anisotropy rotation", 0.0, -360.0, 360.0, 1.0, 1);
+  // Metal Fresnel: index 0 uses the diffuse color as F0 (artist), 1 the complex IOR below, 2+ a
+  // measured metal (render::metalPresets()).
+  p.addEnum("metalFresnel", "Metal Fresnel",
+            {"Base color (artist)", "Complex IOR (n, k)", "Gold", "Silver", "Copper", "Aluminium", "Chromium", "Iron",
+             "Titanium", "Nickel", "Cobalt", "Brass"},
+            0)
+      .tooltip = "How the metal part (metalness) reflects: from the diffuse color, or physically from a complex "
+                 "index of refraction (measured metals or custom n, k). The reflect color still tints it";
+  p.addFloat("metalNr", "Metal n (red)", 0.18, 0.01, 10.0, 0.01, 4);
+  p.addFloat("metalNg", "Metal n (green)", 0.42, 0.01, 10.0, 0.01, 4);
+  p.addFloat("metalNb", "Metal n (blue)", 1.37, 0.01, 10.0, 0.01, 4);
+  p.addFloat("metalKr", "Metal k (red)", 3.42, 0.0, 20.0, 0.01, 4);
+  p.addFloat("metalKg", "Metal k (green)", 2.35, 0.0, 20.0, 0.01, 4);
+  p.addFloat("metalKb", "Metal k (blue)", 1.77, 0.0, 20.0, 0.01, 4);
+
+  p.beginGroup("Thin film");
+  p.addBool("thinFilm", "Thin film (iridescence)", false).tooltip =
+      "A transparent film on the reflection or the coat (soap, oil, anodized or heat-tinted metal)";
+  p.addEnum("thinFilmLayer", "Film on", {"Reflection", "Coat"}, 0);
+  p.addFloat("thinFilmThickness", "Thickness (nm)", 400.0, 0.0, 2000.0, 10.0, 1).tooltip =
+      "Film thickness in nanometers; a map scales it (black = no film, white = this thickness)";
+  p.addFloat("thinFilmIor", "Film IOR", 1.45, 1.0, 4.0, 0.01, 3);
 
   p.beginGroup("Refraction");
   p.addColor("refract", "Refract", Vec3(0.0f));
@@ -467,7 +489,7 @@ void defineWrapper(Material& m) {
 void registerMaterialTypes() {
   registerMaterialType({"VeraaMtl", "VeraaMtl", "Materials", defineVeraaMtl,
                         {"diffuse", "roughness", "reflect", "reflectGlossiness", "fresnelIor", "metalness",
-                         "anisotropy", "anisoRotation", "refract", "refractGlossiness", "ior", "fogColor",
+                         "anisotropy", "anisoRotation", "thinFilmThickness", "refract", "refractGlossiness", "ior", "fogColor",
                          "translucencyColor", "coatAmount", "coatColor", "coatGlossiness", "coatBump", "sheenColor",
                          "sheenGlossiness", "selfIllum", "opacity", "bump", "displacement"},
                         "General purpose physically based material: diffuse, reflection, refraction, coat, sheen"});

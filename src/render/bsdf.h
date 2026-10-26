@@ -29,7 +29,10 @@ enum class LobeKind : uint8_t {
 enum class LobeCategory : uint8_t { Diffuse = 0, Specular = 1, Transmission = 2, Subsurface = 3 };
 constexpr int kLobeCategories = 4;
 
-enum class FresnelMode : uint8_t { None, Dielectric, Schlick, Metalness };
+// Dielectric: real IOR fresnelEta. Schlick: F0 = tint. Metalness: dielectric blended with the metal's
+// F0 (metalF0, or complex IOR condN/condK when metalNk). Conductor: complex IOR condN + i condK.
+// ThinSlab: a thin parallel dielectric sheet (both faces and the light bouncing between them).
+enum class FresnelMode : uint8_t { None, Dielectric, Schlick, Metalness, Conductor, ThinSlab };
 
 struct Lobe {
   LobeKind kind = LobeKind::Lambert;
@@ -44,6 +47,11 @@ struct Lobe {
   Vec3 metalF0;         // Metalness: F0 of the metal part
   float metal = 0.0f;
   Vec3 etaRgb;          // per-channel refraction IOR (dispersion); zero when unused
+  Vec3 condN, condK;    // complex IOR of a conductor (Conductor, or Metalness with metalNk)
+  bool metalNk = false;
+  float filmThickness = 0.0f;  // thin-film coating thickness (nm, 0 = none)
+  float filmIor = 1.5f;
+  bool msCompensate = true;    // energy compensation for multiple scattering (GGX lobes)
   float orenA = 1.0f, orenB = 0.0f;
   bool flipped = false;   // Two-sided back material: light from the back side
   float select = 0.0f;  // sampling probability (set by Bsdf::finalize)
@@ -102,6 +110,7 @@ class Bsdf {
 
  private:
   Vec3 evalLobe(const Lobe& l, const Vec3& woL, const Vec3& wiL, float& pdf) const;
+  void compensateEnergy();
   Lobe* lobes() { return reinterpret_cast<Lobe*>(storage_); }
   const Lobe* lobes() const { return reinterpret_cast<const Lobe*>(storage_); }
   // Raw storage: lobes are copied in by add(), so building a BSDF does not initialize all slots.
@@ -119,6 +128,36 @@ Vec3 sampleGgxVndf(const Vec3& wo, float ax, float ay, float u1, float u2);
 float glossToAlpha(float glossiness, bool isRoughness = false);
 // Directional albedo of the sheen lobe (for energy-conserving layering).
 float sheenAlbedo(float cosO, float alpha);
+
+// ---- Fresnel ----
+// Unpolarized reflectance of a conductor with complex IOR n + ik (per channel), from air.
+Vec3 fresnelConductor(float cosI, const Vec3& n, const Vec3& k);
+// Thin parallel dielectric sheet: reflectance including the back face and inter-reflections.
+float fresnelThinSlab(float cosI, float eta);
+// Thin-film interference (Airy summation per polarization, after Belcour & Barla 2017): a film of
+// IOR filmIor and thickness (nm) over a base of complex IOR baseN + i baseK, integrated over
+// the visible spectrum to linear RGB.
+Vec3 thinFilmReflectance(float cosI, float filmIor, float thicknessNm, const Vec3& baseN, const Vec3& baseK);
+
+// ---- Microfacet energy ----
+// Directional albedo of a GGX lobe with perfect reflection (F = 1) and its cosine-weighted
+// hemispherical average; 1 - albedo is the energy single scattering loses to the microsurface.
+float ggxAlbedo(float cosO, float alpha);
+float ggxAlbedoAverage(float alpha);
+// Single-scattering albedo of a rough dielectric interface (eta = n_far / n_near, < 1 from
+// inside) split into reflected and transmitted parts.
+void ggxDielectricAlbedo(float cosO, float alpha, float eta, float& reflect, float& transmit);
+// Directional albedo of a reflection lobe (multiple scattering included) for layering: what it
+// takes from the layers below at the view cosine cosO.
+Vec3 specularAlbedo(const Lobe& l, float cosO);
+
+// Metal presets: complex IOR per RGB channel reduced from measured spectral data.
+struct MetalPreset {
+  const char* name;
+  Vec3 n, k;
+};
+// Index 0 is the first metal (the "metalFresnel" parameter uses index + 2).
+const MetalPreset* metalPresets(int& count);
 
 }  // namespace render
 }  // namespace veraa
