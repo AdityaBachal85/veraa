@@ -100,6 +100,8 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
   const ViewCube& viewCube() const { return cube_; }
   // Gizmo axes for the current reference coordinate system and the transform center.
   void transformFrame(Vec3 axes[3], Vec3& origin) const;
+  // CPU time of the last paintGL call in milliseconds (benchmarks).
+  double lastPaintCpuMs() const { return lastPaintMs_; }
 
   // Simulated input for the self test.
   void simulateMouse(QEvent::Type type, QPointF pos, Qt::MouseButton button, Qt::MouseButtons buttons,
@@ -187,6 +189,7 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
   bool safeFrame_ = false;
   bool active_ = false;
   std::unique_ptr<GlScene> gl_;
+  double lastPaintMs_ = 0;
   QString glError_;
   bool glReady_ = false;  // OpenGL 3.3 functions resolved for this context
   QOpenGLContext* hookedContext_ = nullptr;

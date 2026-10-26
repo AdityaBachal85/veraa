@@ -48,7 +48,7 @@ class Modifier {
   std::string displayName;  // optional user rename shown in the stack
 
  private:
-  uint64_t revision_ = 1;
+  uint64_t revision_ = nextRevisionStamp();
 };
 
 // ---- Modifier type registry ----

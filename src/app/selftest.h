@@ -19,6 +19,8 @@ class Viewport;
 void buildDemoScene(MainWindow& w);
 
 int runScript(MainWindow& w, const QString& script, const QString& screenshotPath);
+// Times import, drawing, selection, transforms, undo and files on VERAA_BENCH_FILE (bench.cpp).
+int runBench(MainWindow& w);
 
 // Helpers for feature module UI tests. A module registers a test with
 //   static void testMyFeature(MainWindow& w) { testing::check(..., "what"); }

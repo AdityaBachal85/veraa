@@ -1,5 +1,7 @@
 #include "viewport.h"
 
+#include <QElapsedTimer>
+
 #include <QDateTime>
 #include <QDragEnterEvent>
 #include <QMenu>
@@ -450,6 +452,13 @@ void Viewport::drawBackgroundImage(QPainter& p) {
 }
 
 void Viewport::paintGL() {
+  QElapsedTimer paintTimer;
+  paintTimer.start();
+  struct PaintTime {
+    QElapsedTimer& t;
+    double& out;
+    ~PaintTime() { out = t.nsecsElapsed() / 1e6; }
+  } paintTime{paintTimer, lastPaintMs_};
   if (!glReady_) {
     QPainter p(this);
     p.fillRect(rect(), theme::viewportBg());

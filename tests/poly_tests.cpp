@@ -665,11 +665,11 @@ static void testSelectionTools() {
 
   // Editable Poly objects store the selection in scene files.
   EditablePolyObject obj;
-  obj.mesh = box100();
+  obj.setMesh(box100());
   obj.sel = js;
   EditablePolyObject copy;
   copy.fromJson(obj.toJson());
-  CHECK(copy.sel.edges == js.edges && copy.mesh.faces.size() == 6);
+  CHECK(copy.sel.edges == js.edges && copy.mesh().faces.size() == 6);
 }
 
 static void testStackModifiers() {
@@ -700,8 +700,8 @@ static void testStackModifiers() {
   // The selection flows up: Push moves only the selected (top) vertices.
   Node* p = scene.createNode("Box");
   auto poly = std::make_shared<EditablePolyObject>();
-  poly->mesh = box100();
-  poly->sel = faceSel({faceToward(poly->mesh, Vec3(0, 0, 1))});
+  poly->setMesh(box100());
+  poly->sel = faceSel({faceToward(poly->mesh(), Vec3(0, 0, 1))});
   p->object = poly;
   auto push = createModifier("Push");
   push->params.setNumber("amount", 10.0);
@@ -757,7 +757,7 @@ static void testStackModifiers() {
   // Hidden faces are left out of the evaluated mesh.
   Node* h = scene.createNode("Box");
   auto hp = std::make_shared<EditablePolyObject>();
-  hp->mesh = box100();
+  hp->setMesh(box100());
   hp->sel.hiddenFaces = {0, 1};
   h->object = hp;
   h->invalidate();

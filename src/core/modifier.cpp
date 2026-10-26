@@ -40,10 +40,7 @@ void Modifier::fromJson(const json& j) {
   if (j.contains("params")) params.fromJson(j["params"]);
 }
 
-void Modifier::touch() {
-  static std::atomic<uint64_t> counter{1};
-  revision_ = ++counter;
-}
+void Modifier::touch() { revision_ = nextRevisionStamp(); }
 
 namespace {
 

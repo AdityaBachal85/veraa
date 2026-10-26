@@ -804,7 +804,7 @@ void MainWindow::createMenus() {
     for (uint32_t id : ids) {
       Node* n = doc_->scene().findNode(id);
       auto poly = std::make_unique<EditablePolyObject>();
-      poly->mesh = n->mesh();
+      poly->setMesh(n->mesh());
       n->object = std::move(poly);
       n->modifiers.clear();
       n->invalidate();

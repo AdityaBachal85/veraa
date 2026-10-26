@@ -102,14 +102,72 @@ void main() { frag = vColor; }
 
 QMatrix4x4 toQt(const Mat4& m) { return QMatrix4x4(&m.m[0][0]); }
 
+uint64_t g_uploaded = 0;
+bool g_skipDraws = false;  // benchmarks: measure CPU work without software rasterization
+
 }  // namespace
 
-GlScene::GlScene(QOpenGLFunctions_3_3_Core* gl) : gl_(gl) {}
+// Buffers of one node, shared by the contexts of a share group (all viewports of a window).
+struct GlScene::SharedMesh {
+  GLuint triVbo = 0, triEbo = 0, wireVbo = 0, wireEbo = 0;
+  GLsizei triCount = 0, wireCount = 0;
+  uint64_t stamp = ~0ull;
+  uint64_t generation = 0;
+  uint64_t lastUsed = 0;
+};
+
+struct GlScene::SharedCache {
+  std::unordered_map<uint32_t, SharedMesh> meshes;
+  int users = 0;
+  uint64_t frame = 0;
+};
+
+namespace {
+
+std::unordered_map<QOpenGLContextGroup*, GlScene::SharedCache*>& sharedCaches() {
+  static std::unordered_map<QOpenGLContextGroup*, GlScene::SharedCache*> caches;
+  return caches;
+}
+
+uint64_t g_generation = 0;
+
+QOpenGLContextGroup* currentGroup() {
+  QOpenGLContext* c = QOpenGLContext::currentContext();
+  return c ? c->shareGroup() : nullptr;
+}
+
+}  // namespace
+
+GlScene::GlScene(QOpenGLFunctions_3_3_Core* gl) : gl_(gl) {
+  SharedCache*& c = sharedCaches()[currentGroup()];
+  if (!c) c = new SharedCache;
+  shared_ = c;
+  ++shared_->users;
+}
+
+uint64_t GlScene::uploadedBytes() { return g_uploaded; }
+void GlScene::resetStats() { g_uploaded = 0; }
+void GlScene::setSkipMeshDraws(bool skip) { g_skipDraws = skip; }
 
 GlScene::~GlScene() {
-  for (auto& [id, m] : meshes_) release(m);
+  for (auto& [id, m] : meshes_) releaseLocal(m);
   if (lineVbo_) gl_->glDeleteBuffers(1, &lineVbo_);
   if (lineVao_) gl_->glDeleteVertexArrays(1, &lineVao_);
+  if (--shared_->users == 0) {
+    // Last viewport of the share group: free the shared buffers too.
+    for (auto& [id, s] : shared_->meshes) {
+      GLuint bufs[4] = {s.triVbo, s.triEbo, s.wireVbo, s.wireEbo};
+      gl_->glDeleteBuffers(4, bufs);
+    }
+    auto& caches = sharedCaches();
+    for (auto it = caches.begin(); it != caches.end(); ++it)
+      if (it->second == shared_) {
+        caches.erase(it);
+        break;
+      }
+    delete shared_;
+  }
+  shared_ = nullptr;
 }
 
 bool GlScene::init(QString* error) {
@@ -123,6 +181,24 @@ bool GlScene::init(QString* error) {
     if (error) *error = lineProg_.log();
     return false;
   }
+  loc_.mvp = meshProg_.uniformLocation("uMVP");
+  loc_.model = meshProg_.uniformLocation("uModel");
+  loc_.normalMat = meshProg_.uniformLocation("uNormalMat");
+  loc_.color = meshProg_.uniformLocation("uColor");
+  loc_.eye = meshProg_.uniformLocation("uEye");
+  loc_.viewDir = meshProg_.uniformLocation("uViewDir");
+  loc_.ortho = meshProg_.uniformLocation("uOrtho");
+  loc_.alpha = meshProg_.uniformLocation("uAlpha");
+  loc_.facets = meshProg_.uniformLocation("uFacets");
+  loc_.headOnly = meshProg_.uniformLocation("uHeadOnly");
+  loc_.lightCount = meshProg_.uniformLocation("uLightCount");
+  for (int i = 0; i < 4; ++i) {
+    QByteArray idx = QByteArray::number(i);
+    loc_.lightPos[i] = meshProg_.uniformLocation(("uLightPos[" + idx + "]").constData());
+    loc_.lightColor[i] = meshProg_.uniformLocation(("uLightColor[" + idx + "]").constData());
+    loc_.lightDir[i] = meshProg_.uniformLocation(("uLightDir[" + idx + "]").constData());
+  }
+  loc_.lineMvp = lineProg_.uniformLocation("uMVP");
   gl_->glGenVertexArrays(1, &lineVao_);
   gl_->glGenBuffers(1, &lineVbo_);
   gl_->glBindVertexArray(lineVao_);
@@ -136,107 +212,142 @@ bool GlScene::init(QString* error) {
   return true;
 }
 
-void GlScene::release(GpuMesh& m) {
-  GLuint bufs[4] = {m.triVbo, m.triEbo, m.wireVbo, m.wireEbo};
-  gl_->glDeleteBuffers(4, bufs);
+void GlScene::releaseLocal(LocalMesh& m) {
   GLuint vaos[2] = {m.triVao, m.wireVao};
   gl_->glDeleteVertexArrays(2, vaos);
-  m = GpuMesh();
+  m = LocalMesh();
 }
 
-GlScene::GpuMesh& GlScene::meshFor(const Node& node, uint64_t stamp) {
-  GpuMesh& m = meshes_[node.id];
-  m.used = true;
-  if (m.stamp == stamp && m.triVao) return m;
-  if (m.triVao) release(m);
-  m.used = true;
-  const TriMesh& t = node.triMesh();
+void GlScene::useProgram(QOpenGLShaderProgram& p) {
+  if (bound_ == &p) return;
+  p.bind();
+  bound_ = &p;
+}
 
-  std::vector<float> verts;
-  verts.reserve(t.positions.size() * 6);
-  for (size_t i = 0; i < t.positions.size(); ++i) {
-    const Vec3& p = t.positions[i];
-    const Vec3& n = t.normals[i];
-    verts.insert(verts.end(), {p.x, p.y, p.z, n.x, n.y, n.z});
+const GlScene::LocalMesh* GlScene::meshFor(const Node& node, uint64_t stamp, GLsizei* triCount, GLsizei* wireCount) {
+  SharedMesh& s = shared_->meshes[node.id];
+  s.lastUsed = shared_->frame;
+  if (s.stamp != stamp || !s.triVbo) {
+    const TriMesh& t = node.triMesh();
+    std::vector<float> verts(t.positions.size() * 6);
+    for (size_t i = 0; i < t.positions.size(); ++i) {
+      const Vec3& p = t.positions[i];
+      const Vec3& n = t.normals[i];
+      float* v = &verts[i * 6];
+      v[0] = p.x, v[1] = p.y, v[2] = p.z, v[3] = n.x, v[4] = n.y, v[5] = n.z;
+    }
+    if (!s.triVbo) {
+      GLuint bufs[4];
+      gl_->glGenBuffers(4, bufs);
+      s.triVbo = bufs[0], s.triEbo = bufs[1], s.wireVbo = bufs[2], s.wireEbo = bufs[3];
+    }
+    // Buffer data is only uploaded through GL_ARRAY_BUFFER so no vertex array state changes.
+    gl_->glBindVertexArray(0);
+    auto upload = [&](GLuint buf, size_t bytes, const void* data) {
+      gl_->glBindBuffer(GL_ARRAY_BUFFER, buf);
+      gl_->glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(bytes), bytes ? data : nullptr, GL_STATIC_DRAW);
+      g_uploaded += bytes;
+    };
+    upload(s.triVbo, verts.size() * sizeof(float), verts.data());
+    upload(s.triEbo, t.indices.size() * sizeof(uint32_t), t.indices.data());
+    upload(s.wireVbo, t.wirePositions.size() * sizeof(Vec3), t.wirePositions.data());
+    upload(s.wireEbo, t.wireIndices.size() * sizeof(uint32_t), t.wireIndices.data());
+    gl_->glBindBuffer(GL_ARRAY_BUFFER, 0);
+    s.triCount = static_cast<GLsizei>(t.indices.size());
+    s.wireCount = static_cast<GLsizei>(t.wireIndices.size());
+    s.stamp = stamp;
+    s.generation = ++g_generation;
   }
-  gl_->glGenVertexArrays(1, &m.triVao);
-  gl_->glGenBuffers(1, &m.triVbo);
-  gl_->glGenBuffers(1, &m.triEbo);
-  gl_->glBindVertexArray(m.triVao);
-  gl_->glBindBuffer(GL_ARRAY_BUFFER, m.triVbo);
-  gl_->glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(verts.size() * sizeof(float)), verts.data(),
-                    GL_STATIC_DRAW);
-  gl_->glEnableVertexAttribArray(0);
-  gl_->glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), nullptr);
-  gl_->glEnableVertexAttribArray(1);
-  gl_->glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), reinterpret_cast<void*>(3 * sizeof(float)));
-  gl_->glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m.triEbo);
-  gl_->glBufferData(GL_ELEMENT_ARRAY_BUFFER, static_cast<GLsizeiptr>(t.indices.size() * sizeof(uint32_t)),
-                    t.indices.data(), GL_STATIC_DRAW);
-  m.triCount = static_cast<GLsizei>(t.indices.size());
+  LocalMesh& m = meshes_[node.id];
+  m.used = true;
+  if (m.generation != s.generation) {
+    if (!m.triVao) {
+      GLuint vaos[2];
+      gl_->glGenVertexArrays(2, vaos);
+      m.triVao = vaos[0], m.wireVao = vaos[1];
+    }
+    gl_->glBindVertexArray(m.triVao);
+    gl_->glBindBuffer(GL_ARRAY_BUFFER, s.triVbo);
+    gl_->glEnableVertexAttribArray(0);
+    gl_->glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), nullptr);
+    gl_->glEnableVertexAttribArray(1);
+    gl_->glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), reinterpret_cast<void*>(3 * sizeof(float)));
+    gl_->glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, s.triEbo);
+    gl_->glBindVertexArray(m.wireVao);
+    gl_->glBindBuffer(GL_ARRAY_BUFFER, s.wireVbo);
+    gl_->glEnableVertexAttribArray(0);
+    gl_->glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vec3), nullptr);
+    gl_->glDisableVertexAttribArray(1);
+    gl_->glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, s.wireEbo);
+    gl_->glBindVertexArray(0);
+    gl_->glBindBuffer(GL_ARRAY_BUFFER, 0);
+    m.generation = s.generation;
+  }
+  *triCount = s.triCount;
+  *wireCount = s.wireCount;
+  return &m;
+}
 
-  gl_->glGenVertexArrays(1, &m.wireVao);
-  gl_->glGenBuffers(1, &m.wireVbo);
-  gl_->glGenBuffers(1, &m.wireEbo);
-  gl_->glBindVertexArray(m.wireVao);
-  gl_->glBindBuffer(GL_ARRAY_BUFFER, m.wireVbo);
-  gl_->glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(t.wirePositions.size() * sizeof(Vec3)),
-                    t.wirePositions.data(), GL_STATIC_DRAW);
-  gl_->glEnableVertexAttribArray(0);
-  gl_->glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vec3), nullptr);
-  gl_->glDisableVertexAttribArray(1);
-  gl_->glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m.wireEbo);
-  gl_->glBufferData(GL_ELEMENT_ARRAY_BUFFER, static_cast<GLsizeiptr>(t.wireIndices.size() * sizeof(uint32_t)),
-                    t.wireIndices.data(), GL_STATIC_DRAW);
-  m.wireCount = static_cast<GLsizei>(t.wireIndices.size());
-  gl_->glBindVertexArray(0);
-  m.stamp = stamp;
-  return m;
+void GlScene::applyFrameUniforms(const Vec3& eye, const Vec3& viewDir, bool ortho) {
+  const ShadeStyle& st = style_;
+  bool styleSame = frameSent_ && st.facets == sentStyle_.facets && st.headlightOnly == sentStyle_.headlightOnly &&
+                   st.lightCount == sentStyle_.lightCount;
+  for (int i = 0; styleSame && i < 4; ++i)
+    styleSame = st.lightPos[i] == sentStyle_.lightPos[i] && st.lightColor[i] == sentStyle_.lightColor[i] &&
+                st.lightDirectional[i] == sentStyle_.lightDirectional[i];
+  if (!styleSame) {
+    meshProg_.setUniformValue(loc_.facets, st.facets ? 1 : 0);
+    meshProg_.setUniformValue(loc_.headOnly, st.headlightOnly ? 1 : 0);
+    meshProg_.setUniformValue(loc_.lightCount, st.lightCount);
+    for (int i = 0; i < 4; ++i) {
+      const Vec3& lp = st.lightPos[i];
+      const Vec3& lc = st.lightColor[i];
+      meshProg_.setUniformValue(loc_.lightPos[i], QVector3D(lp.x, lp.y, lp.z));
+      meshProg_.setUniformValue(loc_.lightColor[i], QVector3D(lc.x, lc.y, lc.z));
+      meshProg_.setUniformValue(loc_.lightDir[i], st.lightDirectional[i] ? 1 : 0);
+    }
+    sentStyle_ = st;
+  }
+  if (!frameSent_ || !(eye == sentEye_) || !(viewDir == sentViewDir_) || ortho != sentOrtho_) {
+    meshProg_.setUniformValue(loc_.eye, QVector3D(eye.x, eye.y, eye.z));
+    meshProg_.setUniformValue(loc_.viewDir, QVector3D(viewDir.x, viewDir.y, viewDir.z));
+    meshProg_.setUniformValue(loc_.ortho, ortho ? 1 : 0);
+    sentEye_ = eye;
+    sentViewDir_ = viewDir;
+    sentOrtho_ = ortho;
+  }
+  frameSent_ = true;
 }
 
 void GlScene::drawShaded(const Node& node, uint64_t stamp, const Mat4& viewProj, const Vec3& eye,
                          const Vec3& viewDir, bool ortho, const QColor& color, float alpha) {
-  GpuMesh& m = meshFor(node, stamp);
-  if (!m.triCount) return;
+  GLsizei tris = 0, wires = 0;
+  const LocalMesh* m = meshFor(node, stamp, &tris, &wires);
+  if (!tris) return;
   Mat4 model = node.objectWorldMatrix();
   QMatrix4x4 qModel = toQt(model);
-  meshProg_.bind();
-  meshProg_.setUniformValue("uMVP", toQt(viewProj * model));
-  meshProg_.setUniformValue("uModel", qModel);
-  meshProg_.setUniformValue("uNormalMat", qModel.normalMatrix());
-  meshProg_.setUniformValue("uColor", QVector3D(color.redF(), color.greenF(), color.blueF()));
-  meshProg_.setUniformValue("uEye", QVector3D(eye.x, eye.y, eye.z));
-  meshProg_.setUniformValue("uViewDir", QVector3D(viewDir.x, viewDir.y, viewDir.z));
-  meshProg_.setUniformValue("uOrtho", ortho ? 1 : 0);
-  meshProg_.setUniformValue("uAlpha", alpha);
-  meshProg_.setUniformValue("uFacets", style_.facets ? 1 : 0);
-  meshProg_.setUniformValue("uHeadOnly", style_.headlightOnly ? 1 : 0);
-  meshProg_.setUniformValue("uLightCount", style_.lightCount);
-  for (int i = 0; i < 4; ++i) {
-    const Vec3& lp = style_.lightPos[i];
-    const Vec3& lc = style_.lightColor[i];
-    QByteArray idx = QByteArray::number(i);
-    meshProg_.setUniformValue(("uLightPos[" + idx + "]").constData(), QVector3D(lp.x, lp.y, lp.z));
-    meshProg_.setUniformValue(("uLightColor[" + idx + "]").constData(), QVector3D(lc.x, lc.y, lc.z));
-    meshProg_.setUniformValue(("uLightDir[" + idx + "]").constData(), style_.lightDirectional[i] ? 1 : 0);
-  }
-  gl_->glBindVertexArray(m.triVao);
-  gl_->glDrawElements(GL_TRIANGLES, m.triCount, GL_UNSIGNED_INT, nullptr);
+  useProgram(meshProg_);
+  applyFrameUniforms(eye, viewDir, ortho);
+  meshProg_.setUniformValue(loc_.mvp, toQt(viewProj * model));
+  meshProg_.setUniformValue(loc_.model, qModel);
+  meshProg_.setUniformValue(loc_.normalMat, qModel.normalMatrix());
+  meshProg_.setUniformValue(loc_.color, QVector3D(color.redF(), color.greenF(), color.blueF()));
+  meshProg_.setUniformValue(loc_.alpha, alpha);
+  gl_->glBindVertexArray(m->triVao);
+  if (!g_skipDraws) gl_->glDrawElements(GL_TRIANGLES, tris, GL_UNSIGNED_INT, nullptr);
   gl_->glBindVertexArray(0);
-  meshProg_.release();
 }
 
 void GlScene::drawWire(const Node& node, uint64_t stamp, const Mat4& viewProj, const QColor& color) {
-  GpuMesh& m = meshFor(node, stamp);
-  if (!m.wireCount) return;
-  lineProg_.bind();
-  lineProg_.setUniformValue("uMVP", toQt(viewProj * node.objectWorldMatrix()));
-  gl_->glBindVertexArray(m.wireVao);
-  QOpenGLContext::currentContext()->functions()->glVertexAttrib4f(1, color.redF(), color.greenF(), color.blueF(),
-                                                                  color.alphaF());
-  gl_->glDrawElements(GL_LINES, m.wireCount, GL_UNSIGNED_INT, nullptr);
+  GLsizei tris = 0, wires = 0;
+  const LocalMesh* m = meshFor(node, stamp, &tris, &wires);
+  if (!wires) return;
+  useProgram(lineProg_);
+  lineProg_.setUniformValue(loc_.lineMvp, toQt(viewProj * node.objectWorldMatrix()));
+  gl_->glBindVertexArray(m->wireVao);
+  gl_->glVertexAttrib4f(1, color.redF(), color.greenF(), color.blueF(), color.alphaF());
+  if (!g_skipDraws) gl_->glDrawElements(GL_LINES, wires, GL_UNSIGNED_INT, nullptr);
   gl_->glBindVertexArray(0);
-  lineProg_.release();
 }
 
 void GlScene::uploadLines(const std::vector<LineVertex>& v) {
@@ -251,8 +362,8 @@ void GlScene::uploadLines(const std::vector<LineVertex>& v) {
 
 void GlScene::drawBatch(const LineBatch& batch, const Mat4& viewProj) {
   if (batch.empty()) return;
-  lineProg_.bind();
-  lineProg_.setUniformValue("uMVP", toQt(viewProj));
+  useProgram(lineProg_);
+  lineProg_.setUniformValue(loc_.lineMvp, toQt(viewProj));
   gl_->glBindVertexArray(lineVao_);
   if (!batch.tris.empty()) {
     uploadLines(batch.tris);
@@ -263,7 +374,6 @@ void GlScene::drawBatch(const LineBatch& batch, const Mat4& viewProj) {
     gl_->glDrawArrays(GL_LINES, 0, static_cast<GLsizei>(batch.lines.size()));
   }
   gl_->glBindVertexArray(0);
-  lineProg_.release();
 }
 
 void GlScene::drawBackground(const QColor& top, const QColor& bottom) {
@@ -281,10 +391,22 @@ void GlScene::drawBackground(const QColor& top, const QColor& bottom) {
 void GlScene::collectGarbage() {
   for (auto it = meshes_.begin(); it != meshes_.end();) {
     if (!it->second.used) {
-      release(it->second);
+      releaseLocal(it->second);
       it = meshes_.erase(it);
     } else {
       it->second.used = false;
+      ++it;
+    }
+  }
+  // Shared buffers no viewport has drawn for a while (deleted or long hidden nodes).
+  uint64_t frame = ++shared_->frame;
+  uint64_t keep = static_cast<uint64_t>(shared_->users) * 4 + 4;
+  for (auto it = shared_->meshes.begin(); it != shared_->meshes.end();) {
+    if (frame - it->second.lastUsed > keep) {
+      GLuint bufs[4] = {it->second.triVbo, it->second.triEbo, it->second.wireVbo, it->second.wireEbo};
+      gl_->glDeleteBuffers(4, bufs);
+      it = shared_->meshes.erase(it);
+    } else {
       ++it;
     }
   }

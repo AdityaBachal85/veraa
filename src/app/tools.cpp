@@ -903,7 +903,7 @@ void snapshot(MainWindow& w) {
       std::unique_ptr<Node> copy;
       if (method->currentIndex() == 3) {
         auto poly = std::make_shared<EditablePolyObject>();
-        poly->mesh = src->mesh();
+        poly->setMesh(src->mesh());
         copy = std::make_unique<Node>();
         copy->object = poly;
         copy->materialId = src->materialId;

@@ -10,6 +10,7 @@
 #include <map>
 #include <sstream>
 #include <stdexcept>
+#include <unordered_set>
 
 #include "registry.h"
 
@@ -146,6 +147,23 @@ void Node::invalidate() {
 void Node::evaluate() const {
   uint64_t rev = stackRevision();
   if (!dirty_ && rev == evaluatedRevision_) return;
+  // An Editable Poly without modifiers (imported models): use its mesh as is, shared.
+  if (auto* ep = dynamic_cast<const EditablePolyObject*>(geometry()); ep && ep->sel.hiddenFaces.empty()) {
+    bool anyModifier = false;
+    for (const auto& m : modifiers) anyModifier |= m && m->enabled;
+    if (!anyModifier) {
+      sharedMesh_ = ep->sharedMesh();
+      mesh_.clear();
+      shapeLines_.clear();
+      isShape_ = false;
+      tri_ = triangulate(*sharedMesh_);
+      dirty_ = false;
+      evaluatedRevision_ = rev;
+      geometryStamp_ = ++g_geometryStamp;
+      return;
+    }
+  }
+  sharedMesh_.reset();
   GeomState st;
   st.time = scene_ ? scene_->time.currentFrame : 0.0;
   st.scene = scene_;
@@ -153,7 +171,7 @@ void Node::evaluate() const {
   if (auto* g = geometry()) {
     st.mesh = g->buildAt(st);
     // An Editable Poly at a sub-object level passes its selection to the modifiers above.
-    if (auto* ep = dynamic_cast<const EditablePolyObject*>(g)) st.selWeights = stackSelectionWeights(ep->mesh, ep->sel);
+    if (auto* ep = dynamic_cast<const EditablePolyObject*>(g)) st.selWeights = stackSelectionWeights(ep->mesh(), ep->sel);
   } else if (auto* s = shapeObject()) {
     st.shape = s->buildShape();
     st.isShape = true;
@@ -188,7 +206,7 @@ void Node::evaluate() const {
 
 const PolyMesh& Node::mesh() const {
   evaluate();
-  return mesh_;
+  return sharedMesh_ ? *sharedMesh_ : mesh_;
 }
 
 const TriMesh& Node::triMesh() const {
@@ -225,7 +243,7 @@ Aabb Node::worldBounds() const {
   return b;
 }
 
-json Node::toJson() const {
+json Node::fieldsJson() const {
   json j{{"id", id},
          {"name", name},
          {"transform", transform.toJson()},
@@ -255,6 +273,11 @@ json Node::toJson() const {
   if (!flags.empty()) j["flags"] = std::move(flags);
   if (gBufferId) j["gBufferId"] = gBufferId;
   if (!userProps.empty()) j["userProps"] = userProps;
+  return j;
+}
+
+json Node::toJson() const {
+  json j = fieldsJson();
   if (object) j["object"] = object->toJson();
   json mods = json::array();
   for (const auto& m : modifiers)
@@ -264,9 +287,37 @@ json Node::toJson() const {
 }
 
 void Node::fromJson(const json& j) {
+  fromJsonFields(j);
+  object.reset();
+  if (j.contains("object")) {
+    std::string type = j["object"].value("type", std::string());
+    auto obj = createObject(type);
+    if (!obj) throw std::runtime_error("Unknown object type: " + type);
+    obj->fromJson(j["object"]);
+    object = std::move(obj);
+  }
+  modifiers.clear();
+  if (j.contains("modifiers"))
+    for (const auto& jm : j["modifiers"]) {
+      if (jm.contains("ref")) {  // shared with another node; resolved by Scene::fromJson
+        modifiers.push_back(nullptr);
+        continue;
+      }
+      std::string type = jm.value("type", std::string());
+      auto m = createModifier(type);
+      if (!m) throw std::runtime_error("Unknown modifier type: " + type);
+      m->fromJson(jm);
+      modifiers.push_back(std::move(m));
+    }
+  dirty_ = true;
+}
+
+void Node::fromJsonFields(const json& j) {
   id = j.value("id", 0u);
   name = j.value("name", std::string("Object"));
+  transform = Transform();
   if (j.contains("transform")) transform.fromJson(j["transform"]);
+  objectOffset = Transform();
   if (j.contains("objectOffset")) objectOffset.fromJson(j["objectOffset"]);
   parentId = j.value("parent", 0u);
   layerId = j.value("layer", 0u);
@@ -290,29 +341,11 @@ void Node::fromJson(const json& j) {
     groupHead = f.value("groupHead", false);
     groupOpen = f.value("groupOpen", false);
     groupMember = f.value("groupMember", false);
+  } else {
+    frozen = seeThrough = displayAsBox = backfaceCull = false;
+    castShadows = receiveShadows = visibleToCamera = visibleToReflections = motionBlur = true;
+    groupHead = groupOpen = groupMember = false;
   }
-  object.reset();
-  if (j.contains("object")) {
-    std::string type = j["object"].value("type", std::string());
-    auto obj = createObject(type);
-    if (!obj) throw std::runtime_error("Unknown object type: " + type);
-    obj->fromJson(j["object"]);
-    object = std::move(obj);
-  }
-  modifiers.clear();
-  if (j.contains("modifiers"))
-    for (const auto& jm : j["modifiers"]) {
-      if (jm.contains("ref")) {  // shared with another node; resolved by Scene::fromJson
-        modifiers.push_back(nullptr);
-        continue;
-      }
-      std::string type = jm.value("type", std::string());
-      auto m = createModifier(type);
-      if (!m) throw std::runtime_error("Unknown modifier type: " + type);
-      m->fromJson(jm);
-      modifiers.push_back(std::move(m));
-    }
-  dirty_ = true;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -455,6 +488,7 @@ Node* Scene::addNode(std::unique_ptr<Node> node) {
   if (node->parentId && !findNode(node->parentId)) node->parentId = 0;
   if (!findLayer(node->layerId)) node->layerId = 0;
   node->dirty_ = true;
+  if (bulkNames_) ++(*bulkNames_)[node->name];
   nodes.push_back(std::move(node));
   Node* n = nodes.back().get();
   index_[n->id] = n;
@@ -471,6 +505,10 @@ bool Scene::removeNode(uint32_t id) {
     child->setWorldMatrix(w);
   }
   index_.erase(id);
+  if (bulkNames_) {
+    auto it = bulkNames_->find(victim->name);
+    if (it != bulkNames_->end() && --it->second <= 0) bulkNames_->erase(it);
+  }
   for (auto it = nodes.begin(); it != nodes.end(); ++it)
     if (it->get() == victim) {
       nodes.erase(it);
@@ -494,9 +532,31 @@ Node* Scene::findNode(uint32_t id) const {
 }
 
 Node* Scene::findNodeByName(const std::string& name) const {
+  if (bulkNames_ && !bulkNames_->count(name)) return nullptr;
   for (const auto& n : nodes)
     if (n->name == name) return n.get();
   return nullptr;
+}
+
+void Scene::beginBulkNames() {
+  bulkNames_ = std::make_unique<std::unordered_map<std::string, int>>();
+  bulkNames_->reserve(nodes.size() * 2 + 64);
+  for (const auto& n : nodes) ++(*bulkNames_)[n->name];
+}
+
+void Scene::endBulkNames() {
+  bulkNames_.reset();
+  bulkHints_.clear();
+}
+
+void Scene::renameNode(Node* n, const std::string& name) {
+  if (!n || n->name == name) return;
+  if (bulkNames_) {
+    auto it = bulkNames_->find(n->name);
+    if (it != bulkNames_->end() && --it->second <= 0) bulkNames_->erase(it);
+    ++(*bulkNames_)[name];
+  }
+  n->name = name;
 }
 
 std::vector<Node*> Scene::children(uint32_t id) const {
@@ -631,11 +691,28 @@ Material* Scene::findMaterial(uint32_t id) const {
 }
 
 std::string Scene::uniqueNodeName(const std::string& base) const {
-  for (int i = 1;; ++i) {
+  auto candidate = [&](int i) {
     char buf[16];
     std::snprintf(buf, sizeof(buf), "%03d", i);
-    std::string candidate = base + buf;
-    if (!findNodeByName(candidate)) return candidate;
+    return base + buf;
+  };
+  if (bulkNames_) {
+    // Names are only added while loading in bulk, so numbers below the last one handed out for
+    // this base are still taken.
+    int& hint = bulkHints_[base];
+    for (int i = std::max(hint, 1);; ++i)
+      if (!bulkNames_->count(candidate(i))) {
+        hint = i;
+        return candidate(i);
+      }
+  }
+  // One pass collecting the numbers already used after `base`, instead of a scan per number.
+  std::unordered_set<std::string> taken;
+  for (const auto& n : nodes)
+    if (n->name.size() > base.size() && n->name.compare(0, base.size(), base) == 0) taken.insert(n->name);
+  for (int i = 1;; ++i) {
+    std::string c = candidate(i);
+    if (!taken.count(c)) return c;
   }
 }
 
@@ -666,6 +743,8 @@ Aabb Scene::bounds(bool geometryOnly) const {
 void Scene::clear() {
   nodes.clear();
   index_.clear();
+  if (bulkNames_) bulkNames_->clear();
+  bulkHints_.clear();
   materials.clear();
   layers.clear();
   layers.push_back(defaultLayer());
@@ -682,7 +761,7 @@ void Scene::clear() {
   colorCounter_ = 0;
 }
 
-json Scene::toJson() const {
+json Scene::globalsJson() const {
   json j{{"format", "veraa-scene"}, {"version", 2}, {"renderSettings", renderSettings.toJson()}};
   json ls = json::array();
   for (const auto& l : layers)
@@ -692,44 +771,8 @@ json Scene::toJson() const {
                       {"frozen", l.frozen},
                       {"renderable", l.renderable},
                       {"color", vec3ToJson(l.color)}});
-  json mats = json::array();
-  for (const auto& m : materials) mats.push_back(m->toJson());
-
-  // Instances: the first node owning an object/modifier writes it; later ones reference it.
-  std::map<const SceneObject*, uint32_t> objectOwner;
-  std::map<const Modifier*, std::pair<uint32_t, size_t>> modifierOwner;
-  json ns = json::array();
-  for (const auto& n : nodes) {
-    json jn = n->toJson();
-    if (n->object) {
-      auto it = objectOwner.find(n->object.get());
-      if (it != objectOwner.end()) {
-        jn.erase("object");
-        jn["instanceOf"] = it->second;
-      } else {
-        objectOwner[n->object.get()] = n->id;
-      }
-    }
-    json mods = json::array();
-    size_t written = 0;
-    for (const auto& m : n->modifiers) {
-      if (!m) continue;
-      auto it = modifierOwner.find(m.get());
-      if (it != modifierOwner.end()) {
-        mods.push_back(json{{"ref", json::array({it->second.first, it->second.second})}});
-      } else {
-        modifierOwner[m.get()] = {n->id, written};
-        mods.push_back(m->toJson());
-      }
-      ++written;
-    }
-    jn["modifiers"] = std::move(mods);
-    ns.push_back(std::move(jn));
-  }
   j["layers"] = std::move(ls);
   j["currentLayer"] = currentLayerId;
-  j["materials"] = std::move(mats);
-  j["nodes"] = std::move(ns);
   j["time"] = time.toJson();
   json ext = extensions;
   for (const auto& m : modules_) {
@@ -742,6 +785,90 @@ json Scene::toJson() const {
   j["nextMaterialId"] = nextMaterialId_;
   j["nextLayerId"] = nextLayerId_;
   return j;
+}
+
+std::vector<json> Scene::nodesJson() const {
+  // Instances: the first node owning an object/modifier writes it; later ones reference it.
+  std::unordered_map<const SceneObject*, uint32_t> objectOwner;
+  std::unordered_map<const Modifier*, std::pair<uint32_t, size_t>> modifierOwner;
+  std::vector<json> ns;
+  ns.reserve(nodes.size());
+  for (const auto& n : nodes) {
+    // Only shared objects need the owner map (a use count of 1 cannot be an instance).
+    json jn = n->fieldsJson();
+    if (n->object) {
+      bool sharedObject = n->object.use_count() > 1;
+      auto it = sharedObject ? objectOwner.find(n->object.get()) : objectOwner.end();
+      if (it != objectOwner.end()) {
+        jn["instanceOf"] = it->second;
+      } else {
+        if (sharedObject) objectOwner[n->object.get()] = n->id;
+        jn["object"] = n->object->toJson();
+      }
+    }
+    json mods = json::array();
+    size_t written = 0;
+    for (const auto& m : n->modifiers) {
+      if (!m) continue;
+      auto mit = m.use_count() > 1 ? modifierOwner.find(m.get()) : modifierOwner.end();
+      if (mit != modifierOwner.end()) {
+        mods.push_back(json{{"ref", json::array({mit->second.first, mit->second.second})}});
+      } else {
+        if (m.use_count() > 1) modifierOwner[m.get()] = {n->id, written};
+        mods.push_back(m->toJson());
+      }
+      ++written;
+    }
+    jn["modifiers"] = std::move(mods);
+    ns.push_back(std::move(jn));
+  }
+  return ns;
+}
+
+json Scene::toJson() const {
+  json j = globalsJson();
+  json mats = json::array();
+  for (const auto& m : materials) mats.push_back(m->toJson());
+  json ns = json::array();
+  for (auto& jn : nodesJson()) ns.push_back(std::move(jn));
+  j["materials"] = std::move(mats);
+  j["nodes"] = std::move(ns);
+  return j;
+}
+
+void Scene::applyGlobals(const json& j) {
+  renderSettings = ParamBlock();
+  defineRenderSettings(renderSettings);
+  if (j.contains("renderSettings")) renderSettings.fromJson(j["renderSettings"]);
+  time = TimeConfig();
+  if (j.contains("time")) time.fromJson(j["time"]);
+  extensions = j.contains("extensions") && j["extensions"].is_object() ? j["extensions"] : json::object();
+  uint32_t maxLayer = 0;
+  layers.clear();
+  if (j.contains("layers"))
+    for (const auto& jl : j["layers"]) {
+      Layer l;
+      l.id = jl.value("id", 0u);
+      l.name = jl.value("name", std::string("Layer"));
+      l.hidden = jl.value("hidden", false);
+      l.frozen = jl.value("frozen", false);
+      l.renderable = jl.value("renderable", true);
+      l.color = vec3FromJson(jl.value("color", json()), l.color);
+      maxLayer = std::max(maxLayer, l.id);
+      layers.push_back(l);
+    }
+  if (!findLayer(0)) layers.insert(layers.begin(), defaultLayer());
+  currentLayerId = j.value("currentLayer", 0u);
+  if (!findLayer(currentLayerId)) currentLayerId = 0;
+  nextLayerId_ = std::max(j.value("nextLayerId", 1u), maxLayer + 1);
+  nextNodeId_ = std::max(nextNodeId_, j.value("nextNodeId", 1u));
+  nextMaterialId_ = std::max(nextMaterialId_, j.value("nextMaterialId", 1u));
+  // Module data (live) is loaded from its extensions section, which it then owns.
+  for (auto& m : modules_) {
+    auto it = extensions.find(m.first);
+    m.second->fromJson(it != extensions.end() ? *it : json());
+    if (it != extensions.end()) extensions.erase(it);
+  }
 }
 
 bool Scene::fromJson(const json& j, std::string* error) {
@@ -844,6 +971,221 @@ bool Scene::fromJson(const json& j, std::string* error) {
     return false;
   }
 }
+
+// ---------------------------------------------------------------------------------------------
+// Undo snapshots
+
+namespace {
+
+bool sameEntries(const std::vector<std::shared_ptr<const json>>& a, const std::vector<std::shared_ptr<const json>>& b) {
+  if (a.size() != b.size()) return false;
+  for (size_t i = 0; i < a.size(); ++i)
+    if (a[i] != b[i] && *a[i] != *b[i]) return false;
+  return true;
+}
+
+// Shares `j` with the entry of `previous` holding the same id when equal (or makes a new entry).
+std::shared_ptr<const json> shareEntry(json&& j, const std::unordered_map<uint32_t, const std::shared_ptr<const json>*>& previous) {
+  auto it = previous.find(j.value("id", 0u));
+  if (it != previous.end() && **it->second == j) return *it->second;
+  return std::make_shared<const json>(std::move(j));
+}
+
+}  // namespace
+
+bool SceneSnapshot::sameAs(const SceneSnapshot& o) const {
+  return globals == o.globals && sameEntries(materials, o.materials) && sameEntries(nodes, o.nodes);
+}
+
+std::shared_ptr<const SceneSnapshot> Scene::snapshot(const SceneSnapshot* previous) const {
+  auto s = std::make_shared<SceneSnapshot>();
+  MeshRefScope refs(&s->meshes);
+  s->globals = globalsJson();
+  std::unordered_map<uint32_t, const std::shared_ptr<const json>*> prevNodes, prevMats;
+  if (previous) {
+    for (const auto& e : previous->nodes) prevNodes[e->value("id", 0u)] = &e;
+    for (const auto& e : previous->materials) prevMats[e->value("id", 0u)] = &e;
+  }
+  s->materials.reserve(materials.size());
+  for (const auto& m : materials) s->materials.push_back(shareEntry(m->toJson(), prevMats));
+  std::vector<json> ns = nodesJson();
+  s->nodes.reserve(ns.size());
+  for (auto& jn : ns) s->nodes.push_back(shareEntry(std::move(jn), prevNodes));
+  return s;
+}
+
+SceneRestoreResult Scene::restore(const SceneSnapshot& s) {
+  SceneRestoreResult r;
+  // ---- Globals (render settings, layers, time, module data) ----
+  json cur = globalsJson();
+  if (cur != s.globals) {
+    r.globals = true;
+    r.renderSettings = cur.value("renderSettings", json()) != s.globals.value("renderSettings", json());
+    applyGlobals(s.globals);
+  }
+
+  // ---- Materials: rebuilt when any differs (they are small) ----
+  {
+    bool same = materials.size() == s.materials.size();
+    for (size_t i = 0; same && i < materials.size(); ++i) same = materials[i]->toJson() == *s.materials[i];
+    if (!same) {
+      r.materials = true;
+      materials.clear();
+      for (const auto& jm : s.materials) {
+        auto m = std::make_unique<Material>();
+        m->fromJson(*jm);
+        materials.push_back(std::move(m));
+      }
+    }
+  }
+
+  // ---- Nodes: keep the ones that match, update fields in place, rebuild the rest ----
+  MeshRefTable currentRefs;
+  std::vector<json> current;
+  {
+    MeshRefScope refs(&currentRefs);
+    current = nodesJson();
+  }
+  std::unordered_map<uint32_t, const json*> currentById;
+  for (const auto& jn : current) currentById[jn.value("id", 0u)] = &jn;
+
+  std::unordered_map<uint32_t, std::unique_ptr<Node>> pool;  // existing nodes by id
+  std::vector<uint32_t> oldOrder;
+  oldOrder.reserve(nodes.size());
+  for (auto& n : nodes) {
+    oldOrder.push_back(n->id);
+    pool[n->id] = std::move(n);
+  }
+  nodes.clear();
+  index_.clear();
+
+  auto field = [](const json& j, const char* key) -> const json* {
+    auto it = j.find(key);
+    return it == j.end() ? nullptr : &*it;
+  };
+  auto sameField = [&](const json& a, const json& b, const char* key) {
+    const json* x = field(a, key);
+    const json* y = field(b, key);
+    return (!x && !y) || (x && y && *x == *y);
+  };
+
+  std::unordered_set<uint32_t> rebuilt;  // nodes whose object or modifiers were recreated
+  std::vector<std::pair<Node*, const json*>> needsResolve;
+  {
+    MeshRefScope refs(const_cast<MeshRefTable*>(&s.meshes));
+    for (const auto& entry : s.nodes) {
+      const json& target = *entry;
+      uint32_t id = target.value("id", 0u);
+      auto pit = pool.find(id);
+      std::unique_ptr<Node> node;
+      if (pit != pool.end() && pit->second) {
+        node = std::move(pit->second);
+        const json& was = *currentById[id];
+        if (was != target) {
+          r.nodes.push_back(id);
+          int what = 0;
+          auto differs = [&](const char* key) { return !sameField(was, target, key); };
+          if (differs("transform") || differs("objectOffset") || differs("parent")) what |= 1;
+          if (differs("object") || differs("instanceOf") || differs("modifiers")) what |= 2;
+          if (differs("material")) what |= 4;
+          if (differs("name")) what |= 8;
+          for (const char* k : {"hidden", "renderable", "wireColor", "layer", "flags", "gBufferId", "userProps"})
+            if (differs(k)) what |= 16;
+          r.nodeChanges.emplace_back(id, what ? what : 31);
+          bool sameGeometry = sameField(was, target, "object") && sameField(was, target, "instanceOf") &&
+                              sameField(was, target, "modifiers");
+          if (sameGeometry) {
+            node->fromJsonFields(target);
+          } else {
+            node->fromJson(target);
+            rebuilt.insert(id);
+            r.geometryNodes.push_back(id);
+            needsResolve.emplace_back(node.get(), &target);
+          }
+        }
+      } else {
+        node = std::make_unique<Node>();
+        node->fromJson(target);
+        rebuilt.insert(id);
+        r.nodes.push_back(id);
+        r.geometryNodes.push_back(id);
+        r.structure = true;
+        needsResolve.emplace_back(node.get(), &target);
+      }
+      node->scene_ = this;
+      index_[node->id] = node.get();
+      nodes.push_back(std::move(node));
+    }
+  }
+  for (auto& [id, n] : pool)
+    if (n) r.structure = true;  // removed
+  if (!r.structure) {
+    // Same set of nodes; did the order change?
+    for (size_t i = 0; i < nodes.size() && !r.structure; ++i) r.structure = i >= oldOrder.size() || nodes[i]->id != oldOrder[i];
+  }
+  pool.clear();
+
+  // Kept nodes that share an object or modifier with a rebuilt node must point at the new one.
+  for (size_t i = 0; i < nodes.size(); ++i) {
+    Node& n = *nodes[i];
+    if (rebuilt.count(n.id)) continue;
+    const json& target = *s.nodes[i];
+    bool refers = false;
+    if (auto it = target.find("instanceOf"); it != target.end()) refers |= rebuilt.count(it->get<uint32_t>()) != 0;
+    if (auto it = target.find("modifiers"); it != target.end())
+      for (const auto& jm : *it)
+        if (auto ref = jm.find("ref"); ref != jm.end()) refers |= rebuilt.count((*ref)[0].get<uint32_t>()) != 0;
+    if (refers) needsResolve.emplace_back(&n, &target);
+  }
+  for (auto& [np, jp] : needsResolve) {
+    Node& n = *np;
+    const json& jn = *jp;
+    if (auto it = jn.find("instanceOf"); it != jn.end())
+      if (Node* owner = findNode(it->get<uint32_t>()); owner && owner->object) n.object = owner->object;
+    if (auto it = jn.find("modifiers"); it != jn.end()) {
+      const json& mods = *it;
+      if (n.modifiers.size() != mods.size()) n.modifiers.resize(mods.size());
+      for (size_t k = 0; k < mods.size(); ++k) {
+        auto ref = mods[k].find("ref");
+        if (ref == mods[k].end()) continue;
+        Node* owner = findNode((*ref)[0].get<uint32_t>());
+        size_t idx = (*ref)[1].get<size_t>();
+        n.modifiers[k] = owner && idx < owner->modifiers.size() ? owner->modifiers[idx] : nullptr;
+      }
+      n.modifiers.erase(std::remove(n.modifiers.begin(), n.modifiers.end(), nullptr), n.modifiers.end());
+    }
+    if (!n.object) n.object = std::make_shared<EditablePolyObject>();
+    n.dirty_ = true;
+    if (!rebuilt.count(n.id)) {
+      r.nodes.push_back(n.id);
+      r.geometryNodes.push_back(n.id);
+    }
+  }
+  for (auto& n : nodes) {
+    if (n->parentId && (!findNode(n->parentId) || isAncestor(n->id, n->parentId))) n->parentId = 0;
+    if (!findLayer(n->layerId)) n->layerId = 0;
+  }
+  uint32_t maxNode = 0, maxMat = 0;
+  for (auto& n : nodes) maxNode = std::max(maxNode, n->id);
+  for (auto& m : materials) maxMat = std::max(maxMat, m->id);
+  nextNodeId_ = std::max(s.globals.value("nextNodeId", 1u), maxNode + 1);
+  nextMaterialId_ = std::max(s.globals.value("nextMaterialId", 1u), maxMat + 1);
+  auto dedupe = [](std::vector<uint32_t>& v) {
+    std::sort(v.begin(), v.end());
+    v.erase(std::unique(v.begin(), v.end()), v.end());
+  };
+  dedupe(r.nodes);
+  dedupe(r.geometryNodes);
+  colorCounter_ = static_cast<uint32_t>(nodes.size());
+  if (bulkNames_) {
+    bulkNames_->clear();
+    for (auto& n : nodes) ++(*bulkNames_)[n->name];
+  }
+  return r;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Files
 
 bool Scene::save(const std::string& path, std::string* error) {
   std::ofstream f(std::filesystem::u8path(path), std::ios::binary);

@@ -85,6 +85,9 @@ class ParamBlock {
   std::string currentGroup_ = "Parameters";
 };
 
+// Process-wide increasing stamp for object and modifier revisions (never repeats).
+uint64_t nextRevisionStamp();
+
 json vec3ToJson(const Vec3& v);
 Vec3 vec3FromJson(const json& j, const Vec3& fallback = Vec3());
 
