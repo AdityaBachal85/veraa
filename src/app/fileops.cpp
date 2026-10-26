@@ -41,6 +41,7 @@
 #include "dialogs.h"
 #include "icons.h"
 #include "interfacedata.h"
+#include "importjob.h"
 #include "io_formats.h"
 #include "mainwindow.h"
 #include "miniz/miniz.h"
@@ -569,7 +570,14 @@ bool MainWindow::importPathWith(const QString& path, const ImportOptions& option
   ImportResult res;
   std::string err;
   QApplication::setOverrideCursor(Qt::WaitCursor);
-  bool ok = importScene(doc_->scene(), path.toStdString(), options, &res, &err);
+  bool ok = importInBackground(
+      this, tr("Importing %1...").arg(QFileInfo(path).fileName()), doc_->scene(),
+      [&](Scene& into, ImportProgress& progress, std::string& e) {
+        ImportOptions o = options;
+        o.progress = &progress;
+        return importScene(into, path.toStdString(), o, &res, &e);
+      },
+      &res.nodeIds, &err);
   QApplication::restoreOverrideCursor();
   if (!ok) {
     doc_->cancelEdit();

@@ -7,6 +7,7 @@
 #include <QFileInfo>
 #include <QUndoStack>
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
@@ -126,14 +127,18 @@ int runBench(MainWindow& w) {
   GlScene::resetStats();
   t.start();
   double navCpu = 0;
-  for (int i = 0; i < 5; ++i) {
+  // VERAA_BENCH_ORBIT_FRAMES repeats the orbit (for profiling the navigation frame).
+  int orbitFrames = std::max(5, qEnvironmentVariableIntValue("VERAA_BENCH_ORBIT_FRAMES"));
+  for (int i = 0; i < orbitFrames; ++i) {
     persp->camera().yawDeg += 2.0f;
     persp->grabFramebuffer();
     navCpu += persp->lastPaintCpuMs();
   }
   persp->setProperty("navigating", false);
-  report("orbit frame (persp, avg)", t.elapsed() / 5);
-  std::printf("BENCH   paintGL CPU %.1f ms/frame, uploaded %.1f MB\n", navCpu / 5, GlScene::uploadedBytes() / 1048576.0);
+  report("orbit frame (persp, avg)", t.elapsed() / orbitFrames);
+  std::printf("BENCH   paintGL CPU %.1f ms/frame, uploaded %.1f MB; objects drawn %zu, culled %zu, as boxes %zu\n",
+              navCpu / orbitFrames, GlScene::uploadedBytes() / 1048576.0, persp->lastDrawnObjects(),
+              persp->lastCulledObjects(), persp->lastBoxedObjects());
 
   // Select one object in the middle of the list.
   uint32_t target = 0;
@@ -145,9 +150,11 @@ int runBench(MainWindow& w) {
   if (Node* n = scene.findNode(target)) {
     QPointF p = testing::projectPoint(persp, n->worldBounds().center());
     t.start();
-    uint32_t hit = 0;
+    uint32_t hit = persp->pickNode(static_cast<float>(p.x()), static_cast<float>(p.y()));
+    report("click pick (first)", t.elapsed());
+    t.start();
     for (int i = 0; i < 5; ++i) hit = persp->pickNode(static_cast<float>(p.x()), static_cast<float>(p.y()));
-    report("click pick (avg)", t.elapsed() / 5);
+    std::printf("BENCH click pick (next, avg)          %.2f ms\n", t.nsecsElapsed() / 5e6);
     std::printf("BENCH   picked %u (selected %u)\n", hit, target);
   }
 

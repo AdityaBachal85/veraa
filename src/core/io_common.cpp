@@ -77,6 +77,16 @@ Node* addMeshNode(Scene& scene, const std::string& name, PolyMesh mesh) {
   return n;
 }
 
+Node* addMeshNode(Scene& scene, const std::string& name, std::shared_ptr<const PolyMesh> mesh) {
+  Node* n = scene.createNode("EditablePoly");
+  if (!n) return nullptr;
+  scene.renameNode(n, uniqueName(scene, name));
+  static_cast<EditablePolyObject*>(n->object.get())->setSharedMesh(std::move(mesh));
+  n->object->touch();
+  n->invalidate();
+  return n;
+}
+
 uint32_t addMaterial(Scene& scene, const std::string& name, const Vec3& diffuse, const std::string& diffuseMap,
                      float opacity) {
   Material* m = scene.createMaterial(name.empty() ? std::string("Material") : name);
@@ -130,6 +140,7 @@ bool importScene(Scene& scene, const std::string& path, const ImportOptions& opt
     o.yUp = options.convertAxes;
     o.scale = options.scale;
     o.importMaterials = options.importMaterials;
+    o.progress = options.progress;
     ObjImportResult res;
     if (!importObj(scene, path, o, &res, error)) return false;
     r->nodeIds.insert(r->nodeIds.end(), res.nodeIds.begin(), res.nodeIds.end());

@@ -36,6 +36,7 @@
 #include "extension.h"
 #include "framebuffer.h"
 #include "icons.h"
+#include "importjob.h"
 #include "icons_ui.h"
 #include "interfacedata.h"
 #include "layerexplorer.h"
@@ -1500,7 +1501,14 @@ void MainWindow::importObjFileFrom(const QString& f) {
   doc_->beginEdit(tr("Import OBJ"));
   ObjImportResult res;
   std::string err;
-  bool ok = importObj(doc_->scene(), f.toStdString(), opts.options(), &res, &err);
+  bool ok = importInBackground(
+      this, tr("Importing %1...").arg(QFileInfo(f).fileName()), doc_->scene(),
+      [&](Scene& into, ImportProgress& progress, std::string& e) {
+        ObjImportOptions o = opts.options();
+        o.progress = &progress;
+        return importObj(into, f.toStdString(), o, &res, &e);
+      },
+      &res.nodeIds, &err);
   QApplication::restoreOverrideCursor();
   if (!ok) {
     doc_->cancelEdit();

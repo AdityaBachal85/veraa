@@ -548,8 +548,10 @@ void weldVertices(PolyMesh& mesh) {
   };
 
   std::unordered_map<Key, int, KeyHash> map;
+  map.reserve(mesh.positions.size());
   std::vector<int> remap(mesh.positions.size());
   std::vector<Vec3> newPos;
+  newPos.reserve(mesh.positions.size());
   for (size_t i = 0; i < mesh.positions.size(); ++i) {
     const Vec3& p = mesh.positions[i];
     Key k{bits(p.x), bits(p.y), bits(p.z)};

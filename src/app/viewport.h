@@ -4,6 +4,8 @@
 #include <QEvent>
 #include <QOpenGLFunctions_3_3_Core>
 #include <QOpenGLWidget>
+
+#include <unordered_map>
 #include <QPoint>
 #include <QPolygonF>
 
@@ -102,6 +104,10 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
   void transformFrame(Vec3 axes[3], Vec3& origin) const;
   // CPU time of the last paintGL call in milliseconds (benchmarks).
   double lastPaintCpuMs() const { return lastPaintMs_; }
+  // Objects drawn, culled (outside the view or sub-pixel) and drawn as boxes in the last paint.
+  size_t lastDrawnObjects() const { return lastDrawn_; }
+  size_t lastCulledObjects() const { return lastCulled_; }
+  size_t lastBoxedObjects() const { return lastBoxed_; }
 
   // Simulated input for the self test.
   void simulateMouse(QEvent::Type type, QPointF pos, Qt::MouseButton button, Qt::MouseButtons buttons,
@@ -190,6 +196,13 @@ class Viewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
   bool active_ = false;
   std::unique_ptr<GlScene> gl_;
   double lastPaintMs_ = 0;
+  // Adaptive degradation (see paintFinished).
+  double navCostMs_ = 0;
+  float degradePx_ = 0.0f;
+  size_t lastDrawn_ = 0, lastCulled_ = 0, lastBoxed_ = 0;
+  // Viewport colors of materials by id; cleared when materials change.
+  std::unordered_map<uint32_t, Vec3> matColors_;
+  void paintFinished(double ms);
   QString glError_;
   bool glReady_ = false;  // OpenGL 3.3 functions resolved for this context
   QOpenGLContext* hookedContext_ = nullptr;

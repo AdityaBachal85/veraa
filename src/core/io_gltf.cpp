@@ -4,6 +4,7 @@
 #include "cgltf/cgltf.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <cstring>
 #include <filesystem>
@@ -12,6 +13,7 @@
 #include <unordered_map>
 
 #include "io_util.h"
+#include "parallel.h"
 
 namespace veraa {
 
@@ -145,7 +147,94 @@ bool importGltf(Scene& scene, const std::string& path, const ImportOptions& opti
       materials[&m] = id;
     }
 
+  // Convert every mesh once, in parallel (nodes sharing a mesh share its PolyMesh).
+  struct Converted {
+    std::shared_ptr<PolyMesh> mesh;
+    uint32_t matId = 0;
+    bool mixed = false;
+  };
+  std::vector<Converted> converted(data->meshes_count);
+  std::atomic<size_t> meshesDone{0};
+  parallelFor(data->meshes_count, [&](size_t mi) {
+    if (options.progress && options.progress->cancelled()) return;
+    const cgltf_mesh& mesh = data->meshes[mi];
+    auto pm = std::make_shared<PolyMesh>();
+    Converted& out = converted[mi];
+    size_t verts = 0, tris = 0;
+    for (cgltf_size p = 0; p < mesh.primitives_count; ++p) {
+      const cgltf_primitive& prim = mesh.primitives[p];
+      if (prim.type != cgltf_primitive_type_triangles) continue;
+      for (cgltf_size a = 0; a < prim.attributes_count; ++a)
+        if (prim.attributes[a].type == cgltf_attribute_type_position) verts += prim.attributes[a].data->count;
+      tris += (prim.indices ? prim.indices->count : 0) / 3;
+    }
+    pm->positions.reserve(verts);
+    pm->faces.reserve(tris);
+    std::vector<float> buf;
+    std::vector<uint32_t> idx;
+    for (cgltf_size p = 0; p < mesh.primitives_count; ++p) {
+      const cgltf_primitive& prim = mesh.primitives[p];
+      if (prim.type != cgltf_primitive_type_triangles) continue;
+      const cgltf_accessor* pos = nullptr;
+      const cgltf_accessor* uv = nullptr;
+      for (cgltf_size a = 0; a < prim.attributes_count; ++a) {
+        if (prim.attributes[a].type == cgltf_attribute_type_position) pos = prim.attributes[a].data;
+        if (prim.attributes[a].type == cgltf_attribute_type_texcoord && prim.attributes[a].index == 0) uv = prim.attributes[a].data;
+      }
+      if (!pos) continue;
+      int base = static_cast<int>(pm->positions.size());
+      int uvBase = static_cast<int>(pm->uvs.size());
+      buf.assign(pos->count * 3, 0.0f);
+      cgltf_accessor_unpack_floats(pos, buf.data(), buf.size());
+      for (cgltf_size v = 0; v < pos->count; ++v)
+        pm->positions.push_back(C.transformPoint(Vec3(buf[v * 3], buf[v * 3 + 1], buf[v * 3 + 2])));
+      if (uv && cgltf_num_components(uv->type) >= 2) {
+        size_t comps = cgltf_num_components(uv->type);
+        buf.assign(uv->count * comps, 0.0f);
+        cgltf_accessor_unpack_floats(uv, buf.data(), buf.size());
+        for (cgltf_size v = 0; v < uv->count; ++v) pm->uvs.push_back(Vec2(buf[v * comps], 1.0f - buf[v * comps + 1]));
+      } else {
+        uv = nullptr;
+      }
+      cgltf_size count = prim.indices ? prim.indices->count : pos->count;
+      if (prim.indices) {
+        idx.assign(count, 0);
+        cgltf_accessor_unpack_indices(prim.indices, idx.data(), sizeof(uint32_t), count);
+      } else {
+        idx.resize(count);
+        for (cgltf_size k = 0; k < count; ++k) idx[k] = static_cast<uint32_t>(k);
+      }
+      for (cgltf_size k = 0; k + 2 < count; k += 3) {
+        uint32_t i0 = idx[k], i1 = idx[k + 1], i2 = idx[k + 2];
+        if (i0 >= pos->count || i1 >= pos->count || i2 >= pos->count) continue;
+        PolyMesh::Face f;
+        f.v = {base + static_cast<int>(i0), base + static_cast<int>(i1), base + static_cast<int>(i2)};
+        if (uv && i0 < uv->count && i1 < uv->count && i2 < uv->count)
+          f.uv = {uvBase + static_cast<int>(i0), uvBase + static_cast<int>(i1), uvBase + static_cast<int>(i2)};
+        f.smoothGroups = 1;
+        f.matId = static_cast<int>(p);
+        pm->faces.push_back(std::move(f));
+      }
+      auto it = materials.find(prim.material);
+      uint32_t m = it == materials.end() ? 0 : it->second;
+      if (p == 0) out.matId = m;
+      else if (m != out.matId) out.mixed = true;
+    }
+    if (options.weld) weldVertices(*pm);
+    out.mesh = std::move(pm);
+    reportProgress(options.progress, 0.05, 0.85, double(++meshesDone) / double(data->meshes_count));
+  });
+  if (options.progress && options.progress->cancelled()) {
+    cgltf_free(data);
+    if (error) *error = "Import cancelled";
+    return false;
+  }
+  std::vector<int> meshUsers(data->meshes_count, 0);
+  for (cgltf_size i = 0; i < data->nodes_count; ++i)
+    if (data->nodes[i].mesh) ++meshUsers[static_cast<size_t>(data->nodes[i].mesh - data->meshes)];
+
   const bool haveDummy = findObjectType("Dummy") != nullptr;
+  scene.beginBulkNames();
   std::function<void(const cgltf_node*, uint32_t)> visit = [&](const cgltf_node* gn, uint32_t parentId) {
     float lm[16];
     cgltf_node_transform_local(gn, lm);
@@ -153,51 +242,15 @@ bool importGltf(Scene& scene, const std::string& path, const ImportOptions& opti
     Node* n = nullptr;
     std::string name = gn->name ? gn->name : "";
     if (gn->mesh) {
-      PolyMesh pm;
-      uint32_t matId = 0;
-      bool mixed = false;
-      for (cgltf_size p = 0; p < gn->mesh->primitives_count; ++p) {
-        const cgltf_primitive& prim = gn->mesh->primitives[p];
-        if (prim.type != cgltf_primitive_type_triangles) continue;
-        const cgltf_accessor* pos = nullptr;
-        const cgltf_accessor* uv = nullptr;
-        for (cgltf_size a = 0; a < prim.attributes_count; ++a) {
-          if (prim.attributes[a].type == cgltf_attribute_type_position) pos = prim.attributes[a].data;
-          if (prim.attributes[a].type == cgltf_attribute_type_texcoord && prim.attributes[a].index == 0) uv = prim.attributes[a].data;
-        }
-        if (!pos) continue;
-        int base = static_cast<int>(pm.positions.size());
-        int uvBase = static_cast<int>(pm.uvs.size());
-        for (cgltf_size v = 0; v < pos->count; ++v) {
-          float f[3] = {0, 0, 0};
-          cgltf_accessor_read_float(pos, v, f, 3);
-          pm.positions.push_back(C.transformPoint(Vec3(f[0], f[1], f[2])));
-        }
-        if (uv)
-          for (cgltf_size v = 0; v < uv->count; ++v) {
-            float f[2] = {0, 0};
-            cgltf_accessor_read_float(uv, v, f, 2);
-            pm.uvs.push_back(Vec2(f[0], 1.0f - f[1]));
-          }
-        cgltf_size count = prim.indices ? prim.indices->count : pos->count;
-        for (cgltf_size k = 0; k + 2 < count; k += 3) {
-          int i0 = static_cast<int>(prim.indices ? cgltf_accessor_read_index(prim.indices, k) : k);
-          int i1 = static_cast<int>(prim.indices ? cgltf_accessor_read_index(prim.indices, k + 1) : k + 1);
-          int i2 = static_cast<int>(prim.indices ? cgltf_accessor_read_index(prim.indices, k + 2) : k + 2);
-          std::vector<int> uvs;
-          if (uv) uvs = {uvBase + i0, uvBase + i1, uvBase + i2};
-          pm.addFace({base + i0, base + i1, base + i2}, uvs, 1, static_cast<int>(p));
-        }
-        auto it = materials.find(prim.material);
-        uint32_t m = it == materials.end() ? 0 : it->second;
-        if (p == 0) matId = m;
-        else if (m != matId) mixed = true;
-      }
-      if (options.weld) weldVertices(pm);
-      if (result) result->triangles += pm.triangleCount();
-      n = io::addMeshNode(scene, name.empty() ? (gn->mesh->name ? gn->mesh->name : "Mesh") : name, std::move(pm));
-      if (n) n->materialId = matId;
-      if (mixed && result) result->warnings.push_back(name + ": several materials; the first one was assigned");
+      size_t mi = static_cast<size_t>(gn->mesh - data->meshes);
+      Converted& cv = converted[mi];
+      if (result) result->triangles += cv.mesh->triangleCount();
+      std::string nodeName = name.empty() ? (gn->mesh->name ? gn->mesh->name : "Mesh") : name;
+      // A mesh used by several nodes is shared (copy-on-write) rather than copied.
+      n = meshUsers[mi] > 1 ? io::addMeshNode(scene, nodeName, std::shared_ptr<const PolyMesh>(cv.mesh))
+                            : io::addMeshNode(scene, nodeName, std::move(*cv.mesh));
+      if (n) n->materialId = cv.matId;
+      if (cv.mixed && result) result->warnings.push_back(name + ": several materials; the first one was assigned");
     } else if (gn->camera && options.importCameras) {
       n = scene.createNode("Camera");
       if (n && gn->camera->type == cgltf_camera_type_perspective) {
@@ -251,6 +304,7 @@ bool importGltf(Scene& scene, const std::string& path, const ImportOptions& opti
     for (cgltf_size i = 0; i < data->nodes_count; ++i)
       if (!data->nodes[i].parent) visit(&data->nodes[i], 0);
   }
+  scene.endBulkNames();
   cgltf_free(data);
   return true;
 }

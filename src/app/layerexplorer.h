@@ -24,6 +24,9 @@ class LayerExplorer : public QWidget {
   void setCurrentLayer(uint32_t id);
   void setLayerFlag(uint32_t id, int flag, bool value);  // 0 hidden, 1 frozen, 2 renderable
 
+ protected:
+  void showEvent(QShowEvent* e) override;
+
  private:
   void rebuild();
   uint32_t currentLayerOfItem(QTreeWidgetItem* it) const;
@@ -33,6 +36,7 @@ class LayerExplorer : public QWidget {
   DropTree* tree_;
   bool syncing_ = false;
   bool rebuildPending_ = false;
+  bool staleWhileHidden_ = false;
 };
 
 }  // namespace veraa

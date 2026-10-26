@@ -85,6 +85,7 @@ Viewport::Viewport(SceneDocument* doc, EditorState* state, ViewType type, QWidge
   connect(doc_, &SceneDocument::structureChanged, this, repaint);
   connect(doc_, &SceneDocument::selectionChanged, this, repaint);
   connect(doc_, &SceneDocument::materialsChanged, this, repaint);
+  connect(doc_, &SceneDocument::materialsChanged, this, [this] { matColors_.clear(); });
   connect(doc_, &SceneDocument::renderSettingsChanged, this, repaint);
   connect(state_, &EditorState::toolChanged, this, repaint);
   connect(state_, &EditorState::redrawRequested, this, repaint);
@@ -451,14 +452,26 @@ void Viewport::drawBackgroundImage(QPainter& p) {
   p.drawImage(target, backgroundImage_);
 }
 
+void Viewport::paintFinished(double ms) {
+  lastPaintMs_ = ms;
+  bool navigating = drag_ == Drag::Pan || drag_ == Drag::Orbit || drag_ == Drag::ZoomDrag || drag_ == Drag::Cube ||
+                    drag_ == Drag::Ring || (viewAnim_ && viewAnim_->isActive()) || property("navigating").toBool();
+  if (!navigating) return;
+  // Aim for interactive frames: grow the on-screen size below which objects draw as boxes while
+  // frames are slow, shrink it again when they are fast.
+  navCostMs_ = navCostMs_ <= 0.0 ? ms : navCostMs_ * 0.5 + ms * 0.5;
+  if (navCostMs_ > 33.0) degradePx_ = std::min(degradePx_ <= 0.0f ? 4.0f : degradePx_ * 1.6f, 512.0f);
+  else if (navCostMs_ < 12.0) degradePx_ = degradePx_ < 2.0f ? 0.0f : degradePx_ * 0.7f;
+}
+
 void Viewport::paintGL() {
   QElapsedTimer paintTimer;
   paintTimer.start();
   struct PaintTime {
+    Viewport& v;
     QElapsedTimer& t;
-    double& out;
-    ~PaintTime() { out = t.nsecsElapsed() / 1e6; }
-  } paintTime{paintTimer, lastPaintMs_};
+    ~PaintTime() { v.paintFinished(t.nsecsElapsed() / 1e6); }
+  } paintTime{*this, paintTimer};
   if (!glReady_) {
     QPainter p(this);
     p.fillRect(rect(), theme::viewportBg());
@@ -501,6 +514,7 @@ void Viewport::paintGL() {
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
   if (gl_ && glError_.isEmpty()) {
+    gl_->beginFrame();
     glDisable(GL_DEPTH_TEST);
     if (gradient) gl_->drawBackground(background_.top, background_.bottom);
 
@@ -541,38 +555,76 @@ void Viewport::paintGL() {
     LineBatch shapes;
     bool navigating = drag_ == Drag::Pan || drag_ == Drag::Orbit || drag_ == Drag::ZoomDrag || drag_ == Drag::Cube ||
                       drag_ == Drag::Ring || viewAnim_->isActive() || property("navigating").toBool();
-    bool degrade = (ui.adaptiveDegradation() || quality_ == ViewportQuality::Performance) && navigating;
+    // Adaptive degradation: while navigating and the frames are slow, objects that are small on
+    // screen draw as boxes (more of them the slower it gets); sub-pixel ones are skipped.
+    bool performance = quality_ == ViewportQuality::Performance;
+    if (!navigating) degradePx_ = 0.0f;
+    bool degrade = navigating && (ui.adaptiveDegradation() || performance);
+    float boxBelowPx = degrade ? degradePx_ : 0.0f;
+    const Frustum frustum = Frustum::fromViewProj(vp);
+    const Vec3 eye = cam_.eye(), forward = cam_.forward();
+    const bool ortho = cam_.orthographic();
+    // Viewport colors of the materials (looking them up is slow; cached until materials change).
+    auto materialColor = [&](uint32_t id, Vec3& out) -> bool {
+      auto it = matColors_.find(id);
+      if (it == matColors_.end()) {
+        const Material* mat = scene.findMaterial(id);
+        if (!mat) return false;
+        Vec3 c = mat->viewportColor();
+        if (!mat->viewportTexture().empty()) c = Vec3(0.72f);
+        Vec3 refr = mat->params.has("refract") ? mat->params.getColor("refract") : Vec3(0.0f);
+        if (maxComponent(refr) > 0.3f) c = lerp(c, Vec3(0.75f, 0.85f, 0.9f), 0.6f);
+        it = matColors_.emplace(id, vmax(c, Vec3(0.04f))).first;
+      }
+      out = it->second;
+      return true;
+    };
+    size_t drawn = 0, culled = 0, boxed = 0;
     for (const auto& up : scene.nodes) {
       const Node& n = *up;
       ObjectKind kind = n.kind();
       if ((kind != ObjectKind::Geometry && kind != ObjectKind::Shape) || !nodeShown(n)) continue;
+      const Mat4 model = n.objectWorldMatrix();
+      const TriMesh& tri = n.triMesh();
+      bool isShape = kind == ObjectKind::Shape || n.isShapeResult();
+      // Frustum culling on the world bounds.
+      Aabb wb = tri.bounds.valid() ? tri.bounds.transformed(model) : Aabb();
+      if (isShape)
+        for (const auto& line : n.shapeLines())
+          for (const auto& pt : line) wb.expand(model.transformPoint(pt));
+      if (wb.valid() && !frustum.intersects(wb)) {
+        ++culled;
+        continue;
+      }
       bool sel = doc_->isSelected(n.id);
       bool frozen = scene.isNodeFrozen(n) && ui.showFrozenInGray();
-      const Material* mat = scene.findMaterial(n.materialId);
       Vec3 matColor = n.wireColor;
-      if (mat) {
-        matColor = mat->viewportColor();
-        if (!mat->viewportTexture().empty()) matColor = Vec3(0.72f);
-        Vec3 refr = mat->params.has("refract") ? mat->params.getColor("refract") : Vec3(0.0f);
-        if (maxComponent(refr) > 0.3f) matColor = lerp(matColor, Vec3(0.75f, 0.85f, 0.9f), 0.6f);
-        matColor = vmax(matColor, Vec3(0.04f));
-      }
+      if (n.materialId) materialColor(n.materialId, matColor);
       QColor wire = frozen ? theme::frozen() : qcolor(ui.wireUsesObjectColor() ? n.wireColor : matColor);
-      if (kind == ObjectKind::Shape || n.isShapeResult()) {
+      if (isShape) {
         // Splines draw as lines; a viewport-renderable spline also shows its tube below.
-        Mat4 m = n.objectWorldMatrix();
         QColor c = sel ? theme::selection() : wire;
         for (const auto& line : n.shapeLines())
-          for (size_t i = 1; i < line.size(); ++i) shapes.line(m.transformPoint(line[i - 1]), m.transformPoint(line[i]), c);
-        if (n.triMesh().empty()) continue;
+          for (size_t i = 1; i < line.size(); ++i) shapes.line(model.transformPoint(line[i - 1]), model.transformPoint(line[i]), c);
+        if (tri.empty()) continue;
       }
       bool asBox = n.displayAsBox || shading_ == ShadingMode::BoundingBox ||
-                   (degrade && n.triMesh().indices.size() / 3 > kDegradeTriangles);
+                   (degrade && performance && tri.indices.size() / 3 > kDegradeTriangles);
+      if (!asBox && boxBelowPx > 0.0f && wb.valid()) {
+        float radiusPx = wb.radius() / std::max(cam_.worldPerPixel(wb.center()), 1e-12f);
+        if (radiusPx < 0.75f && !sel) {
+          ++culled;
+          continue;
+        }
+        asBox = radiusPx < boxBelowPx;
+      }
       if (asBox) {
+        ++boxed;
         drawBox(shapes, n, sel ? theme::selection() : wire);
         continue;
       }
-      uint64_t stamp = doc_->geometryStamp(n.id);
+      ++drawn;
+      GlScene::MeshHandle mh = gl_->mesh(n, doc_->geometryStamp(n.id));
       bool shaded = shading_ != ShadingMode::Wireframe || (sel && ui.shadeSelected());
       if (shaded) {
         Vec3 c = ui.shadedUsesObjectColor() ? n.wireColor : matColor;
@@ -585,18 +637,20 @@ void Viewport::paintGL() {
           glCullFace(GL_BACK);
         }
         if (n.seeThrough) glDepthMask(GL_FALSE);
-        gl_->drawShaded(n, stamp, vp, cam_.eye(), cam_.forward(), cam_.orthographic(), qcolor(c),
-                        n.seeThrough ? 0.4f : 1.0f);
-        glDepthMask(GL_TRUE);
-        glDisable(GL_CULL_FACE);
+        gl_->drawShaded(mh, model, vp, eye, forward, ortho, qcolor(c), n.seeThrough ? 0.4f : 1.0f);
+        if (n.seeThrough) glDepthMask(GL_TRUE);
+        if (n.backfaceCull) glDisable(GL_CULL_FACE);
         glDisable(GL_POLYGON_OFFSET_FILL);
-        if (shading_ == ShadingMode::Wireframe) gl_->drawWire(n, stamp, vp, sel ? theme::selection() : wire);
-        else if (edgedFaces_) gl_->drawWire(n, stamp, vp, sel ? theme::selection() : wire.darker(220));
+        if (shading_ == ShadingMode::Wireframe) gl_->drawWire(mh, model, vp, sel ? theme::selection() : wire);
+        else if (edgedFaces_) gl_->drawWire(mh, model, vp, sel ? theme::selection() : wire.darker(220));
         if (sel && ui.showSelectionBrackets()) drawBrackets(brackets, n);
       } else {
-        gl_->drawWire(n, stamp, vp, sel ? theme::selection() : wire);
+        gl_->drawWire(mh, model, vp, sel ? theme::selection() : wire);
       }
     }
+    lastDrawn_ = drawn;
+    lastCulled_ = culled;
+    lastBoxed_ = boxed;
     gl_->drawBatch(shapes, vp);
     LineBatch icons;
     drawIcons(icons);
@@ -612,7 +666,11 @@ void Viewport::paintGL() {
       gizmo_.draw(g, cam_, drag_ == Drag::Gizmo ? gizmoDrag_.handle() : hot_);
       gl_->drawBatch(g, vp);
     }
-    gl_->collectGarbage();
+    // Free GPU meshes of deleted or hidden nodes (culled ones stay cached).
+    gl_->collectGarbage([&](uint32_t id) {
+      const Node* n = scene.findNode(id);
+      return n && nodeShown(*n);
+    });
   }
 
   glDisable(GL_DEPTH_TEST);

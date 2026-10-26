@@ -51,18 +51,21 @@ class AnimDecorator : public ViewportDecorator {
       const Node& n = *up;
       if (!s.isNodeVisible(n) || !n.object) continue;
       bool sel = c_->document()->isSelected(n.id);
-      QColor col = sel ? theme::selection() : qcol(n.wireColor);
-      Mat4 w = n.worldMatrix();
-      Vec3 o = w.translation();
-      px = vp.camera().worldPerPixel(o);
-      drawIcon(b, n, w, col, px);
       // Trajectories.
       bool traj = false;
-      if (anim) {
+      if (anim && !anim->nodes.empty()) {
         auto it = anim->nodes.find(n.id);
         traj = it != anim->nodes.end() && it->second.trajectory;
         if (sel && showTrajectoriesForSelection && anim->nodeAnimated(n.id)) traj = true;
       }
+      // Editable meshes (most objects of imported scenes) have no icon.
+      bool plainMesh = dynamic_cast<const EditablePolyObject*>(n.object.get()) != nullptr;
+      if (plainMesh && !traj) continue;
+      QColor col = sel ? theme::selection() : qcol(n.wireColor);
+      Mat4 w = n.worldMatrix();
+      Vec3 o = w.translation();
+      px = vp.camera().worldPerPixel(o);
+      if (!plainMesh) drawIcon(b, n, w, col, px);
       if (traj) drawTrajectory(b, n, px);
       if (sel && c_->ghosting && anim && anim->nodeAnimated(n.id)) drawGhosts(b, n);
     }

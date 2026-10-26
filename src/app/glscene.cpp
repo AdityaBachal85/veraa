@@ -4,6 +4,8 @@
 #include <QOpenGLContext>
 #include <QOpenGLFunctions>
 
+#include <cmath>
+
 #include "scene.h"
 
 namespace veraa {
@@ -113,13 +115,14 @@ struct GlScene::SharedMesh {
   GLsizei triCount = 0, wireCount = 0;
   uint64_t stamp = ~0ull;
   uint64_t generation = 0;
-  uint64_t lastUsed = 0;
 };
 
 struct GlScene::SharedCache {
   std::unordered_map<uint32_t, SharedMesh> meshes;
+  // Buffer names whose storage was released, for reuse: some drivers search for free names in
+  // O(n) when names are deleted and generated again, which made reloading big scenes crawl.
+  std::vector<GLuint> freeBuffers;
   int users = 0;
-  uint64_t frame = 0;
 };
 
 namespace {
@@ -151,6 +154,7 @@ void GlScene::setSkipMeshDraws(bool skip) { g_skipDraws = skip; }
 
 GlScene::~GlScene() {
   for (auto& [id, m] : meshes_) releaseLocal(m);
+  if (!freeVaos_.empty()) gl_->glDeleteVertexArrays(static_cast<GLsizei>(freeVaos_.size()), freeVaos_.data());
   if (lineVbo_) gl_->glDeleteBuffers(1, &lineVbo_);
   if (lineVao_) gl_->glDeleteVertexArrays(1, &lineVao_);
   if (--shared_->users == 0) {
@@ -159,6 +163,8 @@ GlScene::~GlScene() {
       GLuint bufs[4] = {s.triVbo, s.triEbo, s.wireVbo, s.wireEbo};
       gl_->glDeleteBuffers(4, bufs);
     }
+    if (!shared_->freeBuffers.empty())
+      gl_->glDeleteBuffers(static_cast<GLsizei>(shared_->freeBuffers.size()), shared_->freeBuffers.data());
     auto& caches = sharedCaches();
     for (auto it = caches.begin(); it != caches.end(); ++it)
       if (it->second == shared_) {
@@ -176,6 +182,7 @@ bool GlScene::init(QString* error) {
     if (error) *error = meshProg_.log();
     return false;
   }
+  gl2_ = QOpenGLContext::currentContext()->functions();
   if (!lineProg_.addShaderFromSourceCode(QOpenGLShader::Vertex, kLineVs) ||
       !lineProg_.addShaderFromSourceCode(QOpenGLShader::Fragment, kLineFs) || !lineProg_.link()) {
     if (error) *error = lineProg_.log();
@@ -213,9 +220,23 @@ bool GlScene::init(QString* error) {
 }
 
 void GlScene::releaseLocal(LocalMesh& m) {
-  GLuint vaos[2] = {m.triVao, m.wireVao};
-  gl_->glDeleteVertexArrays(2, vaos);
+  // Vertex array names are kept for reuse (see SharedCache::freeBuffers).
+  if (m.triVao) freeVaos_.push_back(m.triVao);
+  if (m.wireVao) freeVaos_.push_back(m.wireVao);
   m = LocalMesh();
+}
+
+void GlScene::releaseShared(SharedMesh& s) {
+  GLuint bufs[4] = {s.triVbo, s.triEbo, s.wireVbo, s.wireEbo};
+  gl_->glBindVertexArray(0);
+  for (GLuint b : bufs) {
+    if (!b) continue;
+    gl_->glBindBuffer(GL_ARRAY_BUFFER, b);
+    gl_->glBufferData(GL_ARRAY_BUFFER, 0, nullptr, GL_STATIC_DRAW);  // frees the storage
+    shared_->freeBuffers.push_back(b);
+  }
+  gl_->glBindBuffer(GL_ARRAY_BUFFER, 0);
+  s = SharedMesh();
 }
 
 void GlScene::useProgram(QOpenGLShaderProgram& p) {
@@ -224,9 +245,8 @@ void GlScene::useProgram(QOpenGLShaderProgram& p) {
   bound_ = &p;
 }
 
-const GlScene::LocalMesh* GlScene::meshFor(const Node& node, uint64_t stamp, GLsizei* triCount, GLsizei* wireCount) {
+GlScene::MeshHandle GlScene::mesh(const Node& node, uint64_t stamp) {
   SharedMesh& s = shared_->meshes[node.id];
-  s.lastUsed = shared_->frame;
   if (s.stamp != stamp || !s.triVbo) {
     const TriMesh& t = node.triMesh();
     std::vector<float> verts(t.positions.size() * 6);
@@ -238,7 +258,15 @@ const GlScene::LocalMesh* GlScene::meshFor(const Node& node, uint64_t stamp, GLs
     }
     if (!s.triVbo) {
       GLuint bufs[4];
-      gl_->glGenBuffers(4, bufs);
+      std::vector<GLuint>& pool = shared_->freeBuffers;
+      if (pool.size() >= 4) {
+        for (GLuint& b : bufs) {
+          b = pool.back();
+          pool.pop_back();
+        }
+      } else {
+        gl_->glGenBuffers(4, bufs);
+      }
       s.triVbo = bufs[0], s.triEbo = bufs[1], s.wireVbo = bufs[2], s.wireEbo = bufs[3];
     }
     // Buffer data is only uploaded through GL_ARRAY_BUFFER so no vertex array state changes.
@@ -259,11 +287,17 @@ const GlScene::LocalMesh* GlScene::meshFor(const Node& node, uint64_t stamp, GLs
     s.generation = ++g_generation;
   }
   LocalMesh& m = meshes_[node.id];
-  m.used = true;
   if (m.generation != s.generation) {
     if (!m.triVao) {
       GLuint vaos[2];
-      gl_->glGenVertexArrays(2, vaos);
+      if (freeVaos_.size() >= 2) {
+        vaos[0] = freeVaos_.back();
+        freeVaos_.pop_back();
+        vaos[1] = freeVaos_.back();
+        freeVaos_.pop_back();
+      } else {
+        gl_->glGenVertexArrays(2, vaos);
+      }
       m.triVao = vaos[0], m.wireVao = vaos[1];
     }
     gl_->glBindVertexArray(m.triVao);
@@ -283,9 +317,7 @@ const GlScene::LocalMesh* GlScene::meshFor(const Node& node, uint64_t stamp, GLs
     gl_->glBindBuffer(GL_ARRAY_BUFFER, 0);
     m.generation = s.generation;
   }
-  *triCount = s.triCount;
-  *wireCount = s.wireCount;
-  return &m;
+  return MeshHandle{m.triVao, m.wireVao, s.triCount, s.wireCount};
 }
 
 void GlScene::applyFrameUniforms(const Vec3& eye, const Vec3& viewDir, bool ortho) {
@@ -319,34 +351,57 @@ void GlScene::applyFrameUniforms(const Vec3& eye, const Vec3& viewDir, bool orth
   frameSent_ = true;
 }
 
-void GlScene::drawShaded(const Node& node, uint64_t stamp, const Mat4& viewProj, const Vec3& eye,
+namespace {
+
+// Row-major 4x4 to GL (column-major) by uploading with transpose = GL_TRUE.
+inline const GLfloat* glData(const Mat4& m) { return &m.m[0][0]; }
+
+// Inverse transpose of the upper 3x3 (normal matrix), row-major.
+void normalMatrix(const Mat4& m, float out[9]) {
+  const float a = m.m[0][0], b = m.m[0][1], c = m.m[0][2];
+  const float d = m.m[1][0], e = m.m[1][1], f = m.m[1][2];
+  const float g = m.m[2][0], h = m.m[2][1], i = m.m[2][2];
+  // Cofactors: inverse = adj / det and adj = cofactor^T, so inverse^T = cofactor / det.
+  float c00 = e * i - f * h, c01 = -(d * i - f * g), c02 = d * h - e * g;
+  float c10 = -(b * i - c * h), c11 = a * i - c * g, c12 = -(a * h - b * g);
+  float c20 = b * f - c * e, c21 = -(a * f - c * d), c22 = a * e - b * d;
+  float det = a * c00 + b * c01 + c * c02;
+  float inv = std::fabs(det) > 1e-30f ? 1.0f / det : 0.0f;
+  out[0] = c00 * inv, out[1] = c01 * inv, out[2] = c02 * inv;
+  out[3] = c10 * inv, out[4] = c11 * inv, out[5] = c12 * inv;
+  out[6] = c20 * inv, out[7] = c21 * inv, out[8] = c22 * inv;
+}
+
+}  // namespace
+
+void GlScene::drawShaded(const MeshHandle& m, const Mat4& model, const Mat4& viewProj, const Vec3& eye,
                          const Vec3& viewDir, bool ortho, const QColor& color, float alpha) {
-  GLsizei tris = 0, wires = 0;
-  const LocalMesh* m = meshFor(node, stamp, &tris, &wires);
-  if (!tris) return;
-  Mat4 model = node.objectWorldMatrix();
-  QMatrix4x4 qModel = toQt(model);
+  if (!m.tris) return;
   useProgram(meshProg_);
   applyFrameUniforms(eye, viewDir, ortho);
-  meshProg_.setUniformValue(loc_.mvp, toQt(viewProj * model));
-  meshProg_.setUniformValue(loc_.model, qModel);
-  meshProg_.setUniformValue(loc_.normalMat, qModel.normalMatrix());
-  meshProg_.setUniformValue(loc_.color, QVector3D(color.redF(), color.greenF(), color.blueF()));
-  meshProg_.setUniformValue(loc_.alpha, alpha);
-  gl_->glBindVertexArray(m->triVao);
-  if (!g_skipDraws) gl_->glDrawElements(GL_TRIANGLES, tris, GL_UNSIGNED_INT, nullptr);
+  Mat4 mvp = viewProj * model;
+  float nm[9];
+  normalMatrix(model, nm);
+  gl_->glUniformMatrix4fv(loc_.mvp, 1, GL_TRUE, glData(mvp));
+  gl_->glUniformMatrix4fv(loc_.model, 1, GL_TRUE, glData(model));
+  gl_->glUniformMatrix3fv(loc_.normalMat, 1, GL_TRUE, nm);
+  gl_->glUniform3f(loc_.color, static_cast<float>(color.redF()), static_cast<float>(color.greenF()),
+                   static_cast<float>(color.blueF()));
+  gl_->glUniform1f(loc_.alpha, alpha);
+  gl_->glBindVertexArray(m.triVao);
+  if (!g_skipDraws) gl_->glDrawElements(GL_TRIANGLES, m.tris, GL_UNSIGNED_INT, nullptr);
   gl_->glBindVertexArray(0);
 }
 
-void GlScene::drawWire(const Node& node, uint64_t stamp, const Mat4& viewProj, const QColor& color) {
-  GLsizei tris = 0, wires = 0;
-  const LocalMesh* m = meshFor(node, stamp, &tris, &wires);
-  if (!wires) return;
+void GlScene::drawWire(const MeshHandle& m, const Mat4& model, const Mat4& viewProj, const QColor& color) {
+  if (!m.wires) return;
   useProgram(lineProg_);
-  lineProg_.setUniformValue(loc_.lineMvp, toQt(viewProj * node.objectWorldMatrix()));
-  gl_->glBindVertexArray(m->wireVao);
-  QOpenGLContext::currentContext()->functions()->glVertexAttrib4f(1, color.redF(), color.greenF(), color.blueF(), color.alphaF());
-  if (!g_skipDraws) gl_->glDrawElements(GL_LINES, wires, GL_UNSIGNED_INT, nullptr);
+  Mat4 mvp = viewProj * model;
+  gl_->glUniformMatrix4fv(loc_.lineMvp, 1, GL_TRUE, glData(mvp));
+  gl_->glBindVertexArray(m.wireVao);
+  gl2_->glVertexAttrib4f(1, static_cast<float>(color.redF()), static_cast<float>(color.greenF()),
+                         static_cast<float>(color.blueF()), static_cast<float>(color.alphaF()));
+  if (!g_skipDraws) gl_->glDrawElements(GL_LINES, m.wires, GL_UNSIGNED_INT, nullptr);
   gl_->glBindVertexArray(0);
 }
 
@@ -388,23 +443,18 @@ void GlScene::drawBackground(const QColor& top, const QColor& bottom) {
   drawBatch(b, Mat4::identity());
 }
 
-void GlScene::collectGarbage() {
+void GlScene::collectGarbage(const std::function<bool(uint32_t)>& keep) {
   for (auto it = meshes_.begin(); it != meshes_.end();) {
-    if (!it->second.used) {
+    if (!keep(it->first)) {
       releaseLocal(it->second);
       it = meshes_.erase(it);
     } else {
-      it->second.used = false;
       ++it;
     }
   }
-  // Shared buffers no viewport has drawn for a while (deleted or long hidden nodes).
-  uint64_t frame = ++shared_->frame;
-  uint64_t keep = static_cast<uint64_t>(shared_->users) * 4 + 4;
   for (auto it = shared_->meshes.begin(); it != shared_->meshes.end();) {
-    if (frame - it->second.lastUsed > keep) {
-      GLuint bufs[4] = {it->second.triVbo, it->second.triEbo, it->second.wireVbo, it->second.wireEbo};
-      gl_->glDeleteBuffers(4, bufs);
+    if (!keep(it->first)) {
+      releaseShared(it->second);
       it = shared_->meshes.erase(it);
     } else {
       ++it;

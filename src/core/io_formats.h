@@ -7,6 +7,8 @@
 #include <string>
 #include <vector>
 
+#include "progress.h"
+
 namespace veraa {
 
 class Scene;
@@ -20,6 +22,7 @@ struct ImportOptions {
   bool importCameras = true;
   bool weld = true;            // weld identical vertex positions (STL, glTF)
   bool yUpOverride = false;    // STL/PLY/OBJ: treat the file as Y-up
+  ImportProgress* progress = nullptr;  // optional progress report and cancellation (not all formats)
 };
 
 struct ImportResult {

@@ -5,6 +5,8 @@
 
 #include <map>
 
+#include "importjob.h"
+
 namespace veraa {
 
 namespace {
@@ -326,17 +328,27 @@ void SceneDocument::newScene() {
 
 bool SceneDocument::load(const QString& path, QString* error) {
   commitSoftEdit();
-  Scene tmp;
+  // Load in place (no second copy of the scene); a failed load puts the old scene back.
+  std::shared_ptr<const SceneSnapshot> before = scene_.snapshot();
+  std::string keepPath = scene_.filePath;
   std::string err;
-  if (!tmp.load(path.toStdString(), &err)) {
+  // Reading and decoding (the slow part for big scenes) runs on a worker thread.
+  Scene::SceneFile file;
+  std::string p8 = path.toStdString();
+  bool read = runInBackground(
+      nullptr, tr("Opening %1...").arg(QFileInfo(path).fileName()),
+      [&](ImportProgress& progress, std::string& e) { return Scene::readFile(p8, file, &e, &progress); }, &err);
+  if (!read || !scene_.fromFile(file, p8, &err)) {
+    scene_.clear();
+    scene_.restore(*before);
+    scene_.filePath = keepPath;
     if (error) *error = QString::fromStdString(err);
     return false;
   }
-  // Move the loaded scene over without re-serializing it (meshes are shared, not copied).
-  std::shared_ptr<const SceneSnapshot> loaded = tmp.snapshot();
-  scene_.clear();
-  scene_.restore(*loaded);
+  before.reset();
   scene_.filePath = path.toStdString();
+  // Build the display meshes on all cores now rather than one by one on the first redraw.
+  scene_.prepareMeshes();
   last_.reset();
   undo_.clear();
   setSelectionList({});

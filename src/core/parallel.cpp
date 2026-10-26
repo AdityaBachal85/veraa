@@ -42,4 +42,15 @@ void parallelFor(size_t count, const std::function<void(size_t)>& fn) {
   if (error) std::rethrow_exception(error);
 }
 
+void parallelRanges(size_t count, size_t grain, const std::function<void(size_t, size_t)>& fn) {
+  if (count == 0) return;
+  grain = std::max<size_t>(grain, 1);
+  size_t ranges = std::min<size_t>(count / grain, size_t(parallelThreads()) * 4);
+  if (ranges <= 1) {
+    fn(0, count);
+    return;
+  }
+  parallelFor(ranges, [&](size_t r) { fn(count * r / ranges, count * (r + 1) / ranges); });
+}
+
 }  // namespace veraa

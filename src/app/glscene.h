@@ -2,9 +2,11 @@
 #pragma once
 
 #include <QColor>
+#include <QOpenGLFunctions>
 #include <QOpenGLFunctions_3_3_Core>
 #include <QOpenGLShaderProgram>
 
+#include <functional>
 #include <memory>
 #include <unordered_map>
 #include <vector>
@@ -46,20 +48,30 @@ class GlScene {
   ~GlScene();
   bool init(QString* error);
 
-  // Uploads (if stale) and draws a node's shaded triangles.
-  void drawShaded(const Node& node, uint64_t stamp, const Mat4& viewProj, const Vec3& eye, const Vec3& viewDir,
+  // GPU buffers of one node's mesh in this context (see mesh()).
+  struct MeshHandle {
+    GLuint triVao = 0, wireVao = 0;
+    GLsizei tris = 0, wires = 0;  // index counts
+  };
+  // Uploads the node's mesh if `stamp` differs from the uploaded one (shared by every viewport of
+  // the window), and returns the vertex arrays to draw it with. Nothing is re-uploaded or
+  // re-triangulated while the stamp stays the same.
+  MeshHandle mesh(const Node& node, uint64_t stamp);
+  // Draws shaded triangles with the given object-to-world matrix.
+  void drawShaded(const MeshHandle& m, const Mat4& model, const Mat4& viewProj, const Vec3& eye, const Vec3& viewDir,
                   bool ortho, const QColor& color, float alpha = 1.0f);
   // Style used by drawShaded until changed.
   void setShadeStyle(const ShadeStyle& s) { style_ = s; }
-  // Draws a node's polygon edges.
-  void drawWire(const Node& node, uint64_t stamp, const Mat4& viewProj, const QColor& color);
+  // Draws polygon edges.
+  void drawWire(const MeshHandle& m, const Mat4& model, const Mat4& viewProj, const QColor& color);
   void drawBatch(const LineBatch& batch, const Mat4& viewProj);
   // Full-screen vertical gradient (call before anything else, depth test off).
   void drawBackground(const QColor& top, const QColor& bottom);
   // Call at the start of each paint (other code may have changed the bound program).
   void beginFrame() { bound_ = nullptr; }
-  // Frees buffers of nodes not drawn since the last call.
-  void collectGarbage();
+  // Frees the buffers of nodes for which keep(id) is false (deleted or hidden nodes). Nodes that
+  // were only culled keep theirs, so they are not uploaded again when they come back into view.
+  void collectGarbage(const std::function<bool(uint32_t)>& keep);
 
   // Bytes uploaded to the GPU by every GlScene since the last resetStats() (benchmarks).
   static uint64_t uploadedBytes();
@@ -72,7 +84,6 @@ class GlScene {
   struct LocalMesh {
     GLuint triVao = 0, wireVao = 0;
     uint64_t generation = 0;  // SharedMesh::generation the arrays were set up for
-    bool used = false;
   };
   struct SharedMesh;
 
@@ -82,16 +93,18 @@ class GlScene {
  private:
   // Uploads (if stale) the node's buffers, shared by every viewport of the window (their OpenGL
   // contexts share objects), and returns this context's vertex arrays for them.
-  const LocalMesh* meshFor(const Node& node, uint64_t stamp, GLsizei* triCount, GLsizei* wireCount);
   void releaseLocal(LocalMesh& m);
+  void releaseShared(SharedMesh& s);
   void uploadLines(const std::vector<LineVertex>& v);
   void useProgram(QOpenGLShaderProgram& p);
   void applyFrameUniforms(const Vec3& eye, const Vec3& viewDir, bool ortho);
 
   QOpenGLFunctions_3_3_Core* gl_;
+  QOpenGLFunctions* gl2_ = nullptr;  // glVertexAttrib4f (not in the 3.3 core wrapper)
   QOpenGLShaderProgram meshProg_, lineProg_;
   SharedCache* shared_ = nullptr;
   std::unordered_map<uint32_t, LocalMesh> meshes_;
+  std::vector<GLuint> freeVaos_;  // released vertex array names, reused
   GLuint lineVao_ = 0, lineVbo_ = 0;
   size_t lineCapacity_ = 0;
   ShadeStyle style_;

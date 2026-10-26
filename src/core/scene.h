@@ -12,6 +12,7 @@
 #include "material.h"
 #include "modifier.h"
 #include "object.h"
+#include "progress.h"
 
 namespace veraa {
 
@@ -247,6 +248,16 @@ class Scene {
   Aabb bounds(bool geometryOnly = true) const;
   void clear();
 
+  // Builds the display meshes of nodes whose evaluation is self-contained (Editable Poly without
+  // modifiers, as importers make) on all cores, so the first redraw does not triangulate them.
+  // Reports into [from, to] of `progress`; returns false when cancelled.
+  bool prepareMeshes(ImportProgress* progress = nullptr, double from = 0.0, double to = 1.0);
+  // Moves every node, material and layer of `src` into this scene: fresh ids, unique names,
+  // parent/material/layer references remapped (src layer 0 becomes the current layer), evaluated
+  // meshes kept. Returns the new node ids in src order (idMap: old id -> new id) and leaves src
+  // empty.
+  std::vector<uint32_t> adopt(Scene& src, std::unordered_map<uint32_t, uint32_t>* idMap = nullptr);
+
   json toJson() const;
   bool fromJson(const json& j, std::string* error = nullptr);
   // Undo snapshots: capture shares unchanged entries with `previous`; restore rebuilds only the
@@ -255,6 +266,15 @@ class Scene {
   SceneRestoreResult restore(const SceneSnapshot& s);
   bool save(const std::string& path, std::string* error = nullptr);
   bool load(const std::string& path, std::string* error = nullptr);
+  // load() in two steps: reading and decoding the file (thread-safe, touches no scene; meshes
+  // are decoded on all cores), then building the scene from it.
+  struct SceneFile {
+    json doc;
+    MeshRefTable meshes;
+  };
+  static bool readFile(const std::string& path, SceneFile& out, std::string* error = nullptr,
+                       ImportProgress* progress = nullptr);
+  bool fromFile(const SceneFile& file, const std::string& path, std::string* error = nullptr);
 
   // Resolves a texture/HDRI path relative to the scene file's folder.
   std::string resolvePath(const std::string& path) const;
@@ -279,6 +299,9 @@ class Scene {
   uint32_t nextLayerId_ = 1;
   uint32_t colorCounter_ = 0;
   mutable std::unordered_map<uint32_t, Node*> index_;  // id -> node, for fast parent lookups
+  // id -> position in `materials`; rebuilt when materials are added, removed or replaced.
+  mutable std::unordered_map<uint32_t, size_t> matIndex_;
+  mutable bool matIndexDirty_ = true;
   std::unique_ptr<std::unordered_map<std::string, int>> bulkNames_;  // name -> count (bulk mode)
   mutable std::unordered_map<std::string, int> bulkHints_;           // base -> last unique number
   json globalsJson() const;

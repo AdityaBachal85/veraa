@@ -7,6 +7,8 @@
 #include <cstring>
 #include <initializer_list>
 #include <iterator>
+#include <memory>
+#include <string>
 #include <vector>
 
 #include "vmath.h"
@@ -216,6 +218,13 @@ struct PolyMesh {
   bool isValid() const;
 };
 
+// Compact little-endian binary form of a PolyMesh (used for the mesh section of .veraa files).
+// encode appends to `out`; decode validates sizes and indices and returns false on bad data.
+void encodePolyMesh(const PolyMesh& mesh, std::string& out);
+bool decodePolyMesh(const char* data, size_t size, PolyMesh& mesh);
+
+struct TriBvh;
+
 // Render-ready triangles. Vertices are split where normals or UVs differ.
 struct TriMesh {
   std::vector<Vec3> positions;
@@ -230,12 +239,18 @@ struct TriMesh {
 
   size_t triangleCount() const { return indices.size() / 3; }
   bool empty() const { return indices.empty(); }
+
+  // Ray-picking acceleration, built on first use for larger meshes (see intersectTriMesh).
+  // The mesh must not be modified after it is built.
+  mutable std::shared_ptr<const TriBvh> bvh;
 };
 
 // Triangulates (ear clipping for concave polygons) and computes smoothing-group normals.
 TriMesh triangulate(const PolyMesh& mesh);
 
-// Ray/triangle-mesh test used for viewport picking. Returns nearest distance or -1.
+// Ray/triangle-mesh test used for viewport picking. Returns nearest distance or -1. Meshes with
+// more than a few thousand triangles get a bounding volume hierarchy on the first call, so later
+// picks cost microseconds.
 float intersectTriMesh(const TriMesh& mesh, const Ray& ray);
 
 }  // namespace veraa
