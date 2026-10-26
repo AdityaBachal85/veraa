@@ -294,7 +294,8 @@ void MainWindow::createActions() {
   connect(openAct_, &QAction::triggered, this, [this] {
     if (!maybeSave()) return;
     QString dir = doc_->filePath().isEmpty() ? projectSubfolder("scenes") : QFileInfo(doc_->filePath()).absolutePath();
-    QString f = QFileDialog::getOpenFileName(this, tr("Open Scene"), dir, tr("Veraa scenes (*.veraa);;All files (*)"));
+    QString f = QFileDialog::getOpenFileName(this, tr("Open Scene"), dir,
+                                             tr("Scenes (*.veraa *.max);;Veraa scenes (*.veraa);;3ds Max scenes (*.max);;All files (*)"));
     if (!f.isEmpty()) openFile(f);
   });
   saveAct_ = cmd("file.save", tr("&Save"), QKeySequence::Save, icons::save());
@@ -1414,6 +1415,9 @@ bool MainWindow::openFile(const QString& path) {
     return ok;
   }
   if (ext != "veraa" && !ext.isEmpty()) {
+    // A 3ds Max scene replaces the current scene (like opening it in 3ds Max); other formats
+    // are merged in.
+    if (ext == "max") doc_->newScene();
     QString err;
     QVector<uint32_t> ids;
     if (!importPath(path, &ids, &err)) {
@@ -1421,6 +1425,13 @@ bool MainWindow::openFile(const QString& path) {
       return false;
     }
     viewports_->zoomExtentsAll(false);
+    if (ext == "max" && !lastImportWarnings_.isEmpty()) {
+      // Import summary and warnings; shown without blocking (scripts may call openFile).
+      auto* box = new QMessageBox(QMessageBox::Information, tr("Open 3ds Max Scene"),
+                                  lastImportWarnings_.mid(0, 25).join('\n'), QMessageBox::Ok, this);
+      box->setAttribute(Qt::WA_DeleteOnClose);
+      box->open();
+    }
     return true;
   }
   QString err;

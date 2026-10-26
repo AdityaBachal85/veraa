@@ -123,7 +123,7 @@ std::vector<std::array<int, 3>> fanTriangles(const PolyMesh& mesh, std::vector<i
 
 }  // namespace io
 
-std::vector<std::string> importFormats() { return {"obj", "fbx", "gltf", "glb", "stl", "ply", "3ds"}; }
+std::vector<std::string> importFormats() { return {"obj", "fbx", "gltf", "glb", "stl", "ply", "3ds", "max"}; }
 std::vector<std::string> exportFormats() { return {"obj", "fbx", "gltf", "glb", "stl", "ply"}; }
 
 bool importScene(Scene& scene, const std::string& path, const ImportOptions& options, ImportResult* result,
@@ -148,6 +148,7 @@ bool importScene(Scene& scene, const std::string& path, const ImportOptions& opt
   if (ext == "stl") return importStl(scene, path, options, r, error);
   if (ext == "ply") return importPly(scene, path, options, r, error);
   if (ext == "3ds") return import3ds(scene, path, options, r, error);
+  if (ext == "max") return importMax(scene, path, options, r, error);
   if (error) *error = "Unsupported file type: ." + ext;
   return false;
 }

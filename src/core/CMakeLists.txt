@@ -54,6 +54,8 @@ add_library(veraa_core STATIC
   io_fbx.cpp
   io_gltf.cpp
   io_mesh_formats.cpp
+  cfb.cpp
+  io_max.cpp
   texmap.cpp
   renderobjects.cpp
   rendersettings.cpp

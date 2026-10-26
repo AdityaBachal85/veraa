@@ -38,6 +38,9 @@ needed.
   Normal. Enable, reorder and delete modifiers; edit parameters live.
 - **Smoothing groups**, polygon (n-gon) meshes, Convert to Editable Poly.
 - **OBJ import** with MTL materials and textures.
+- **3ds Max .max import** (File > Open / Import, and `veraa-render scene.max`): node hierarchy,
+  Editable Poly/Mesh geometry, standard primitives, Standard/VRayMtl/Multi-Sub materials,
+  V-Ray and standard lights. Best effort; see `docs/MAX_FORMAT.md`.
 
 ### Scene
 

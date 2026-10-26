@@ -1,6 +1,6 @@
 // Scene exchange formats: FBX (import via ufbx, ASCII export), glTF 2.0 (.gltf/.glb, import via
 // cgltf, export), STL and PLY (import/export), 3DS (import) and OBJ (export with MTL; import is in
-// obj_import.h). Veraa is Z-up in centimeters; files are converted on the way in and out.
+// obj_import.h), and 3ds Max .max scenes (import, see io_max.cpp). Veraa is Z-up in centimeters; files are converted on the way in and out.
 #pragma once
 
 #include <cstdint>
@@ -50,6 +50,9 @@ bool importGltf(Scene& scene, const std::string& path, const ImportOptions& opti
 bool importStl(Scene& scene, const std::string& path, const ImportOptions& options, ImportResult* result, std::string* error);
 bool importPly(Scene& scene, const std::string& path, const ImportOptions& options, ImportResult* result, std::string* error);
 bool import3ds(Scene& scene, const std::string& path, const ImportOptions& options, ImportResult* result, std::string* error);
+// 3ds Max scene. The first warning is always a summary line (file version and what was
+// imported); the rest list what was skipped or approximated.
+bool importMax(Scene& scene, const std::string& path, const ImportOptions& options, ImportResult* result, std::string* error);
 
 bool exportFbx(const Scene& scene, const std::string& path, const ExportOptions& options, std::string* error);
 bool exportGltf(const Scene& scene, const std::string& path, const ExportOptions& options, std::string* error);
