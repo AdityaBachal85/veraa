@@ -57,9 +57,9 @@ QSettings appSettings() { return QSettings("Veraa", "Veraa"); }
 
 QString importFilter() {
   return QObject::tr(
-      "All supported (*.veraa *.obj *.fbx *.gltf *.glb *.stl *.ply *.3ds);;"
-      "Veraa scenes (*.veraa);;Wavefront OBJ (*.obj);;FBX (*.fbx);;glTF 2.0 (*.gltf *.glb);;STL (*.stl);;"
-      "PLY (*.ply);;3D Studio (*.3ds);;All files (*)");
+      "All supported (*.veraa *.max *.obj *.fbx *.gltf *.glb *.stl *.ply *.3ds);;"
+      "Veraa scenes (*.veraa);;3ds Max scenes (*.max);;Wavefront OBJ (*.obj);;FBX (*.fbx);;glTF 2.0 (*.gltf *.glb);;"
+      "STL (*.stl);;PLY (*.ply);;3D Studio (*.3ds);;All files (*)");
 }
 
 QString exportFilter() {
@@ -102,10 +102,10 @@ class ImportOptionsDialog : public QDialog {
     weld_ = new QCheckBox(tr("Weld coincident vertices"), this);
     weld_->setChecked(true);
     if (ext == "fbx" || ext == "gltf" || ext == "glb") f->addRow(units_);
-    f->addRow(axes_);
+    if (ext != "max") f->addRow(axes_);  // 3ds Max scenes are Z-up like Veraa
     f->addRow(tr("Scale:"), scale_);
     if (ext != "stl" && ext != "ply") f->addRow(materials_);
-    if (ext == "fbx" || ext == "gltf" || ext == "glb") {
+    if (ext == "fbx" || ext == "gltf" || ext == "glb" || ext == "max") {
       f->addRow(lights_);
       f->addRow(cameras_);
     }

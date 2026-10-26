@@ -8,6 +8,7 @@
 #include <string>
 #include <thread>
 
+#include "io_formats.h"
 #include "renderer.h"
 #include "rendersettings.h"
 #include "scene.h"
@@ -19,6 +20,7 @@ namespace {
 void usage() {
   std::printf(
       "Usage: veraa-render <scene.veraa> -o <out.png> [options]\n"
+      "       (other scene formats such as .max, .fbx and .gltf are imported first)\n"
       "\n"
       "Output:\n"
       "  -o, --output FILE      image to write: .png .jpg .tif .bmp .tga (8-bit) or .exr .hdr (float)\n"
@@ -215,7 +217,18 @@ int main(int argc, char** argv) {
 
   Scene scene;
   std::string error;
-  if (!scene.load(scenePath, &error)) {
+  std::string sceneExt = extensionOf(scenePath);
+  bool imported = sceneExt != ".veraa" && sceneExt != ".json" && !sceneExt.empty();
+  if (imported) {
+    // Other formats (.max, .fbx, .gltf, ...) are imported into an empty scene.
+    ImportResult res;
+    if (!importScene(scene, scenePath, ImportOptions(), &res, &error)) {
+      std::fprintf(stderr, "Error: %s\n", error.c_str());
+      return 1;
+    }
+    if (!quiet)
+      for (const auto& warn : res.warnings) std::printf("Import: %s\n", warn.c_str());
+  } else if (!scene.load(scenePath, &error)) {
     std::fprintf(stderr, "Error: %s\n", error.c_str());
     return 1;
   }

@@ -142,7 +142,8 @@ built-in fallbacks.
 ## File formats (`src/core/io_formats.h`)
 
 `importScene()` / `exportScene()` pick the format from the extension. Import: OBJ, FBX (ufbx),
-glTF/GLB (cgltf), STL, PLY, 3DS. Export: OBJ + MTL, FBX (ASCII 7.4), glTF/GLB, STL, PLY.
+glTF/GLB (cgltf), STL, PLY, 3DS, 3ds Max .max (`io_max.cpp` with the compound-file reader
+`cfb.cpp`; layout notes in `docs/MAX_FORMAT.md`, tests in `tests/max_tests.cpp`). Export: OBJ + MTL, FBX (ASCII 7.4), glTF/GLB, STL, PLY.
 FBX and glTF keep the hierarchy, transforms, pivot offsets and basic materials; glTF and FBX
 units/axes are converted to Veraa's Z-up centimeters. `tests/io_tests.cpp` checks round trips.
 
