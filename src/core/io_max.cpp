@@ -682,7 +682,7 @@ bool readPolyMesh(const MaxScene& s, const Chunk* mn, PolyMesh& out, Warnings& w
         if (!mf.has(p + 4, size_t(deg) * 4)) ok = false;
         if (!ok) break;
         if (faceOf[f] >= 0) {
-          std::vector<int>& uv = withUv.faces[faceOf[f]].uv;
+          IndexList& uv = withUv.faces[faceOf[f]].uv;
           uv.resize(deg);
           for (uint32_t k = 0; k < deg; ++k) {
             uint32_t t = mf.u32(p + 4 + size_t(k) * 4);

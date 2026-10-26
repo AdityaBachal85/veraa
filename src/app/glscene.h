@@ -75,7 +75,11 @@ class GlScene {
     bool used = false;
   };
   struct SharedMesh;
-  struct SharedCache;
+
+ public:
+  struct SharedCache;  // per share group; defined in glscene.cpp
+
+ private:
   // Uploads (if stale) the node's buffers, shared by every viewport of the window (their OpenGL
   // contexts share objects), and returns this context's vertex arrays for them.
   const LocalMesh* meshFor(const Node& node, uint64_t stamp, GLsizei* triCount, GLsizei* wireCount);

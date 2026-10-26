@@ -345,7 +345,7 @@ void GlScene::drawWire(const Node& node, uint64_t stamp, const Mat4& viewProj, c
   useProgram(lineProg_);
   lineProg_.setUniformValue(loc_.lineMvp, toQt(viewProj * node.objectWorldMatrix()));
   gl_->glBindVertexArray(m->wireVao);
-  gl_->glVertexAttrib4f(1, color.redF(), color.greenF(), color.blueF(), color.alphaF());
+  QOpenGLContext::currentContext()->functions()->glVertexAttrib4f(1, color.redF(), color.greenF(), color.blueF(), color.alphaF());
   if (!g_skipDraws) gl_->glDrawElements(GL_LINES, wires, GL_UNSIGNED_INT, nullptr);
   gl_->glBindVertexArray(0);
 }
