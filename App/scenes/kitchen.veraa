@@ -1,0 +1,8435 @@
+{
+ "format": "veraa-scene",
+ "version": 1,
+ "renderSettings": {
+  "width": 1160,
+  "height": 1000,
+  "samples": 1024,
+  "maxDepth": 10,
+  "clampIndirect": 8,
+  "envMode": 0,
+  "envColor": [
+   0,
+   0,
+   0
+  ],
+  "camera": "Camera",
+  "denoise": true,
+  "exposureControl": 1,
+  "ev100": 8.2,
+  "whiteBalanceK": 4700,
+  "tonemap": 1,
+  "cmBurn": 0.35,
+  "cmBrightMultiplier": 1.0,
+  "cmDarkMultiplier": 1.0,
+  "contrast": 1.05,
+  "saturation": 1.0
+ },
+ "materials": [
+  {
+   "id": 1,
+   "name": "Wall paint",
+   "type": "VeraaMtl",
+   "params": {
+    "diffuse": [
+     0.85,
+     0.82,
+     0.77
+    ],
+    "roughness": 0.4
+   }
+  },
+  {
+   "id": 2,
+   "name": "Ceiling",
+   "type": "VeraaMtl",
+   "params": {
+    "diffuse": [
+     0.86,
+     0.86,
+     0.85
+    ]
+   }
+  },
+  {
+   "id": 3,
+   "name": "Marble floor",
+   "type": "VeraaMtl",
+   "params": {
+    "diffuse": [
+     0.9,
+     0.9,
+     0.9
+    ],
+    "reflectGlossiness": 0.95,
+    "reflect": [
+     1,
+     1,
+     1
+    ],
+    "fresnelIor": 1.5
+   },
+   "maps": {
+    "diffuse": {
+     "map": {
+      "type": "Triplanar",
+      "name": "Triplanar",
+      "params": {
+       "size": 260,
+       "blend": 0.15,
+       "space": 1
+      },
+      "maps": {
+       "texture": {
+        "map": {
+         "type": "Bitmap",
+         "name": "Bitmap",
+         "params": {
+          "file": "../assets/textures/marble_white.jpg"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  {
+   "id": 4,
+   "name": "Marble counter",
+   "type": "VeraaMtl",
+   "params": {
+    "diffuse": [
+     0.9,
+     0.9,
+     0.9
+    ],
+    "reflectGlossiness": 0.95,
+    "reflect": [
+     1,
+     1,
+     1
+    ],
+    "fresnelIor": 1.5
+   },
+   "maps": {
+    "diffuse": {
+     "map": {
+      "type": "Triplanar",
+      "name": "Triplanar",
+      "params": {
+       "size": 90,
+       "blend": 0.15,
+       "space": 1
+      },
+      "maps": {
+       "texture": {
+        "map": {
+         "type": "Bitmap",
+         "name": "Bitmap",
+         "params": {
+          "file": "../assets/textures/marble_white.jpg"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  {
+   "id": 5,
+   "name": "Beige lacquer",
+   "type": "VeraaMtl",
+   "params": {
+    "diffuse": [
+     0.72,
+     0.66,
+     0.57
+    ],
+    "reflect": [
+     1,
+     1,
+     1
+    ],
+    "fresnelIor": 1.55,
+    "reflectGlossiness": 0.96
+   }
+  },
+  {
+   "id": 6,
+   "name": "White lacquer",
+   "type": "VeraaMtl",
+   "params": {
+    "diffuse": [
+     0.84,
+     0.83,
+     0.8
+    ],
+    "reflectGlossiness": 0.94,
+    "reflect": [
+     1,
+     1,
+     1
+    ],
+    "fresnelIor": 1.5
+   }
+  },
+  {
+   "id": 7,
+   "name": "Black metal",
+   "type": "VeraaMtl",
+   "params": {
+    "diffuse": [
+     0.025,
+     0.025,
+     0.025
+    ],
+    "reflect": [
+     0.6,
+     0.6,
+     0.6
+    ],
+    "reflectGlossiness": 0.7
+   }
+  },
+  {
+   "id": 8,
+   "name": "Plinth",
+   "type": "VeraaMtl",
+   "params": {
+    "diffuse": [
+     0.08,
+     0.08,
+     0.08
+    ],
+    "reflect": [
+     0.3,
+     0.3,
+     0.3
+    ],
+    "reflectGlossiness": 0.6
+   }
+  },
+  {
+   "id": 9,
+   "name": "Light oak",
+   "type": "VeraaMtl",
+   "params": {
+    "diffuse": [
+     0.72,
+     0.56,
+     0.38
+    ],
+    "roughness": 0.3
+   }
+  },
+  {
+   "id": 10,
+   "name": "Oak veneer",
+   "type": "VeraaMtl",
+   "params": {
+    "diffuse": [
+     0.55,
+     0.38,
+     0.22
+    ],
+    "reflect": [
+     0.4,
+     0.4,
+     0.4
+    ],
+    "reflectGlossiness": 0.6
+   }
+  },
+  {
+   "id": 11,
+   "name": "Fluted glass",
+   "type": "VeraaMtl",
+   "params": {
+    "diffuse": [
+     0,
+     0,
+     0
+    ],
+    "reflect": [
+     1,
+     1,
+     1
+    ],
+    "refract": [
+     0.97,
+     0.96,
+     0.93
+    ],
+    "ior": 1.5,
+    "fresnelIor": 1.5,
+    "refractGlossiness": 0.97,
+    "fogColor": [
+     0.9,
+     0.92,
+     0.88
+    ],
+    "fogMultiplier": 0.2
+   }
+  },
+  {
+   "id": 12,
+   "name": "Frosted glass",
+   "type": "VeraaMtl",
+   "params": {
+    "diffuse": [
+     0,
+     0,
+     0
+    ],
+    "reflect": [
+     1,
+     1,
+     1
+    ],
+    "refract": [
+     0.95,
+     0.95,
+     0.95
+    ],
+    "ior": 1.5,
+    "fresnelIor": 1.5,
+    "refractGlossiness": 0.55,
+    "reflectGlossiness": 0.9
+   }
+  },
+  {
+   "id": 13,
+   "name": "Black glass",
+   "type": "VeraaMtl",
+   "params": {
+    "diffuse": [
+     0.01,
+     0.01,
+     0.01
+    ],
+    "reflectGlossiness": 0.98,
+    "reflect": [
+     1,
+     1,
+     1
+    ],
+    "fresnelIor": 1.5
+   }
+  },
+  {
+   "id": 14,
+   "name": "Stainless steel",
+   "type": "VeraaMtl",
+   "params": {
+    "diffuse": [
+     0.75,
+     0.75,
+     0.74
+    ],
+    "reflect": [
+     1,
+     1,
+     1
+    ],
+    "metalness": 1.0,
+    "reflectGlossiness": 0.8,
+    "anisotropy": 0.4
+   }
+  },
+  {
+   "id": 15,
+   "name": "Chrome",
+   "type": "VeraaMtl",
+   "params": {
+    "diffuse": [
+     0.95,
+     0.95,
+     0.95
+    ],
+    "reflect": [
+     1,
+     1,
+     1
+    ],
+    "metalness": 1.0,
+    "reflectGlossiness": 0.97
+   }
+  },
+  {
+   "id": 16,
+   "name": "Ceramic",
+   "type": "VeraaMtl",
+   "params": {
+    "diffuse": [
+     0.88,
+     0.87,
+     0.84
+    ],
+    "reflectGlossiness": 0.96,
+    "reflect": [
+     1,
+     1,
+     1
+    ],
+    "fresnelIor": 1.5
+   }
+  },
+  {
+   "id": 17,
+   "name": "Bottle glass",
+   "type": "VeraaMtl",
+   "params": {
+    "diffuse": [
+     0,
+     0,
+     0
+    ],
+    "reflect": [
+     1,
+     1,
+     1
+    ],
+    "refract": [
+     1,
+     1,
+     1
+    ],
+    "ior": 1.5,
+    "fresnelIor": 1.5,
+    "fogColor": [
+     0.35,
+     0.55,
+     0.3
+    ],
+    "fogMultiplier": 1.0
+   }
+  },
+  {
+   "id": 18,
+   "name": "Jar glass",
+   "type": "VeraaMtl",
+   "params": {
+    "diffuse": [
+     0,
+     0,
+     0
+    ],
+    "reflect": [
+     1,
+     1,
+     1
+    ],
+    "refract": [
+     1,
+     1,
+     1
+    ],
+    "ior": 1.5,
+    "fresnelIor": 1.5
+   }
+  },
+  {
+   "id": 19,
+   "name": "Lemons",
+   "type": "VeraaMtl",
+   "params": {
+    "diffuse": [
+     0.75,
+     0.55,
+     0.05
+    ],
+    "reflect": [
+     0.5,
+     0.5,
+     0.5
+    ],
+    "reflectGlossiness": 0.6
+   }
+  },
+  {
+   "id": 20,
+   "name": "Herbs",
+   "type": "VeraaMtl",
+   "params": {
+    "diffuse": [
+     0.08,
+     0.22,
+     0.05
+    ],
+    "roughness": 0.6
+   }
+  },
+  {
+   "id": 21,
+   "name": "Downlight lens",
+   "type": "VeraaMtl",
+   "params": {
+    "diffuse": [
+     0,
+     0,
+     0
+    ],
+    "selfIllum": [
+     1.0,
+     0.86,
+     0.68
+    ],
+    "selfIllumMultiplier": 30000,
+    "selfIllumGI": false
+   }
+  }
+ ],
+ "nodes": [
+  {
+   "id": 1,
+   "name": "Floor",
+   "transform": {
+    "position": [
+     0,
+     40,
+     -6
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 3,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 440,
+     "length": 540,
+     "height": 6
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 2,
+   "name": "CeilingSlab",
+   "transform": {
+    "position": [
+     0,
+     40,
+     285
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 2,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 440,
+     "length": 540,
+     "height": 8
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 3,
+   "name": "BackWall",
+   "transform": {
+    "position": [
+     0,
+     305,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 1,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 440,
+     "length": 10,
+     "height": 285
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 4,
+   "name": "FrontWall",
+   "transform": {
+    "position": [
+     0,
+     -225,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 1,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 440,
+     "length": 10,
+     "height": 285
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 5,
+   "name": "LeftWall",
+   "transform": {
+    "position": [
+     -215,
+     40,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 1,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 10,
+     "length": 540,
+     "height": 285
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 6,
+   "name": "RightWallA",
+   "transform": {
+    "position": [
+     215,
+     -90,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 1,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 10,
+     "length": 260,
+     "height": 285
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 7,
+   "name": "RightWallB",
+   "transform": {
+    "position": [
+     215,
+     260,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 1,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 10,
+     "length": 80,
+     "height": 285
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 8,
+   "name": "RightWallTop",
+   "transform": {
+    "position": [
+     215,
+     130,
+     230
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 1,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 10,
+     "length": 180,
+     "height": 55
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 9,
+   "name": "DoorGlass",
+   "transform": {
+    "position": [
+     213,
+     130,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 12,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 2,
+     "length": 180,
+     "height": 230
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 10,
+   "name": "DoorFrameL",
+   "transform": {
+    "position": [
+     211,
+     41,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 7,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 4,
+     "length": 3,
+     "height": 230
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 11,
+   "name": "DoorFrameR",
+   "transform": {
+    "position": [
+     211,
+     219,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 7,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 4,
+     "length": 3,
+     "height": 230
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 12,
+   "name": "DoorFrameMid",
+   "transform": {
+    "position": [
+     211,
+     130,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 7,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 4,
+     "length": 3,
+     "height": 230
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 13,
+   "name": "DoorFrameTop",
+   "transform": {
+    "position": [
+     211,
+     130,
+     227
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 7,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 4,
+     "length": 180,
+     "height": 3
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 14,
+   "name": "DaylightBehindDoor",
+   "transform": {
+    "position": [
+     240,
+     130,
+     115
+    ],
+    "rotation": [
+     90.0,
+     0.0,
+     90.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.95,
+    0.85,
+    0.2
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 0,
+   "object": {
+    "type": "VeraaLight",
+    "params": {
+     "lightType": 0,
+     "width": 180,
+     "length": 230,
+     "units": 2,
+     "intensity": 900,
+     "colorMode": 1,
+     "temperature": 6000,
+     "invisible": false
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 15,
+   "name": "BaseCarcass",
+   "transform": {
+    "position": [
+     0,
+     272,
+     10
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 5,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 400,
+     "length": 56,
+     "height": 76
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 16,
+   "name": "Plinth",
+   "transform": {
+    "position": [
+     0,
+     278,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 8,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 400,
+     "length": 44,
+     "height": 10
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 17,
+   "name": "Front0_0",
+   "transform": {
+    "position": [
+     -166.5,
+     242.5,
+     10.25
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 5,
+   "object": {
+    "type": "ChamferBox",
+    "params": {
+     "width": 66.5,
+     "length": 3,
+     "height": 25.5,
+     "fillet": 0.3,
+     "filletSegs": 2
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 18,
+   "name": "Front0_1",
+   "transform": {
+    "position": [
+     -166.5,
+     242.5,
+     37.25
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 5,
+   "object": {
+    "type": "ChamferBox",
+    "params": {
+     "width": 66.5,
+     "length": 3,
+     "height": 23.5,
+     "fillet": 0.3,
+     "filletSegs": 2
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 19,
+   "name": "Front0_2",
+   "transform": {
+    "position": [
+     -166.5,
+     242.5,
+     62.25
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 5,
+   "object": {
+    "type": "ChamferBox",
+    "params": {
+     "width": 66.5,
+     "length": 3,
+     "height": 20.5,
+     "fillet": 0.3,
+     "filletSegs": 2
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 20,
+   "name": "Front1_0",
+   "transform": {
+    "position": [
+     -99.5,
+     242.5,
+     10.25
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 5,
+   "object": {
+    "type": "ChamferBox",
+    "params": {
+     "width": 66.5,
+     "length": 3,
+     "height": 72.5,
+     "fillet": 0.3,
+     "filletSegs": 2
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 21,
+   "name": "Front2_0",
+   "transform": {
+    "position": [
+     -33.0,
+     242.5,
+     10.25
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 5,
+   "object": {
+    "type": "ChamferBox",
+    "params": {
+     "width": 65.5,
+     "length": 3,
+     "height": 25.5,
+     "fillet": 0.3,
+     "filletSegs": 2
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 22,
+   "name": "Front2_1",
+   "transform": {
+    "position": [
+     -33.0,
+     242.5,
+     37.25
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 5,
+   "object": {
+    "type": "ChamferBox",
+    "params": {
+     "width": 65.5,
+     "length": 3,
+     "height": 23.5,
+     "fillet": 0.3,
+     "filletSegs": 2
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 23,
+   "name": "Front2_2",
+   "transform": {
+    "position": [
+     -33.0,
+     242.5,
+     62.25
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 5,
+   "object": {
+    "type": "ChamferBox",
+    "params": {
+     "width": 65.5,
+     "length": 3,
+     "height": 20.5,
+     "fillet": 0.3,
+     "filletSegs": 2
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 24,
+   "name": "Front3_0",
+   "transform": {
+    "position": [
+     33.0,
+     242.5,
+     10.25
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 5,
+   "object": {
+    "type": "ChamferBox",
+    "params": {
+     "width": 65.5,
+     "length": 3,
+     "height": 25.5,
+     "fillet": 0.3,
+     "filletSegs": 2
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 25,
+   "name": "Front3_1",
+   "transform": {
+    "position": [
+     33.0,
+     242.5,
+     37.25
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 5,
+   "object": {
+    "type": "ChamferBox",
+    "params": {
+     "width": 65.5,
+     "length": 3,
+     "height": 23.5,
+     "fillet": 0.3,
+     "filletSegs": 2
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 26,
+   "name": "Front3_2",
+   "transform": {
+    "position": [
+     33.0,
+     242.5,
+     62.25
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 5,
+   "object": {
+    "type": "ChamferBox",
+    "params": {
+     "width": 65.5,
+     "length": 3,
+     "height": 20.5,
+     "fillet": 0.3,
+     "filletSegs": 2
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 27,
+   "name": "Front4_0",
+   "transform": {
+    "position": [
+     99.5,
+     242.5,
+     10.25
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 5,
+   "object": {
+    "type": "ChamferBox",
+    "params": {
+     "width": 66.5,
+     "length": 3,
+     "height": 72.5,
+     "fillet": 0.3,
+     "filletSegs": 2
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 28,
+   "name": "Front5_0",
+   "transform": {
+    "position": [
+     166.5,
+     242.5,
+     10.25
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 5,
+   "object": {
+    "type": "ChamferBox",
+    "params": {
+     "width": 66.5,
+     "length": 3,
+     "height": 25.5,
+     "fillet": 0.3,
+     "filletSegs": 2
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 29,
+   "name": "Front5_1",
+   "transform": {
+    "position": [
+     166.5,
+     242.5,
+     37.25
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 5,
+   "object": {
+    "type": "ChamferBox",
+    "params": {
+     "width": 66.5,
+     "length": 3,
+     "height": 23.5,
+     "fillet": 0.3,
+     "filletSegs": 2
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 30,
+   "name": "Front5_2",
+   "transform": {
+    "position": [
+     166.5,
+     242.5,
+     62.25
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 5,
+   "object": {
+    "type": "ChamferBox",
+    "params": {
+     "width": 66.5,
+     "length": 3,
+     "height": 20.5,
+     "fillet": 0.3,
+     "filletSegs": 2
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 31,
+   "name": "Gola83",
+   "transform": {
+    "position": [
+     0,
+     243.4,
+     83.0
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 7,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 400,
+     "length": 1.2,
+     "height": 3.0
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 32,
+   "name": "Gola61",
+   "transform": {
+    "position": [
+     0,
+     243.4,
+     61.0
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 7,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 400,
+     "length": 1.2,
+     "height": 1.0
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 33,
+   "name": "Gola36",
+   "transform": {
+    "position": [
+     0,
+     243.4,
+     36.0
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 7,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 400,
+     "length": 1.2,
+     "height": 1.0
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 34,
+   "name": "Counter",
+   "transform": {
+    "position": [
+     0,
+     268,
+     86
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 4,
+   "object": {
+    "type": "ChamferBox",
+    "params": {
+     "width": 404,
+     "length": 64,
+     "height": 4,
+     "fillet": 0.4,
+     "filletSegs": 2
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 35,
+   "name": "Backsplash",
+   "transform": {
+    "position": [
+     0,
+     299,
+     90
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 4,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 400,
+     "length": 2,
+     "height": 60
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 36,
+   "name": "Bulkhead",
+   "transform": {
+    "position": [
+     0,
+     282,
+     245
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 6,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 420,
+     "length": 36,
+     "height": 40
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 37,
+   "name": "WallDoor0",
+   "transform": {
+    "position": [
+     -75.0,
+     266,
+     150.3
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 6,
+   "object": {
+    "type": "ChamferBox",
+    "params": {
+     "width": 69.5,
+     "length": 3,
+     "height": 94.4,
+     "fillet": 0.3,
+     "filletSegs": 2
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 38,
+   "name": "WallDoor1",
+   "transform": {
+    "position": [
+     0.0,
+     266,
+     178.3
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 6,
+   "object": {
+    "type": "ChamferBox",
+    "params": {
+     "width": 79.5,
+     "length": 3,
+     "height": 66.4,
+     "fillet": 0.3,
+     "filletSegs": 2
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 39,
+   "name": "WallDoor2",
+   "transform": {
+    "position": [
+     75.0,
+     266,
+     150.3
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 6,
+   "object": {
+    "type": "ChamferBox",
+    "params": {
+     "width": 69.5,
+     "length": 3,
+     "height": 94.4,
+     "fillet": 0.3,
+     "filletSegs": 2
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 40,
+   "name": "WallCarcassMid",
+   "transform": {
+    "position": [
+     0,
+     283,
+     150
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 6,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 220,
+     "length": 33,
+     "height": 95
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 41,
+   "name": "Hood",
+   "transform": {
+    "position": [
+     0,
+     270,
+     150
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 13,
+   "object": {
+    "type": "ChamferBox",
+    "params": {
+     "width": 78,
+     "length": 30,
+     "height": 28,
+     "fillet": 0.5,
+     "filletSegs": 2
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 42,
+   "name": "DispBackL",
+   "transform": {
+    "position": [
+     -155.0,
+     298,
+     150
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 9,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 90,
+     "length": 4,
+     "height": 95
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 43,
+   "name": "DispBottomL",
+   "transform": {
+    "position": [
+     -155.0,
+     283,
+     150
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 7,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 90,
+     "length": 34,
+     "height": 2
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 44,
+   "name": "DispTopL",
+   "transform": {
+    "position": [
+     -155.0,
+     283,
+     243
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 7,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 90,
+     "length": 34,
+     "height": 2
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 45,
+   "name": "DispSideL0",
+   "transform": {
+    "position": [
+     -199,
+     283,
+     150
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 7,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 2,
+     "length": 34,
+     "height": 95
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 46,
+   "name": "DispSideL1",
+   "transform": {
+    "position": [
+     -111,
+     283,
+     150
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 7,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 2,
+     "length": 34,
+     "height": 95
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 47,
+   "name": "ShelfL0",
+   "transform": {
+    "position": [
+     -155.0,
+     283,
+     181
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 10,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 86,
+     "length": 30,
+     "height": 1.2
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 48,
+   "name": "ShelfL1",
+   "transform": {
+    "position": [
+     -155.0,
+     283,
+     212
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 10,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 86,
+     "length": 30,
+     "height": 1.2
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 49,
+   "name": "ShelfLedL0",
+   "transform": {
+    "position": [
+     -155.0,
+     272,
+     180.6
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.95,
+    0.85,
+    0.2
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 0,
+   "object": {
+    "type": "VeraaLight",
+    "params": {
+     "lightType": 0,
+     "width": 82,
+     "length": 1.5,
+     "units": 2,
+     "intensity": 30000,
+     "colorMode": 1,
+     "temperature": 2700,
+     "invisible": true
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 50,
+   "name": "ShelfLedL1",
+   "transform": {
+    "position": [
+     -155.0,
+     272,
+     211.6
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.95,
+    0.85,
+    0.2
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 0,
+   "object": {
+    "type": "VeraaLight",
+    "params": {
+     "lightType": 0,
+     "width": 82,
+     "length": 1.5,
+     "units": 2,
+     "intensity": 30000,
+     "colorMode": 1,
+     "temperature": 2700,
+     "invisible": true
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 51,
+   "name": "ShelfLedL2",
+   "transform": {
+    "position": [
+     -155.0,
+     272,
+     242.6
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.95,
+    0.85,
+    0.2
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 0,
+   "object": {
+    "type": "VeraaLight",
+    "params": {
+     "lightType": 0,
+     "width": 82,
+     "length": 1.5,
+     "units": 2,
+     "intensity": 30000,
+     "colorMode": 1,
+     "temperature": 2700,
+     "invisible": true
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 52,
+   "name": "JarL00",
+   "transform": {
+    "position": [
+     -185.0,
+     285,
+     152
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 18,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 5,
+     "height": 16,
+     "sides": 32
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 53,
+   "name": "PlateL01",
+   "transform": {
+    "position": [
+     -155.0,
+     292,
+     152
+    ],
+    "rotation": [
+     80,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 16,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 11,
+     "height": 1.2,
+     "sides": 48
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 54,
+   "name": "JarL02",
+   "transform": {
+    "position": [
+     -125.0,
+     285,
+     152
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 18,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 5,
+     "height": 16,
+     "sides": 32
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 55,
+   "name": "PlateL10",
+   "transform": {
+    "position": [
+     -185.0,
+     292,
+     182.2
+    ],
+    "rotation": [
+     80,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 16,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 11,
+     "height": 1.2,
+     "sides": 48
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 56,
+   "name": "JarL11",
+   "transform": {
+    "position": [
+     -155.0,
+     285,
+     182.2
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 18,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 5,
+     "height": 16,
+     "sides": 32
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 57,
+   "name": "PlateL12",
+   "transform": {
+    "position": [
+     -125.0,
+     292,
+     182.2
+    ],
+    "rotation": [
+     80,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 16,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 11,
+     "height": 1.2,
+     "sides": 48
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 58,
+   "name": "JarL20",
+   "transform": {
+    "position": [
+     -185.0,
+     285,
+     213.2
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 18,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 5,
+     "height": 16,
+     "sides": 32
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 59,
+   "name": "PlateL21",
+   "transform": {
+    "position": [
+     -155.0,
+     292,
+     213.2
+    ],
+    "rotation": [
+     80,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 16,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 11,
+     "height": 1.2,
+     "sides": 48
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 60,
+   "name": "JarL22",
+   "transform": {
+    "position": [
+     -125.0,
+     285,
+     213.2
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 18,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 5,
+     "height": 16,
+     "sides": 32
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 61,
+   "name": "DoorFrameL0L",
+   "transform": {
+    "position": [
+     -198.8,
+     265,
+     150
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 7,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 2.4,
+     "length": 3,
+     "height": 95
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 62,
+   "name": "DoorFrameL0R",
+   "transform": {
+    "position": [
+     -156.2,
+     265,
+     150
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 7,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 2.4,
+     "length": 3,
+     "height": 95
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 63,
+   "name": "DoorFrameL0B",
+   "transform": {
+    "position": [
+     -177.5,
+     265,
+     150
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 7,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 45.0,
+     "length": 3,
+     "height": 2.4
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 64,
+   "name": "DoorFrameL0T",
+   "transform": {
+    "position": [
+     -177.5,
+     265,
+     242.6
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 7,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 45.0,
+     "length": 3,
+     "height": 2.4
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 65,
+   "name": "RibL0_0",
+   "transform": {
+    "position": [
+     -196.6,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 66,
+   "name": "RibL0_1",
+   "transform": {
+    "position": [
+     -194.6,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 67,
+   "name": "RibL0_2",
+   "transform": {
+    "position": [
+     -192.6,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 68,
+   "name": "RibL0_3",
+   "transform": {
+    "position": [
+     -190.6,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 69,
+   "name": "RibL0_4",
+   "transform": {
+    "position": [
+     -188.6,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 70,
+   "name": "RibL0_5",
+   "transform": {
+    "position": [
+     -186.6,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 71,
+   "name": "RibL0_6",
+   "transform": {
+    "position": [
+     -184.6,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 72,
+   "name": "RibL0_7",
+   "transform": {
+    "position": [
+     -182.6,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 73,
+   "name": "RibL0_8",
+   "transform": {
+    "position": [
+     -180.6,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 74,
+   "name": "RibL0_9",
+   "transform": {
+    "position": [
+     -178.6,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 75,
+   "name": "RibL0_10",
+   "transform": {
+    "position": [
+     -176.6,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 76,
+   "name": "RibL0_11",
+   "transform": {
+    "position": [
+     -174.6,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 77,
+   "name": "RibL0_12",
+   "transform": {
+    "position": [
+     -172.6,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 78,
+   "name": "RibL0_13",
+   "transform": {
+    "position": [
+     -170.6,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 79,
+   "name": "RibL0_14",
+   "transform": {
+    "position": [
+     -168.6,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 80,
+   "name": "RibL0_15",
+   "transform": {
+    "position": [
+     -166.6,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 81,
+   "name": "RibL0_16",
+   "transform": {
+    "position": [
+     -164.6,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 82,
+   "name": "RibL0_17",
+   "transform": {
+    "position": [
+     -162.6,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 83,
+   "name": "RibL0_18",
+   "transform": {
+    "position": [
+     -160.6,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 84,
+   "name": "RibL0_19",
+   "transform": {
+    "position": [
+     -158.6,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 85,
+   "name": "DoorFrameL1L",
+   "transform": {
+    "position": [
+     -153.8,
+     265,
+     150
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 7,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 2.4,
+     "length": 3,
+     "height": 95
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 86,
+   "name": "DoorFrameL1R",
+   "transform": {
+    "position": [
+     -111.2,
+     265,
+     150
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 7,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 2.4,
+     "length": 3,
+     "height": 95
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 87,
+   "name": "DoorFrameL1B",
+   "transform": {
+    "position": [
+     -132.5,
+     265,
+     150
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 7,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 45.0,
+     "length": 3,
+     "height": 2.4
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 88,
+   "name": "DoorFrameL1T",
+   "transform": {
+    "position": [
+     -132.5,
+     265,
+     242.6
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 7,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 45.0,
+     "length": 3,
+     "height": 2.4
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 89,
+   "name": "RibL1_0",
+   "transform": {
+    "position": [
+     -151.6,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 90,
+   "name": "RibL1_1",
+   "transform": {
+    "position": [
+     -149.6,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 91,
+   "name": "RibL1_2",
+   "transform": {
+    "position": [
+     -147.6,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 92,
+   "name": "RibL1_3",
+   "transform": {
+    "position": [
+     -145.6,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 93,
+   "name": "RibL1_4",
+   "transform": {
+    "position": [
+     -143.6,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 94,
+   "name": "RibL1_5",
+   "transform": {
+    "position": [
+     -141.6,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 95,
+   "name": "RibL1_6",
+   "transform": {
+    "position": [
+     -139.6,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 96,
+   "name": "RibL1_7",
+   "transform": {
+    "position": [
+     -137.6,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 97,
+   "name": "RibL1_8",
+   "transform": {
+    "position": [
+     -135.6,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 98,
+   "name": "RibL1_9",
+   "transform": {
+    "position": [
+     -133.6,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 99,
+   "name": "RibL1_10",
+   "transform": {
+    "position": [
+     -131.6,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 100,
+   "name": "RibL1_11",
+   "transform": {
+    "position": [
+     -129.6,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 101,
+   "name": "RibL1_12",
+   "transform": {
+    "position": [
+     -127.6,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 102,
+   "name": "RibL1_13",
+   "transform": {
+    "position": [
+     -125.6,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 103,
+   "name": "RibL1_14",
+   "transform": {
+    "position": [
+     -123.6,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 104,
+   "name": "RibL1_15",
+   "transform": {
+    "position": [
+     -121.6,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 105,
+   "name": "RibL1_16",
+   "transform": {
+    "position": [
+     -119.6,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 106,
+   "name": "RibL1_17",
+   "transform": {
+    "position": [
+     -117.6,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 107,
+   "name": "RibL1_18",
+   "transform": {
+    "position": [
+     -115.6,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 108,
+   "name": "RibL1_19",
+   "transform": {
+    "position": [
+     -113.6,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 109,
+   "name": "DispBackR",
+   "transform": {
+    "position": [
+     155.0,
+     298,
+     150
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 9,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 90,
+     "length": 4,
+     "height": 95
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 110,
+   "name": "DispBottomR",
+   "transform": {
+    "position": [
+     155.0,
+     283,
+     150
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 7,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 90,
+     "length": 34,
+     "height": 2
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 111,
+   "name": "DispTopR",
+   "transform": {
+    "position": [
+     155.0,
+     283,
+     243
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 7,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 90,
+     "length": 34,
+     "height": 2
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 112,
+   "name": "DispSideR0",
+   "transform": {
+    "position": [
+     111,
+     283,
+     150
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 7,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 2,
+     "length": 34,
+     "height": 95
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 113,
+   "name": "DispSideR1",
+   "transform": {
+    "position": [
+     199,
+     283,
+     150
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 7,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 2,
+     "length": 34,
+     "height": 95
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 114,
+   "name": "ShelfR0",
+   "transform": {
+    "position": [
+     155.0,
+     283,
+     181
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 10,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 86,
+     "length": 30,
+     "height": 1.2
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 115,
+   "name": "ShelfR1",
+   "transform": {
+    "position": [
+     155.0,
+     283,
+     212
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 10,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 86,
+     "length": 30,
+     "height": 1.2
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 116,
+   "name": "ShelfLedR0",
+   "transform": {
+    "position": [
+     155.0,
+     272,
+     180.6
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.95,
+    0.85,
+    0.2
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 0,
+   "object": {
+    "type": "VeraaLight",
+    "params": {
+     "lightType": 0,
+     "width": 82,
+     "length": 1.5,
+     "units": 2,
+     "intensity": 30000,
+     "colorMode": 1,
+     "temperature": 2700,
+     "invisible": true
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 117,
+   "name": "ShelfLedR1",
+   "transform": {
+    "position": [
+     155.0,
+     272,
+     211.6
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.95,
+    0.85,
+    0.2
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 0,
+   "object": {
+    "type": "VeraaLight",
+    "params": {
+     "lightType": 0,
+     "width": 82,
+     "length": 1.5,
+     "units": 2,
+     "intensity": 30000,
+     "colorMode": 1,
+     "temperature": 2700,
+     "invisible": true
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 118,
+   "name": "ShelfLedR2",
+   "transform": {
+    "position": [
+     155.0,
+     272,
+     242.6
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.95,
+    0.85,
+    0.2
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 0,
+   "object": {
+    "type": "VeraaLight",
+    "params": {
+     "lightType": 0,
+     "width": 82,
+     "length": 1.5,
+     "units": 2,
+     "intensity": 30000,
+     "colorMode": 1,
+     "temperature": 2700,
+     "invisible": true
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 119,
+   "name": "JarR00",
+   "transform": {
+    "position": [
+     125.0,
+     285,
+     152
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 18,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 5,
+     "height": 16,
+     "sides": 32
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 120,
+   "name": "PlateR01",
+   "transform": {
+    "position": [
+     155.0,
+     292,
+     152
+    ],
+    "rotation": [
+     80,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 16,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 11,
+     "height": 1.2,
+     "sides": 48
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 121,
+   "name": "JarR02",
+   "transform": {
+    "position": [
+     185.0,
+     285,
+     152
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 18,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 5,
+     "height": 16,
+     "sides": 32
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 122,
+   "name": "PlateR10",
+   "transform": {
+    "position": [
+     125.0,
+     292,
+     182.2
+    ],
+    "rotation": [
+     80,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 16,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 11,
+     "height": 1.2,
+     "sides": 48
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 123,
+   "name": "JarR11",
+   "transform": {
+    "position": [
+     155.0,
+     285,
+     182.2
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 18,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 5,
+     "height": 16,
+     "sides": 32
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 124,
+   "name": "PlateR12",
+   "transform": {
+    "position": [
+     185.0,
+     292,
+     182.2
+    ],
+    "rotation": [
+     80,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 16,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 11,
+     "height": 1.2,
+     "sides": 48
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 125,
+   "name": "JarR20",
+   "transform": {
+    "position": [
+     125.0,
+     285,
+     213.2
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 18,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 5,
+     "height": 16,
+     "sides": 32
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 126,
+   "name": "PlateR21",
+   "transform": {
+    "position": [
+     155.0,
+     292,
+     213.2
+    ],
+    "rotation": [
+     80,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 16,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 11,
+     "height": 1.2,
+     "sides": 48
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 127,
+   "name": "JarR22",
+   "transform": {
+    "position": [
+     185.0,
+     285,
+     213.2
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 18,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 5,
+     "height": 16,
+     "sides": 32
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 128,
+   "name": "DoorFrameR0L",
+   "transform": {
+    "position": [
+     111.2,
+     265,
+     150
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 7,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 2.4,
+     "length": 3,
+     "height": 95
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 129,
+   "name": "DoorFrameR0R",
+   "transform": {
+    "position": [
+     153.8,
+     265,
+     150
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 7,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 2.4,
+     "length": 3,
+     "height": 95
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 130,
+   "name": "DoorFrameR0B",
+   "transform": {
+    "position": [
+     132.5,
+     265,
+     150
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 7,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 45.0,
+     "length": 3,
+     "height": 2.4
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 131,
+   "name": "DoorFrameR0T",
+   "transform": {
+    "position": [
+     132.5,
+     265,
+     242.6
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 7,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 45.0,
+     "length": 3,
+     "height": 2.4
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 132,
+   "name": "RibR0_0",
+   "transform": {
+    "position": [
+     113.4,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 133,
+   "name": "RibR0_1",
+   "transform": {
+    "position": [
+     115.4,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 134,
+   "name": "RibR0_2",
+   "transform": {
+    "position": [
+     117.4,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 135,
+   "name": "RibR0_3",
+   "transform": {
+    "position": [
+     119.4,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 136,
+   "name": "RibR0_4",
+   "transform": {
+    "position": [
+     121.4,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 137,
+   "name": "RibR0_5",
+   "transform": {
+    "position": [
+     123.4,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 138,
+   "name": "RibR0_6",
+   "transform": {
+    "position": [
+     125.4,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 139,
+   "name": "RibR0_7",
+   "transform": {
+    "position": [
+     127.4,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 140,
+   "name": "RibR0_8",
+   "transform": {
+    "position": [
+     129.4,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 141,
+   "name": "RibR0_9",
+   "transform": {
+    "position": [
+     131.4,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 142,
+   "name": "RibR0_10",
+   "transform": {
+    "position": [
+     133.4,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 143,
+   "name": "RibR0_11",
+   "transform": {
+    "position": [
+     135.4,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 144,
+   "name": "RibR0_12",
+   "transform": {
+    "position": [
+     137.4,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 145,
+   "name": "RibR0_13",
+   "transform": {
+    "position": [
+     139.4,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 146,
+   "name": "RibR0_14",
+   "transform": {
+    "position": [
+     141.4,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 147,
+   "name": "RibR0_15",
+   "transform": {
+    "position": [
+     143.4,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 148,
+   "name": "RibR0_16",
+   "transform": {
+    "position": [
+     145.4,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 149,
+   "name": "RibR0_17",
+   "transform": {
+    "position": [
+     147.4,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 150,
+   "name": "RibR0_18",
+   "transform": {
+    "position": [
+     149.4,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 151,
+   "name": "RibR0_19",
+   "transform": {
+    "position": [
+     151.4,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 152,
+   "name": "DoorFrameR1L",
+   "transform": {
+    "position": [
+     156.2,
+     265,
+     150
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 7,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 2.4,
+     "length": 3,
+     "height": 95
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 153,
+   "name": "DoorFrameR1R",
+   "transform": {
+    "position": [
+     198.8,
+     265,
+     150
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 7,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 2.4,
+     "length": 3,
+     "height": 95
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 154,
+   "name": "DoorFrameR1B",
+   "transform": {
+    "position": [
+     177.5,
+     265,
+     150
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 7,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 45.0,
+     "length": 3,
+     "height": 2.4
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 155,
+   "name": "DoorFrameR1T",
+   "transform": {
+    "position": [
+     177.5,
+     265,
+     242.6
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 7,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 45.0,
+     "length": 3,
+     "height": 2.4
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 156,
+   "name": "RibR1_0",
+   "transform": {
+    "position": [
+     158.4,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 157,
+   "name": "RibR1_1",
+   "transform": {
+    "position": [
+     160.4,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 158,
+   "name": "RibR1_2",
+   "transform": {
+    "position": [
+     162.4,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 159,
+   "name": "RibR1_3",
+   "transform": {
+    "position": [
+     164.4,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 160,
+   "name": "RibR1_4",
+   "transform": {
+    "position": [
+     166.4,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 161,
+   "name": "RibR1_5",
+   "transform": {
+    "position": [
+     168.4,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 162,
+   "name": "RibR1_6",
+   "transform": {
+    "position": [
+     170.4,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 163,
+   "name": "RibR1_7",
+   "transform": {
+    "position": [
+     172.4,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 164,
+   "name": "RibR1_8",
+   "transform": {
+    "position": [
+     174.4,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 165,
+   "name": "RibR1_9",
+   "transform": {
+    "position": [
+     176.4,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 166,
+   "name": "RibR1_10",
+   "transform": {
+    "position": [
+     178.4,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 167,
+   "name": "RibR1_11",
+   "transform": {
+    "position": [
+     180.4,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 168,
+   "name": "RibR1_12",
+   "transform": {
+    "position": [
+     182.4,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 169,
+   "name": "RibR1_13",
+   "transform": {
+    "position": [
+     184.4,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 170,
+   "name": "RibR1_14",
+   "transform": {
+    "position": [
+     186.4,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 171,
+   "name": "RibR1_15",
+   "transform": {
+    "position": [
+     188.4,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 172,
+   "name": "RibR1_16",
+   "transform": {
+    "position": [
+     190.4,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 173,
+   "name": "RibR1_17",
+   "transform": {
+    "position": [
+     192.4,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 174,
+   "name": "RibR1_18",
+   "transform": {
+    "position": [
+     194.4,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 175,
+   "name": "RibR1_19",
+   "transform": {
+    "position": [
+     196.4,
+     265,
+     152.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.05,
+     "height": 90.2,
+     "sides": 12,
+     "heightSegs": 1
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 176,
+   "name": "LightPelmet",
+   "transform": {
+    "position": [
+     0,
+     265.5,
+     146.5
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 6,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 400,
+     "length": 2,
+     "height": 3.5
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 177,
+   "name": "UnderCabinetLed",
+   "transform": {
+    "position": [
+     0,
+     290,
+     149.8
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.95,
+    0.85,
+    0.2
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 0,
+   "object": {
+    "type": "VeraaLight",
+    "params": {
+     "lightType": 0,
+     "width": 396,
+     "length": 2,
+     "units": 2,
+     "intensity": 7000,
+     "colorMode": 1,
+     "temperature": 3000,
+     "invisible": false
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 178,
+   "name": "PlinthLed",
+   "transform": {
+    "position": [
+     0,
+     251,
+     9.5
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.95,
+    0.85,
+    0.2
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 0,
+   "object": {
+    "type": "VeraaLight",
+    "params": {
+     "lightType": 0,
+     "width": 396,
+     "length": 1.5,
+     "units": 2,
+     "intensity": 9000,
+     "colorMode": 1,
+     "temperature": 3000,
+     "invisible": true
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 179,
+   "name": "Downlight1",
+   "transform": {
+    "position": [
+     -120,
+     215,
+     284
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.95,
+    0.85,
+    0.2
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 0,
+   "object": {
+    "type": "VeraaIES",
+    "params": {
+     "iesFile": "../assets/ies/downlight_wide.ies",
+     "powerMode": 1,
+     "power": 750,
+     "colorMode": 1,
+     "temperature": 3000,
+     "shapeRadius": 3
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 180,
+   "name": "DownlightLens1",
+   "transform": {
+    "position": [
+     -120,
+     215,
+     284.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 21,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 3.5,
+     "height": 0.6,
+     "sides": 32
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 181,
+   "name": "Downlight2",
+   "transform": {
+    "position": [
+     0,
+     215,
+     284
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.95,
+    0.85,
+    0.2
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 0,
+   "object": {
+    "type": "VeraaIES",
+    "params": {
+     "iesFile": "../assets/ies/downlight_wide.ies",
+     "powerMode": 1,
+     "power": 750,
+     "colorMode": 1,
+     "temperature": 3000,
+     "shapeRadius": 3
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 182,
+   "name": "DownlightLens2",
+   "transform": {
+    "position": [
+     0,
+     215,
+     284.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 21,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 3.5,
+     "height": 0.6,
+     "sides": 32
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 183,
+   "name": "Downlight3",
+   "transform": {
+    "position": [
+     120,
+     215,
+     284
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.95,
+    0.85,
+    0.2
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 0,
+   "object": {
+    "type": "VeraaIES",
+    "params": {
+     "iesFile": "../assets/ies/downlight_wide.ies",
+     "powerMode": 1,
+     "power": 750,
+     "colorMode": 1,
+     "temperature": 3000,
+     "shapeRadius": 3
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 184,
+   "name": "DownlightLens3",
+   "transform": {
+    "position": [
+     120,
+     215,
+     284.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 21,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 3.5,
+     "height": 0.6,
+     "sides": 32
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 185,
+   "name": "Downlight4",
+   "transform": {
+    "position": [
+     -90,
+     40,
+     284
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.95,
+    0.85,
+    0.2
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 0,
+   "object": {
+    "type": "VeraaIES",
+    "params": {
+     "iesFile": "../assets/ies/downlight_wide.ies",
+     "powerMode": 1,
+     "power": 750,
+     "colorMode": 1,
+     "temperature": 3000,
+     "shapeRadius": 3
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 186,
+   "name": "DownlightLens4",
+   "transform": {
+    "position": [
+     -90,
+     40,
+     284.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 21,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 3.5,
+     "height": 0.6,
+     "sides": 32
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 187,
+   "name": "Downlight5",
+   "transform": {
+    "position": [
+     90,
+     40,
+     284
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.95,
+    0.85,
+    0.2
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 0,
+   "object": {
+    "type": "VeraaIES",
+    "params": {
+     "iesFile": "../assets/ies/downlight_wide.ies",
+     "powerMode": 1,
+     "power": 750,
+     "colorMode": 1,
+     "temperature": 3000,
+     "shapeRadius": 3
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 188,
+   "name": "DownlightLens5",
+   "transform": {
+    "position": [
+     90,
+     40,
+     284.4
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 21,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 3.5,
+     "height": 0.6,
+     "sides": 32
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 189,
+   "name": "Hob",
+   "transform": {
+    "position": [
+     -15,
+     268,
+     90
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 13,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 60,
+     "length": 50,
+     "height": 0.6
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 190,
+   "name": "Microwave",
+   "transform": {
+    "position": [
+     165,
+     278,
+     90
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 13,
+   "object": {
+    "type": "ChamferBox",
+    "params": {
+     "width": 48,
+     "length": 36,
+     "height": 28,
+     "fillet": 0.8,
+     "filletSegs": 2
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 191,
+   "name": "Sink",
+   "transform": {
+    "position": [
+     95,
+     268,
+     89.8
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 14,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 54,
+     "length": 42,
+     "height": 0.5
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 192,
+   "name": "FaucetBody",
+   "transform": {
+    "position": [
+     95,
+     292,
+     90
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 15,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.6,
+     "height": 30,
+     "sides": 24
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 193,
+   "name": "FaucetSpout",
+   "transform": {
+    "position": [
+     95,
+     292,
+     119
+    ],
+    "rotation": [
+     90,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 15,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 1.1,
+     "height": 16,
+     "sides": 24
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 194,
+   "name": "Bowl",
+   "transform": {
+    "position": [
+     -120,
+     262,
+     90
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 16,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 13,
+     "height": 7,
+     "sides": 64
+    }
+   },
+   "modifiers": [
+    {
+     "type": "Taper",
+     "enabled": true,
+     "params": {
+      "amount": 0.5,
+      "curve": 0.6
+     }
+    }
+   ]
+  },
+  {
+   "id": 195,
+   "name": "Lemon0",
+   "transform": {
+    "position": [
+     -124,
+     259,
+     95
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 19,
+   "object": {
+    "type": "Sphere",
+    "params": {
+     "radius": 4,
+     "segments": 32
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 196,
+   "name": "Lemon1",
+   "transform": {
+    "position": [
+     -114,
+     265,
+     95
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 19,
+   "object": {
+    "type": "Sphere",
+    "params": {
+     "radius": 4,
+     "segments": 32
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 197,
+   "name": "Lemon2",
+   "transform": {
+    "position": [
+     -120,
+     270,
+     95
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 19,
+   "object": {
+    "type": "Sphere",
+    "params": {
+     "radius": 4,
+     "segments": 32
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 198,
+   "name": "Bottle0",
+   "transform": {
+    "position": [
+     -178,
+     288,
+     90
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 17,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 3.2,
+     "height": 26,
+     "sides": 32
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 199,
+   "name": "Bottle1",
+   "transform": {
+    "position": [
+     -170,
+     288,
+     90
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 17,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 3.2,
+     "height": 30,
+     "sides": 32
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 200,
+   "name": "Bottle2",
+   "transform": {
+    "position": [
+     -162,
+     288,
+     90
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 17,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 3.2,
+     "height": 34,
+     "sides": 32
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 201,
+   "name": "HerbPot",
+   "transform": {
+    "position": [
+     55,
+     288,
+     90
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 16,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 6,
+     "height": 10,
+     "sides": 48
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 202,
+   "name": "Herbs",
+   "transform": {
+    "position": [
+     55,
+     288,
+     104
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     0.8
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 20,
+   "object": {
+    "type": "GeoSphere",
+    "params": {
+     "radius": 8,
+     "segments": 6
+    }
+   },
+   "modifiers": [
+    {
+     "type": "Noise",
+     "enabled": true,
+     "params": {
+      "scale": 4,
+      "strengthX": 2,
+      "strengthY": 2,
+      "strengthZ": 2,
+      "fractal": true
+     }
+    }
+   ]
+  },
+  {
+   "id": 203,
+   "name": "Board",
+   "transform": {
+    "position": [
+     30,
+     286,
+     90
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 10,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 30,
+     "length": 2,
+     "height": 40
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 204,
+   "name": "Camera",
+   "transform": {
+    "position": [
+     0,
+     -95,
+     125
+    ],
+    "rotation": [
+     90.0,
+     -0.0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.3,
+    0.6,
+    1.0
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 0,
+   "object": {
+    "type": "Camera",
+    "params": {
+     "fov": 74
+    }
+   },
+   "modifiers": []
+  }
+ ],
+ "nextNodeId": 205,
+ "nextMaterialId": 22
+}

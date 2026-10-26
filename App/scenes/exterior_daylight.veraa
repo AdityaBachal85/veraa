@@ -1,0 +1,1448 @@
+{
+ "format": "veraa-scene",
+ "version": 1,
+ "renderSettings": {
+  "width": 1280,
+  "height": 720,
+  "samples": 256,
+  "maxDepth": 8,
+  "clampIndirect": 8,
+  "envMode": 3,
+  "camera": "Camera",
+  "denoise": true,
+  "exposureControl": 1,
+  "ev100": 14.7,
+  "whiteBalanceK": 6000,
+  "tonemap": 8,
+  "contrast": 1.08,
+  "saturation": 1.05,
+  "skyModel": 1
+ },
+ "materials": [
+  {
+   "id": 1,
+   "name": "White render",
+   "type": "VeraaMtl",
+   "params": {
+    "diffuse": [
+     0.78,
+     0.77,
+     0.74
+    ],
+    "roughness": 0.6
+   }
+  },
+  {
+   "id": 2,
+   "name": "Larch cladding",
+   "type": "VeraaMtl",
+   "params": {
+    "diffuse": [
+     0.42,
+     0.27,
+     0.15
+    ],
+    "reflect": [
+     0.4,
+     0.4,
+     0.4
+    ],
+    "reflectGlossiness": 0.55
+   },
+   "maps": {
+    "diffuse": {
+     "map": {
+      "type": "Noise",
+      "name": "Noise",
+      "params": {
+       "color1": [
+        0.36,
+        0.22,
+        0.12
+       ],
+       "color2": [
+        0.5,
+        0.33,
+        0.19
+       ],
+       "noiseType": 1,
+       "size": 6.0,
+       "tilingZ": 0.08
+      }
+     }
+    }
+   }
+  },
+  {
+   "id": 3,
+   "name": "Glazing",
+   "type": "VeraaMtl",
+   "params": {
+    "diffuse": [
+     0.015,
+     0.017,
+     0.018
+    ],
+    "reflect": [
+     1,
+     1,
+     1
+    ],
+    "fresnelIor": 1.52,
+    "reflectGlossiness": 0.995
+   }
+  },
+  {
+   "id": 4,
+   "name": "Railing glass",
+   "type": "VeraaMtl",
+   "params": {
+    "diffuse": [
+     0,
+     0,
+     0
+    ],
+    "reflect": [
+     1,
+     1,
+     1
+    ],
+    "refract": [
+     0.92,
+     0.95,
+     0.94
+    ],
+    "ior": 1.52,
+    "fresnelIor": 1.52,
+    "thinWalled": true
+   }
+  },
+  {
+   "id": 5,
+   "name": "Anthracite aluminium",
+   "type": "VeraaMtl",
+   "params": {
+    "diffuse": [
+     0.08,
+     0.085,
+     0.09
+    ],
+    "reflect": [
+     1,
+     1,
+     1
+    ],
+    "metalness": 1.0,
+    "metalFresnel": 5,
+    "reflectGlossiness": 0.6
+   }
+  },
+  {
+   "id": 6,
+   "name": "Interior",
+   "type": "VeraaMtl",
+   "params": {
+    "diffuse": [
+     0.35,
+     0.33,
+     0.3
+    ]
+   }
+  },
+  {
+   "id": 7,
+   "name": "Lawn",
+   "type": "VeraaMtl",
+   "params": {
+    "diffuse": [
+     0.1,
+     0.17,
+     0.05
+    ],
+    "roughness": 1.0
+   },
+   "maps": {
+    "diffuse": {
+     "map": {
+      "type": "Noise",
+      "name": "Noise",
+      "params": {
+       "color1": [
+        0.07,
+        0.13,
+        0.03
+       ],
+       "color2": [
+        0.15,
+        0.22,
+        0.07
+       ],
+       "noiseType": 1,
+       "size": 40.0
+      }
+     }
+    }
+   }
+  },
+  {
+   "id": 8,
+   "name": "Concrete paving",
+   "type": "VeraaMtl",
+   "params": {
+    "diffuse": [
+     0.5,
+     0.49,
+     0.46
+    ],
+    "roughness": 0.8
+   }
+  },
+  {
+   "id": 9,
+   "name": "Foliage",
+   "type": "VeraaMtl",
+   "params": {
+    "diffuse": [
+     0.07,
+     0.16,
+     0.04
+    ],
+    "reflect": [
+     0.3,
+     0.3,
+     0.3
+    ],
+    "reflectGlossiness": 0.5,
+    "translucency": 1,
+    "translucencyColor": [
+     0.5,
+     0.8,
+     0.3
+    ]
+   }
+  },
+  {
+   "id": 10,
+   "name": "Bark",
+   "type": "VeraaMtl",
+   "params": {
+    "diffuse": [
+     0.2,
+     0.15,
+     0.11
+    ],
+    "roughness": 1.0
+   }
+  },
+  {
+   "id": 11,
+   "name": "Brushed steel",
+   "type": "VeraaMtl",
+   "params": {
+    "diffuse": [
+     0.9,
+     0.9,
+     0.9
+    ],
+    "reflect": [
+     1,
+     1,
+     1
+    ],
+    "metalness": 1.0,
+    "metalFresnel": 7,
+    "reflectGlossiness": 0.72,
+    "anisotropy": 0.5
+   }
+  }
+ ],
+ "nodes": [
+  {
+   "id": 1,
+   "name": "Lawn",
+   "transform": {
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 7,
+   "object": {
+    "type": "Plane",
+    "params": {
+     "length": 300000,
+     "width": 300000
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 2,
+   "name": "Terrace",
+   "transform": {
+    "position": [
+     0,
+     -320,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 8,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 1600,
+     "length": 260,
+     "height": 12
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 3,
+   "name": "Path",
+   "transform": {
+    "position": [
+     -200,
+     -900,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 8,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 180,
+     "length": 1100,
+     "height": 4
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 4,
+   "name": "GroundFloor",
+   "transform": {
+    "position": [
+     0,
+     0,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 1,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 1400,
+     "length": 800,
+     "height": 300
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 5,
+   "name": "UpperFloor",
+   "transform": {
+    "position": [
+     150,
+     -80,
+     300
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 2,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 1100,
+     "length": 900,
+     "height": 290
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 6,
+   "name": "Roof",
+   "transform": {
+    "position": [
+     150,
+     -80,
+     590
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 1,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 1140,
+     "length": 940,
+     "height": 18
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 7,
+   "name": "Interior",
+   "transform": {
+    "position": [
+     0,
+     0,
+     1
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 6,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 1380,
+     "length": 780,
+     "height": 298
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 8,
+   "name": "GlassGround",
+   "transform": {
+    "position": [
+     -150,
+     -401,
+     15
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 3,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 900,
+     "length": 2,
+     "height": 270
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 9,
+   "name": "GlassUpper",
+   "transform": {
+    "position": [
+     150,
+     -531,
+     360
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 3,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 800,
+     "length": 2,
+     "height": 170
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 10,
+   "name": "Mullion0",
+   "transform": {
+    "position": [
+     -600,
+     -402,
+     12
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 5,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 8,
+     "length": 6,
+     "height": 276
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 11,
+   "name": "Mullion1",
+   "transform": {
+    "position": [
+     -375,
+     -402,
+     12
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 5,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 8,
+     "length": 6,
+     "height": 276
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 12,
+   "name": "Mullion2",
+   "transform": {
+    "position": [
+     -150,
+     -402,
+     12
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 5,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 8,
+     "length": 6,
+     "height": 276
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 13,
+   "name": "Mullion3",
+   "transform": {
+    "position": [
+     75,
+     -402,
+     12
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 5,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 8,
+     "length": 6,
+     "height": 276
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 14,
+   "name": "Mullion4",
+   "transform": {
+    "position": [
+     300,
+     -402,
+     12
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 5,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 8,
+     "length": 6,
+     "height": 276
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 15,
+   "name": "WindowHead",
+   "transform": {
+    "position": [
+     -150,
+     -402,
+     285
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 5,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 910,
+     "length": 6,
+     "height": 8
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 16,
+   "name": "UpperMullion0",
+   "transform": {
+    "position": [
+     -250,
+     -532,
+     355
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 5,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 8,
+     "length": 6,
+     "height": 180
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 17,
+   "name": "UpperMullion1",
+   "transform": {
+    "position": [
+     150,
+     -532,
+     355
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 5,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 8,
+     "length": 6,
+     "height": 180
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 18,
+   "name": "UpperMullion2",
+   "transform": {
+    "position": [
+     550,
+     -532,
+     355
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 5,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 8,
+     "length": 6,
+     "height": 180
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 19,
+   "name": "Railing",
+   "transform": {
+    "position": [
+     550,
+     -440,
+     12
+    ],
+    "rotation": [
+     0,
+     0,
+     0.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 4,
+   "object": {
+    "type": "Box",
+    "params": {
+     "width": 500,
+     "length": 2,
+     "height": 100
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 20,
+   "name": "Downpipe",
+   "transform": {
+    "position": [
+     -690,
+     -395,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 11,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 5,
+     "height": 300,
+     "sides": 24
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 21,
+   "name": "Trunk0",
+   "transform": {
+    "position": [
+     -1250,
+     -500,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 10,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 16.1,
+     "height": 368.0,
+     "sides": 16
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 22,
+   "name": "Crown0",
+   "transform": {
+    "position": [
+     -1250,
+     -500,
+     437.0
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1.2
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 9,
+   "object": {
+    "type": "GeoSphere",
+    "params": {
+     "radius": 230,
+     "segments": 10
+    }
+   },
+   "modifiers": [
+    {
+     "type": "Noise",
+     "enabled": true,
+     "params": {
+      "scale": 115.0,
+      "strengthX": 69.0,
+      "strengthY": 69.0,
+      "strengthZ": 69.0,
+      "fractal": true
+     }
+    }
+   ]
+  },
+  {
+   "id": 23,
+   "name": "Trunk1",
+   "transform": {
+    "position": [
+     1150,
+     -800,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 10,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 13.3,
+     "height": 304.0,
+     "sides": 16
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 24,
+   "name": "Crown1",
+   "transform": {
+    "position": [
+     1150,
+     -800,
+     361.0
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1.2
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 9,
+   "object": {
+    "type": "GeoSphere",
+    "params": {
+     "radius": 190,
+     "segments": 10
+    }
+   },
+   "modifiers": [
+    {
+     "type": "Noise",
+     "enabled": true,
+     "params": {
+      "scale": 95.0,
+      "strengthX": 57.0,
+      "strengthY": 57.0,
+      "strengthZ": 57.0,
+      "fractal": true
+     }
+    }
+   ]
+  },
+  {
+   "id": 25,
+   "name": "Trunk2",
+   "transform": {
+    "position": [
+     -1700,
+     600,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 10,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 21.000000000000004,
+     "height": 480.0,
+     "sides": 16
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 26,
+   "name": "Crown2",
+   "transform": {
+    "position": [
+     -1700,
+     600,
+     570.0
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1.2
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 9,
+   "object": {
+    "type": "GeoSphere",
+    "params": {
+     "radius": 300,
+     "segments": 10
+    }
+   },
+   "modifiers": [
+    {
+     "type": "Noise",
+     "enabled": true,
+     "params": {
+      "scale": 150.0,
+      "strengthX": 90.0,
+      "strengthY": 90.0,
+      "strengthZ": 90.0,
+      "fractal": true
+     }
+    }
+   ]
+  },
+  {
+   "id": 27,
+   "name": "Trunk3",
+   "transform": {
+    "position": [
+     1700,
+     300,
+     0
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 10,
+   "object": {
+    "type": "Cylinder",
+    "params": {
+     "radius": 18.200000000000003,
+     "height": 416.0,
+     "sides": 16
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 28,
+   "name": "Crown3",
+   "transform": {
+    "position": [
+     1700,
+     300,
+     494.0
+    ],
+    "rotation": [
+     0,
+     0,
+     0
+    ],
+    "scale": [
+     1,
+     1,
+     1.2
+    ]
+   },
+   "wireColor": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 9,
+   "object": {
+    "type": "GeoSphere",
+    "params": {
+     "radius": 260,
+     "segments": 10
+    }
+   },
+   "modifiers": [
+    {
+     "type": "Noise",
+     "enabled": true,
+     "params": {
+      "scale": 130.0,
+      "strengthX": 78.0,
+      "strengthY": 78.0,
+      "strengthZ": 78.0,
+      "fractal": true
+     }
+    }
+   ]
+  },
+  {
+   "id": 29,
+   "name": "Sun",
+   "transform": {
+    "position": [
+     -4519.843998600458,
+     -6455.006197386552,
+     6156.614753256583
+    ],
+    "rotation": [
+     52.0,
+     -0.0,
+     -35.0
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.95,
+    0.85,
+    0.2
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 0,
+   "object": {
+    "type": "VeraaSun",
+    "params": {
+     "turbidity": 2.2,
+     "skyModel": 1,
+     "groundAlbedo": [
+      0.15,
+      0.18,
+      0.1
+     ]
+    }
+   },
+   "modifiers": []
+  },
+  {
+   "id": 30,
+   "name": "Camera",
+   "transform": {
+    "position": [
+     650,
+     -1750,
+     160
+    ],
+    "rotation": [
+     93.88982960408177,
+     0.0,
+     23.749494492866763
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "wireColor": [
+    0.3,
+    0.6,
+    1.0
+   ],
+   "hidden": false,
+   "renderable": true,
+   "material": 0,
+   "object": {
+    "type": "Camera",
+    "params": {
+     "fov": 64
+    }
+   },
+   "modifiers": []
+  }
+ ],
+ "nextNodeId": 31,
+ "nextMaterialId": 12
+}
