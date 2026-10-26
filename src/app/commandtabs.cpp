@@ -817,7 +817,7 @@ void UtilitiesPanel::collapse(SceneDocument* doc, const QVector<uint32_t>& ids) 
     Node* n = doc->scene().findNode(id);
     if (!n || n->kind() != ObjectKind::Geometry) continue;
     auto poly = std::make_shared<EditablePolyObject>();
-    poly->mesh = n->mesh();
+    poly->setMesh(n->mesh());
     n->object = poly;
     n->modifiers.clear();
     n->invalidate();
@@ -843,7 +843,7 @@ void UtilitiesPanel::resetXForm(SceneDocument* doc, const QVector<uint32_t>& ids
     PolyMesh mesh = n->mesh();
     mesh.transform(t.inverse() * geom);
     auto poly = std::make_shared<EditablePolyObject>();
-    poly->mesh = mesh;
+    poly->setMesh(mesh);
     n->object = poly;
     n->modifiers.clear();
     n->objectOffset = Transform();

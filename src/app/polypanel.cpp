@@ -1169,7 +1169,7 @@ class PolyPanel : public QWidget {
     uint32_t srcId = src->id;
     ctx_.doc->beginEdit(tr("Detach"));
     auto obj = std::make_shared<EditablePolyObject>();
-    obj->mesh = std::move(part);
+    obj->setMesh(std::move(part));
     auto node = std::make_unique<Node>();
     node->name = dlg.name_->text().toStdString();
     node->object = obj;
@@ -1409,7 +1409,7 @@ void collapseStack(MainWindow& w, bool keepIfPoly) {
     if (!n) continue;
     if (keepIfPoly && n->modifiers.empty()) continue;
     auto poly = std::make_shared<EditablePolyObject>();
-    poly->mesh = n->mesh();
+    poly->setMesh(n->mesh());
     n->object = poly;
     n->modifiers.clear();
   }

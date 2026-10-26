@@ -5,6 +5,8 @@
 #include <string>
 #include <vector>
 
+#include "progress.h"
+
 namespace veraa {
 
 class Scene;
@@ -13,6 +15,7 @@ struct ObjImportOptions {
   bool yUp = true;          // most OBJ files are Y-up; Veraa is Z-up
   float scale = 1.0f;       // unit conversion multiplier
   bool importMaterials = true;
+  ImportProgress* progress = nullptr;  // optional progress report and cancellation
 };
 
 struct ObjImportResult {

@@ -1,5 +1,7 @@
 #include "materialeditor.h"
 
+#include <QScrollBar>
+
 #include <QApplication>
 #include <QComboBox>
 #include <QFileInfo>
@@ -544,6 +546,7 @@ MaterialEditor::MaterialEditor(SceneDocument* doc, QWidget* parent) : QDialog(pa
     assign_->setEnabled(current() && !doc_->selection().isEmpty());
     pick_->setEnabled(doc_->firstSelected() && doc_->firstSelected()->materialId);
   });
+  connect(slots_->verticalScrollBar(), &QScrollBar::valueChanged, this, [this] { requestVisiblePreviews(); });
   rebuildSlots();
 }
 
@@ -580,8 +583,10 @@ void MaterialEditor::rebuildSlots() {
       QImage img = images_.value(m->id, placeholder(kSlotSize));
       it->setIcon(slotIcon(img));
       it->setTextAlignment(Qt::AlignHCenter | Qt::AlignTop);
-      requestPreview(m->id);
     }
+    // Swatches render on demand for the slots in view (scenes may hold thousands of materials).
+    requested_.clear();
+    QMetaObject::invokeMethod(this, [this] { requestVisiblePreviews(); }, Qt::QueuedConnection);
   } else {
     for (int i = 0; i < slots_->count(); ++i)
       if (const Material* m = scene.findMaterial(ids[i])) slots_->item(i)->setText(QString::fromStdString(m->name));
@@ -650,9 +655,26 @@ void MaterialEditor::refreshUsage() {
                                                            (users.size() > 12 ? QString(", ...") : QString()))));
 }
 
+void MaterialEditor::requestVisiblePreviews() {
+  if (!isVisible()) return;
+  QRect view = slots_->viewport()->rect();
+  for (int i = 0; i < slots_->count(); ++i) {
+    QListWidgetItem* it = slots_->item(i);
+    uint32_t id = it->data(Qt::UserRole).toUInt();
+    if (requested_.contains(id) || !slots_->visualItemRect(it).intersects(view)) continue;
+    requestPreview(id);
+  }
+}
+
+void MaterialEditor::showEvent(QShowEvent* e) {
+  QDialog::showEvent(e);
+  requestVisiblePreviews();
+}
+
 void MaterialEditor::requestPreview(uint32_t id) {
   const Material* m = doc_->scene().findMaterial(id);
   if (!m) return;
+  requested_.insert(id);
   previews_.request(id, previewCopy(*m, doc_->scene()), kPreviewSize, kPreviewSamples);
 }
 

@@ -12,6 +12,7 @@
 #include "material.h"
 #include "modifier.h"
 #include "object.h"
+#include "progress.h"
 
 namespace veraa {
 
@@ -101,7 +102,12 @@ class Node {
   Aabb worldBounds() const;
 
   json toJson() const;
+  // The node's own fields only (no object, no modifiers).
+  json fieldsJson() const;
   void fromJson(const json& j);  // throws std::runtime_error on unknown object types
+  // Reads only the node's own fields (name, transform, flags, ...), keeping its object,
+  // modifiers and evaluated geometry. Used by incremental undo.
+  void fromJsonFields(const json& j);
 
   uint32_t id = 0;
   std::string name;
@@ -147,6 +153,9 @@ class Node {
   mutable uint64_t geometryStamp_ = 0;
   mutable bool isShape_ = false;
   mutable PolyMesh mesh_;
+  // Set instead of mesh_ when the result is an Editable Poly's own mesh (no modifiers): shared,
+  // not copied.
+  mutable std::shared_ptr<const PolyMesh> sharedMesh_;
   mutable TriMesh tri_;
   mutable std::vector<std::vector<Vec3>> shapeLines_;
 };
@@ -162,6 +171,30 @@ class SceneModule {
   virtual void fromJson(const json& j) = 0;
 };
 using SceneModuleFactory = std::function<std::unique_ptr<SceneModule>()>;
+
+// A captured scene state for undo. Unchanged node and material entries share their JSON with the
+// snapshot they were compared against, and editable meshes are referenced, never copied (see
+// MeshRefScope), so a snapshot costs memory only for what changed.
+struct SceneSnapshot {
+  json globals;  // render settings, layers, time, module data, id counters
+  std::vector<std::shared_ptr<const json>> materials;
+  std::vector<std::shared_ptr<const json>> nodes;
+  MeshRefTable meshes;
+  bool sameAs(const SceneSnapshot& o) const;
+};
+
+// What Scene::restore changed.
+struct SceneRestoreResult {
+  bool structure = false;       // nodes added, removed or reordered
+  bool materials = false;
+  bool renderSettings = false;
+  bool globals = false;         // layers, time, module data
+  std::vector<uint32_t> nodes;          // nodes whose state changed
+  std::vector<uint32_t> geometryNodes;  // ... of which the object or modifiers were rebuilt
+  // What changed per node, as SceneDocument ChangeFlags bits: 1 transform, 2 geometry,
+  // 4 material, 8 name, 16 display.
+  std::vector<std::pair<uint32_t, int>> nodeChanges;
+};
 // Every Scene creates one instance of each registered module. Register from a registerXxx()
 // function listed in registry.cpp (registerBuiltinSceneModules).
 void registerSceneModule(const std::string& name, SceneModuleFactory factory);
@@ -206,14 +239,42 @@ class Scene {
 
   // "Box" -> "Box001", "Box002", ... (3ds Max naming).
   std::string uniqueNodeName(const std::string& base) const;
+  // Bulk loading (importers): while active, node names are tracked in a hash set so name lookups
+  // and unique names are O(1) instead of a scan. Rename nodes with renameNode() meanwhile.
+  void beginBulkNames();
+  void endBulkNames();
+  void renameNode(Node* n, const std::string& name);
   std::string uniqueMaterialName(const std::string& base) const;
   Aabb bounds(bool geometryOnly = true) const;
   void clear();
 
+  // Builds the display meshes of nodes whose evaluation is self-contained (Editable Poly without
+  // modifiers, as importers make) on all cores, so the first redraw does not triangulate them.
+  // Reports into [from, to] of `progress`; returns false when cancelled.
+  bool prepareMeshes(ImportProgress* progress = nullptr, double from = 0.0, double to = 1.0);
+  // Moves every node, material and layer of `src` into this scene: fresh ids, unique names,
+  // parent/material/layer references remapped (src layer 0 becomes the current layer), evaluated
+  // meshes kept. Returns the new node ids in src order (idMap: old id -> new id) and leaves src
+  // empty.
+  std::vector<uint32_t> adopt(Scene& src, std::unordered_map<uint32_t, uint32_t>* idMap = nullptr);
+
   json toJson() const;
   bool fromJson(const json& j, std::string* error = nullptr);
+  // Undo snapshots: capture shares unchanged entries with `previous`; restore rebuilds only the
+  // nodes that differ, keeping the others (and their evaluated meshes) untouched.
+  std::shared_ptr<const SceneSnapshot> snapshot(const SceneSnapshot* previous = nullptr) const;
+  SceneRestoreResult restore(const SceneSnapshot& s);
   bool save(const std::string& path, std::string* error = nullptr);
   bool load(const std::string& path, std::string* error = nullptr);
+  // load() in two steps: reading and decoding the file (thread-safe, touches no scene; meshes
+  // are decoded on all cores), then building the scene from it.
+  struct SceneFile {
+    json doc;
+    MeshRefTable meshes;
+  };
+  static bool readFile(const std::string& path, SceneFile& out, std::string* error = nullptr,
+                       ImportProgress* progress = nullptr);
+  bool fromFile(const SceneFile& file, const std::string& path, std::string* error = nullptr);
 
   // Resolves a texture/HDRI path relative to the scene file's folder.
   std::string resolvePath(const std::string& path) const;
@@ -238,6 +299,14 @@ class Scene {
   uint32_t nextLayerId_ = 1;
   uint32_t colorCounter_ = 0;
   mutable std::unordered_map<uint32_t, Node*> index_;  // id -> node, for fast parent lookups
+  // id -> position in `materials`; rebuilt when materials are added, removed or replaced.
+  mutable std::unordered_map<uint32_t, size_t> matIndex_;
+  mutable bool matIndexDirty_ = true;
+  std::unique_ptr<std::unordered_map<std::string, int>> bulkNames_;  // name -> count (bulk mode)
+  mutable std::unordered_map<std::string, int> bulkHints_;           // base -> last unique number
+  json globalsJson() const;
+  void applyGlobals(const json& j);
+  std::vector<json> nodesJson() const;
   std::vector<std::pair<std::string, std::unique_ptr<SceneModule>>> modules_;
 };
 

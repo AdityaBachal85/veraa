@@ -437,6 +437,7 @@ int runScript(MainWindow& w, const QString& script, const QString& shotPath) {
   w.move(0, 0);
   pump(300);
   if (script == "selftest") return selfTest(w);
+  if (script == "bench") return runBench(w);
   for (const auto& t : moduleTests())
     if (script == QString::fromStdString(t.name)) {
       runModuleTest(w, t);

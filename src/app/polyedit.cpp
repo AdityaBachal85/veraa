@@ -194,7 +194,7 @@ bool PolyTarget::canEdit() const {
 }
 
 const PolyMesh* PolyTarget::mesh() const {
-  if (EditablePolyObject* ep = editablePoly()) return &ep->mesh;
+  if (EditablePolyObject* ep = editablePoly()) return &ep->mesh();
   if (SubObjectModifier* m = modifier()) {
     node()->mesh();  // evaluates the stack (fills the modifier's cache)
     return m->cacheValid ? &m->cachedMesh : nullptr;
@@ -238,7 +238,7 @@ void PolyTarget::setSelection(const PolySelection& s, const QString& label) {
     // Selection changed while a caddy is open: re-run the operation on the new selection.
     live.sel = s;
     if (EditablePolyObject* ep = editablePoly()) {
-      ep->mesh = live.mesh;
+      ep->setMesh(live.mesh);
       ep->sel = s;
     } else {
       writeSelection(s);
@@ -280,14 +280,14 @@ bool PolyTarget::run(const json& op, const QString& label) {
   }
   std::string msg;
   if (EditablePolyObject* ep = editablePoly()) {
-    PolyMesh m = ep->mesh;
+    PolyMesh m = ep->mesh();
     PolySelection s = ep->sel;
     if (!runPolyOp(m, s, op, &msg)) {
       showMessage(QString::fromStdString(msg));
       return false;
     }
     doc_->beginEdit(label);
-    ep->mesh = std::move(m);
+    ep->setMesh(std::move(m));
     ep->sel = s;
     notify();
     doc_->endEdit();
@@ -329,7 +329,7 @@ void PolyTarget::beginLive(const QString& label) {
   live.stack = stackIndex_;
   live.label = label;
   if (EditablePolyObject* ep = editablePoly()) {
-    live.mesh = ep->mesh;
+    live.mesh = ep->mesh();
     live.sel = ep->sel;
   } else {
     live.sel = selection();
@@ -351,7 +351,8 @@ bool PolyTarget::updateLive(const json& op) {
     PolyMesh m = live.mesh;
     PolySelection s = live.sel;
     ok = runPolyOp(m, s, op, &msg);
-    ep->mesh = ok ? std::move(m) : live.mesh;
+    if (ok) ep->setMesh(std::move(m));
+    else ep->setMesh(live.mesh);
     ep->sel = ok ? s : live.sel;
   } else if (auto* mod = dynamic_cast<EditPolyModifier*>(modifier())) {
     mod->setPreview(op);
@@ -369,13 +370,13 @@ void PolyTarget::endLive(bool commit) {
   live.op = json();
   bool hasOp = !op.is_null();
   if (EditablePolyObject* ep = editablePoly()) {
-    PolyMesh result = ep->mesh;
+    std::shared_ptr<const PolyMesh> result = ep->sharedMesh();
     PolySelection resultSel = ep->sel;
-    ep->mesh = std::move(live.mesh);
+    ep->setMesh(std::move(live.mesh));
     ep->sel = live.sel;
     if (commit && hasOp) {
       doc_->beginEdit(live.label);
-      ep->mesh = std::move(result);
+      ep->setSharedMesh(std::move(result));
       ep->sel = resultSel;
       notify();
       doc_->endEdit();

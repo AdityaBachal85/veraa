@@ -1,5 +1,6 @@
 // FBX: import with ufbx (binary and ASCII, any version ufbx reads), export as ASCII FBX 7.4.
 #include <algorithm>
+#include <atomic>
 #include <array>
 #include <cmath>
 #include <cstdio>
@@ -10,6 +11,7 @@
 #include <unordered_map>
 
 #include "io_util.h"
+#include "parallel.h"
 #include "ufbx/ufbx.h"
 
 namespace veraa {
@@ -50,10 +52,20 @@ bool importFbx(Scene& scene, const std::string& path, const ImportOptions& optio
   if (options.convertUnits) opts.target_unit_meters = 0.01f;  // centimeters
   opts.space_conversion = UFBX_SPACE_CONVERSION_MODIFY_GEOMETRY;
   opts.geometry_transform_handling = UFBX_GEOMETRY_TRANSFORM_HANDLING_PRESERVE;
+  if (options.progress) {
+    // Reading is the first half of the progress bar; ufbx stops when cancelled.
+    opts.progress_cb.fn = [](void* user, const ufbx_progress* p) -> ufbx_progress_result {
+      auto* progress = static_cast<ImportProgress*>(user);
+      double f = p->bytes_total ? double(p->bytes_read) / double(p->bytes_total) : 0.0;
+      return reportProgress(progress, 0.0, 0.5, f) ? UFBX_PROGRESS_CANCEL : UFBX_PROGRESS_CONTINUE;
+    };
+    opts.progress_cb.user = options.progress;
+    opts.progress_interval_hint = 1 << 20;
+  }
   ufbx_error err;
   ufbx_scene* fbx = ufbx_load_file(path.c_str(), &opts, &err);
   if (!fbx) {
-    if (error) *error = "FBX: " + str(err.description);
+    if (error) *error = err.type == UFBX_ERROR_CANCELLED ? std::string("Import cancelled") : "FBX: " + str(err.description);
     return false;
   }
   std::string dir = io::directoryOf(path);
@@ -92,39 +104,70 @@ bool importFbx(Scene& scene, const std::string& path, const ImportOptions& optio
       materials[m] = id;
     }
 
+  // Convert every mesh once, in parallel; instances (nodes sharing a mesh) share the result.
+  std::unordered_map<const ufbx_mesh*, size_t> meshIndex;
+  std::vector<int> meshUsers(fbx->meshes.count, 0);
+  for (size_t i = 0; i < fbx->meshes.count; ++i) meshIndex[fbx->meshes.data[i]] = i;
+  for (size_t i = 0; i < fbx->nodes.count; ++i)
+    if (const ufbx_mesh* m = fbx->nodes.data[i]->mesh) {
+      auto it = meshIndex.find(m);
+      if (it != meshIndex.end()) ++meshUsers[it->second];
+    }
+  std::vector<std::shared_ptr<PolyMesh>> converted(fbx->meshes.count);
+  std::atomic<size_t> meshesDone{0};
+  parallelFor(fbx->meshes.count, [&](size_t mi) {
+    if (options.progress && options.progress->cancelled()) return;
+    const ufbx_mesh* mesh = fbx->meshes.data[mi];
+    auto pm = std::make_shared<PolyMesh>();
+    pm->positions.reserve(mesh->num_vertices);
+    for (size_t v = 0; v < mesh->num_vertices; ++v) pm->positions.push_back(toVec3(mesh->vertices.data[v]));
+    bool hasUv = mesh->vertex_uv.exists;
+    if (hasUv) {
+      pm->uvs.reserve(mesh->vertex_uv.values.count);
+      for (size_t u = 0; u < mesh->vertex_uv.values.count; ++u) {
+        ufbx_vec2 uv = mesh->vertex_uv.values.data[u];
+        pm->uvs.push_back(Vec2(static_cast<float>(uv.x), static_cast<float>(uv.y)));
+      }
+    }
+    pm->faces.reserve(mesh->num_faces);
+    for (size_t f = 0; f < mesh->num_faces; ++f) {
+      ufbx_face face = mesh->faces.data[f];
+      if (face.num_indices < 3) continue;
+      PolyMesh::Face pf;
+      pf.v.resize(face.num_indices);
+      if (hasUv) pf.uv.resize(face.num_indices);
+      for (uint32_t k = 0; k < face.num_indices; ++k) {
+        uint32_t idx = face.index_begin + k;
+        pf.v[k] = static_cast<int>(mesh->vertex_indices.data[idx]);
+        if (hasUv) pf.uv[k] = static_cast<int>(mesh->vertex_uv.indices.data[idx]);
+      }
+      pf.smoothGroups = mesh->face_smoothing.count > f && !mesh->face_smoothing.data[f] ? 0u : 1u;
+      pf.matId = mesh->face_material.count > f ? static_cast<int>(mesh->face_material.data[f]) : 0;
+      pm->faces.push_back(std::move(pf));
+    }
+    converted[mi] = std::move(pm);
+    reportProgress(options.progress, 0.5, 0.85, double(++meshesDone) / double(fbx->meshes.count));
+  });
+  if (options.progress && options.progress->cancelled()) {
+    ufbx_free_scene(fbx);
+    if (error) *error = "Import cancelled";
+    return false;
+  }
+
   const ObjectTypeInfo* dummyType = findObjectType("Dummy");
+  scene.beginBulkNames();
   std::function<void(const ufbx_node*, uint32_t)> visit = [&](const ufbx_node* fn, uint32_t parentId) {
     uint32_t myId = parentId;
     if (!fn->is_root) {
       Node* n = nullptr;
       std::string name = str(fn->name);
-      if (fn->mesh) {
-        const ufbx_mesh* mesh = fn->mesh;
-        PolyMesh pm;
-        pm.positions.reserve(mesh->num_vertices);
-        for (size_t v = 0; v < mesh->num_vertices; ++v) pm.positions.push_back(toVec3(mesh->vertices.data[v]));
-        bool hasUv = mesh->vertex_uv.exists;
-        if (hasUv)
-          for (size_t u = 0; u < mesh->vertex_uv.values.count; ++u) {
-            ufbx_vec2 uv = mesh->vertex_uv.values.data[u];
-            pm.uvs.push_back(Vec2(static_cast<float>(uv.x), static_cast<float>(uv.y)));
-          }
-        for (size_t f = 0; f < mesh->num_faces; ++f) {
-          ufbx_face face = mesh->faces.data[f];
-          if (face.num_indices < 3) continue;
-          std::vector<int> vi, ui;
-          for (uint32_t k = 0; k < face.num_indices; ++k) {
-            uint32_t idx = face.index_begin + k;
-            vi.push_back(static_cast<int>(mesh->vertex_indices.data[idx]));
-            if (hasUv) ui.push_back(static_cast<int>(mesh->vertex_uv.indices.data[idx]));
-          }
-          uint32_t smooth = 1;
-          if (mesh->face_smoothing.count > f && !mesh->face_smoothing.data[f]) smooth = 0;
-          int matId = mesh->face_material.count > f ? static_cast<int>(mesh->face_material.data[f]) : 0;
-          pm.addFace(std::move(vi), std::move(ui), smooth, matId);
-        }
-        if (result) result->triangles += pm.triangleCount();
-        n = io::addMeshNode(scene, name.empty() ? "Mesh" : name, std::move(pm));
+      auto mit = fn->mesh ? meshIndex.find(fn->mesh) : meshIndex.end();
+      if (mit != meshIndex.end() && converted[mit->second]) {
+        size_t mi = mit->second;
+        if (result) result->triangles += converted[mi]->triangleCount();
+        std::string nodeName = name.empty() ? "Mesh" : name;
+        n = meshUsers[mi] > 1 ? io::addMeshNode(scene, nodeName, std::shared_ptr<const PolyMesh>(converted[mi]))
+                              : io::addMeshNode(scene, nodeName, std::move(*converted[mi]));
         if (n && options.importMaterials && fn->materials.count > 0) {
           auto it = materials.find(fn->materials.data[0]);
           if (it != materials.end()) n->materialId = it->second;
@@ -155,7 +198,7 @@ bool importFbx(Scene& scene, const std::string& path, const ImportOptions& optio
         n = dummyType ? scene.createNode("Dummy") : io::addMeshNode(scene, name.empty() ? "Group" : name, PolyMesh());
       }
       if (n) {
-        if (!name.empty() && n->name != name && (fn->light || fn->camera || (!fn->mesh && dummyType))) n->name = io::uniqueName(scene, name);
+        if (!name.empty() && n->name != name && (fn->light || fn->camera || (!fn->mesh && dummyType))) scene.renameNode(n, io::uniqueName(scene, name));
         n->parentId = parentId;
         if (fn->light || fn->camera) {
           // Lights and cameras: Veraa aims them along local -Z, so rebuild the world placement.
@@ -181,6 +224,7 @@ bool importFbx(Scene& scene, const std::string& path, const ImportOptions& optio
     for (size_t c = 0; c < fn->children.count; ++c) visit(fn->children.data[c], myId);
   };
   visit(fbx->root_node, 0);
+  scene.endBulkNames();
   ufbx_free_scene(fbx);
   return true;
 }

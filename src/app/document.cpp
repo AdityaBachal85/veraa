@@ -3,32 +3,36 @@
 #include <QFileInfo>
 #include <QUndoCommand>
 
+#include <map>
+
+#include "importjob.h"
+
 namespace veraa {
 
 namespace {
 
 class SnapshotCommand : public QUndoCommand {
  public:
-  SnapshotCommand(SceneDocument* doc, const QString& label, json before, json after, QVector<uint32_t> selBefore,
-                  QVector<uint32_t> selAfter)
+  SnapshotCommand(SceneDocument* doc, const QString& label, std::shared_ptr<const SceneSnapshot> before,
+                  std::shared_ptr<const SceneSnapshot> after, QVector<uint32_t> selBefore, QVector<uint32_t> selAfter)
       : QUndoCommand(label),
         doc_(doc),
         before_(std::move(before)),
         after_(std::move(after)),
         selBefore_(std::move(selBefore)),
         selAfter_(std::move(selAfter)) {}
-  void undo() override { doc_->restore(before_, selBefore_); }
+  void undo() override { doc_->restore(*before_, selBefore_); }
   void redo() override {
     if (first_) {  // the change is already applied
       first_ = false;
       return;
     }
-    doc_->restore(after_, selAfter_);
+    doc_->restore(*after_, selAfter_);
   }
 
  private:
   SceneDocument* doc_;
-  json before_, after_;
+  std::shared_ptr<const SceneSnapshot> before_, after_;
   QVector<uint32_t> selBefore_, selAfter_;
   bool first_ = true;
 };
@@ -56,8 +60,15 @@ Node* SceneDocument::firstSelected() const {
   return nullptr;
 }
 
+void SceneDocument::setSelectionList(QVector<uint32_t> ids) {
+  selection_ = std::move(ids);
+  selectionSet_ = QSet<uint32_t>(selection_.begin(), selection_.end());
+}
+
 void SceneDocument::setSelection(const QVector<uint32_t>& ids) {
   QVector<uint32_t> clean;
+  QSet<uint32_t> seen;
+  clean.reserve(ids.size());
   for (uint32_t id0 : ids) {
     // Members of a closed group select the (outermost closed) group instead.
     uint32_t id = id0;
@@ -68,16 +79,19 @@ void SceneDocument::setSelection(const QVector<uint32_t>& ids) {
       g = p;
     }
     Node* n = scene_.findNode(id);
-    if (n && !n->hidden && !clean.contains(id)) clean.push_back(id);
+    if (n && !n->hidden && !seen.contains(id)) {
+      seen.insert(id);
+      clean.push_back(id);
+    }
   }
   if (clean == selection_) return;
-  selection_ = clean;
+  setSelectionList(std::move(clean));
   Q_EMIT selectionChanged();
 }
 
 void SceneDocument::select(uint32_t id, bool add) {
   if (add) {
-    if (selection_.contains(id)) return;
+    if (selectionSet_.contains(id)) return;
     QVector<uint32_t> s = selection_;
     s.push_back(id);
     setSelection(s);
@@ -106,11 +120,18 @@ Aabb SceneDocument::selectionBounds() const {
   return b;
 }
 
+std::shared_ptr<const SceneSnapshot> SceneDocument::capture() {
+  auto s = scene_.snapshot(last_.get());
+  if (last_ && s->sameAs(*last_)) return last_;  // unchanged: share the whole capture
+  last_ = s;
+  return s;
+}
+
 void SceneDocument::beginEdit(const QString& label) {
   if (editDepth_ == 0) {
     commitSoftEdit();
     editLabel_ = label;
-    editBefore_ = scene_.toJson();
+    editBefore_ = capture();
     editSelBefore_ = selection_;
   }
   ++editDepth_;
@@ -120,14 +141,14 @@ void SceneDocument::endEdit() {
   if (editDepth_ <= 0) return;
   if (--editDepth_ > 0) return;
   pushSnapshot(editLabel_, std::move(editBefore_), editSelBefore_);
-  editBefore_ = json();
+  editBefore_.reset();
 }
 
 void SceneDocument::cancelEdit() {
   if (editDepth_ <= 0) return;
   editDepth_ = 0;
-  restore(editBefore_, editSelBefore_);
-  editBefore_ = json();
+  if (editBefore_) restore(*editBefore_, editSelBefore_);
+  editBefore_.reset();
 }
 
 void SceneDocument::softEdit(const QString& label, const QString& key) {
@@ -137,7 +158,7 @@ void SceneDocument::softEdit(const QString& label, const QString& key) {
     softOpen_ = true;
     softKey_ = key;
     softLabel_ = label;
-    softBefore_ = scene_.toJson();
+    softBefore_ = capture();
     softSelBefore_ = selection_;
   }
   softTimer_.start();
@@ -148,33 +169,44 @@ void SceneDocument::commitSoftEdit() {
   if (!softOpen_) return;
   softOpen_ = false;
   pushSnapshot(softLabel_, std::move(softBefore_), softSelBefore_);
-  softBefore_ = json();
+  softBefore_.reset();
 }
 
-void SceneDocument::pushSnapshot(const QString& label, json before, const QVector<uint32_t>& selBefore) {
+void SceneDocument::pushSnapshot(const QString& label, std::shared_ptr<const SceneSnapshot> before,
+                                 const QVector<uint32_t>& selBefore) {
+  if (!before) return;
   if (commitHook_ && !inCommitHook_) {
     inCommitHook_ = true;
-    commitHook_(before);
+    commitHook_(*before);
     inCommitHook_ = false;
   }
-  json after = scene_.toJson();
-  if (after == before && selBefore == selection_) return;
+  std::shared_ptr<const SceneSnapshot> after = capture();
+  if ((after == before || after->sameAs(*before)) && selBefore == selection_) return;
   undo_.push(new SnapshotCommand(this, label, std::move(before), std::move(after), selBefore, selection_));
   Q_EMIT modifiedChanged(isModified());
 }
 
-void SceneDocument::restore(const json& state, const QVector<uint32_t>& sel) {
-  std::string err;
-  scene_.fromJson(state, &err);
-  ++epoch_;
-  geomVersion_.clear();
-  selection_.clear();
+void SceneDocument::restore(const SceneSnapshot& state, const QVector<uint32_t>& sel) {
+  SceneRestoreResult r = scene_.restore(state);
+  last_.reset();  // the next capture compares from scratch (entries are still shared by equality)
+  for (uint32_t id : r.geometryNodes) bumpGeometry(id);
+  QVector<uint32_t> newSel;
   for (uint32_t id : sel)
-    if (scene_.findNode(id)) selection_.push_back(id);
-  Q_EMIT structureChanged();
-  Q_EMIT materialsChanged();
-  Q_EMIT renderSettingsChanged();
-  Q_EMIT selectionChanged();
+    if (scene_.findNode(id)) newSel.push_back(id);
+  bool selChanged = newSel != selection_;
+  setSelectionList(std::move(newSel));
+  // Panels keep pointers to objects and modifiers, so rebuilt geometry counts as a structure change.
+  if (r.structure || r.globals || !r.geometryNodes.empty()) {
+    Q_EMIT structureChanged();
+  } else {
+    // Group the changed nodes by what changed.
+    std::map<int, QVector<uint32_t>> byFlags;
+    for (const auto& [id, what] : r.nodeChanges) byFlags[what].push_back(id);
+    for (const auto& [flags, ids] : byFlags) Q_EMIT nodesChanged(ids, flags);
+  }
+  if (r.materials) Q_EMIT materialsChanged();
+  if (r.renderSettings) Q_EMIT renderSettingsChanged();
+  if (selChanged || r.structure) Q_EMIT selectionChanged();
 }
 
 void SceneDocument::notifyNodesChanged(const QVector<uint32_t>& ids, int flags) {
@@ -189,7 +221,7 @@ void SceneDocument::notifyNodesChanged(const QVector<uint32_t>& ids, int flags) 
     for (uint32_t id : selection_)
       if (Node* n = scene_.findNode(id); n && !n->hidden) s.push_back(id);
     if (s != selection_) {
-      selection_ = s;
+      setSelectionList(s);
       Q_EMIT selectionChanged();
     }
   }
@@ -201,7 +233,7 @@ void SceneDocument::notifyStructureChanged() {
   for (uint32_t id : selection_)
     if (scene_.findNode(id)) s.push_back(id);
   bool selChanged = s != selection_;
-  selection_ = s;
+  setSelectionList(s);
   Q_EMIT structureChanged();
   if (selChanged) Q_EMIT selectionChanged();
 }
@@ -228,7 +260,7 @@ void SceneDocument::deleteSelected() {
   if (selection_.isEmpty()) return;
   beginEdit(tr("Delete"));
   for (uint32_t id : selection_) scene_.removeNode(id);
-  selection_.clear();
+  setSelectionList({});
   notifyStructureChanged();
   Q_EMIT selectionChanged();
   endEdit();
@@ -281,7 +313,8 @@ void SceneDocument::newScene() {
   commitSoftEdit();
   scene_.clear();
   undo_.clear();
-  selection_.clear();
+  last_.reset();
+  setSelectionList({});
   ++epoch_;
   geomVersion_.clear();
   dirtyWithoutUndo_ = false;
@@ -295,16 +328,30 @@ void SceneDocument::newScene() {
 
 bool SceneDocument::load(const QString& path, QString* error) {
   commitSoftEdit();
-  Scene tmp;
+  // Load in place (no second copy of the scene); a failed load puts the old scene back.
+  std::shared_ptr<const SceneSnapshot> before = scene_.snapshot();
+  std::string keepPath = scene_.filePath;
   std::string err;
-  if (!tmp.load(path.toStdString(), &err)) {
+  // Reading and decoding (the slow part for big scenes) runs on a worker thread.
+  Scene::SceneFile file;
+  std::string p8 = path.toStdString();
+  bool read = runInBackground(
+      nullptr, tr("Opening %1...").arg(QFileInfo(path).fileName()),
+      [&](ImportProgress& progress, std::string& e) { return Scene::readFile(p8, file, &e, &progress); }, &err);
+  if (!read || !scene_.fromFile(file, p8, &err)) {
+    scene_.clear();
+    scene_.restore(*before);
+    scene_.filePath = keepPath;
     if (error) *error = QString::fromStdString(err);
     return false;
   }
+  before.reset();
   scene_.filePath = path.toStdString();
-  scene_.fromJson(tmp.toJson(), &err);
+  // Build the display meshes on all cores now rather than one by one on the first redraw.
+  scene_.prepareMeshes();
+  last_.reset();
   undo_.clear();
-  selection_.clear();
+  setSelectionList({});
   ++epoch_;
   geomVersion_.clear();
   dirtyWithoutUndo_ = false;

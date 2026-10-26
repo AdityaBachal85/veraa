@@ -91,7 +91,7 @@ class UiState : public QObject {
   bool selLock_ = false;
   bool shortcutOverride_ = false;
   bool absoluteTypeIn_ = true;
-  bool adaptive_ = false;
+  bool adaptive_ = true;
   bool viewCube_ = true;
   bool showGizmo_ = true;
   bool shadeSelected_ = false;

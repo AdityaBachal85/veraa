@@ -64,20 +64,24 @@ PolyMesh nodeSpaceMesh(const Node& n) {
 std::string uniqueName(const Scene& scene, const std::string& nameIn) {
   std::string name = nameIn.empty() ? std::string("Object") : nameIn;
   if (!scene.findNodeByName(name)) return name;
-  for (int i = 1; i < 100000; ++i) {
-    char buf[16];
-    std::snprintf(buf, sizeof(buf), "%03d", i);
-    std::string candidate = name + "_" + buf;
-    if (!scene.findNodeByName(candidate)) return candidate;
-  }
-  return scene.uniqueNodeName(name);
+  return scene.uniqueNodeName(name + "_");  // name_001, name_002, ...
 }
 
 Node* addMeshNode(Scene& scene, const std::string& name, PolyMesh mesh) {
   Node* n = scene.createNode("EditablePoly");
   if (!n) return nullptr;
-  n->name = uniqueName(scene, name);
-  static_cast<EditablePolyObject*>(n->object.get())->mesh = std::move(mesh);
+  scene.renameNode(n, uniqueName(scene, name));
+  static_cast<EditablePolyObject*>(n->object.get())->setMesh(std::move(mesh));
+  n->object->touch();
+  n->invalidate();
+  return n;
+}
+
+Node* addMeshNode(Scene& scene, const std::string& name, std::shared_ptr<const PolyMesh> mesh) {
+  Node* n = scene.createNode("EditablePoly");
+  if (!n) return nullptr;
+  scene.renameNode(n, uniqueName(scene, name));
+  static_cast<EditablePolyObject*>(n->object.get())->setSharedMesh(std::move(mesh));
   n->object->touch();
   n->invalidate();
   return n;
@@ -136,6 +140,7 @@ bool importScene(Scene& scene, const std::string& path, const ImportOptions& opt
     o.yUp = options.convertAxes;
     o.scale = options.scale;
     o.importMaterials = options.importMaterials;
+    o.progress = options.progress;
     ObjImportResult res;
     if (!importObj(scene, path, o, &res, error)) return false;
     r->nodeIds.insert(r->nodeIds.end(), res.nodeIds.begin(), res.nodeIds.end());

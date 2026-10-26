@@ -26,6 +26,8 @@ PolyMesh nodeSpaceMesh(const Node& n);
 
 // Creates an Editable Poly node holding `mesh` (name made unique). Returns null on failure.
 Node* addMeshNode(Scene& scene, const std::string& name, PolyMesh mesh);
+// Same, sharing an existing mesh (copy-on-write) with other nodes.
+Node* addMeshNode(Scene& scene, const std::string& name, std::shared_ptr<const PolyMesh> mesh);
 // Creates a material with a diffuse color/texture and returns its id.
 uint32_t addMaterial(Scene& scene, const std::string& name, const Vec3& diffuse, const std::string& diffuseMap,
                      float opacity);

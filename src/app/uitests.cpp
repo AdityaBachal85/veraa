@@ -26,6 +26,8 @@
 #include "mainwindow.h"
 #include "navtools.h"
 #include "sceneexplorer.h"
+
+#include <QItemSelectionModel>
 #include "scripting.h"
 #include "scriptui.h"
 #include "selftest.h"
@@ -479,6 +481,26 @@ void testInterface(MainWindow& w) {
   check(s.findNode(bId)->parentId == aId, "Scene Explorer drag-to-link links objects");
   w.sceneExplorer()->linkNodes({bId}, 0);
   check(s.findNode(bId)->parentId == 0, "Scene Explorer unlink");
+  {
+    // The explorer is a model/view: selection and renames go both ways without rebuilding rows.
+    SceneExplorer* ex = w.sceneExplorer();
+    QApplication::processEvents();
+    doc->setSelection({aId, bId});
+    QModelIndexList rows = ex->tree()->selectionModel()->selectedRows(0);
+    check(rows.size() == 2, "Scene Explorer shows the document selection");
+    QModelIndex a = ex->model()->indexOf(aId);
+    std::string oldName = s.findNode(aId)->name;
+    ex->model()->setData(a, QString("ExplorerRenamed"), Qt::EditRole);
+    check(s.findNode(aId)->name == "ExplorerRenamed" && a.data().toString() == "ExplorerRenamed",
+          "Scene Explorer renames in place");
+    doc->undoStack()->undo();
+    QApplication::processEvents();
+    check(s.findNode(aId)->name == oldName && ex->model()->indexOf(aId).data().toString() == QString::fromStdString(oldName),
+          "Scene Explorer follows undo of a rename");
+    ex->tree()->selectionModel()->select(ex->tree()->model()->index(0, 0),
+                                         QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+    check(doc->selection().size() == 1, "Selecting a row selects the object");
+  }
 
   // ---- File formats through the window ----
   QString fbx = QDir::temp().filePath("veraa_ui_test.fbx");

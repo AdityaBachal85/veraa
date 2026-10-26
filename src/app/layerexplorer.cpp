@@ -1,5 +1,8 @@
 #include "layerexplorer.h"
 
+#include <unordered_map>
+#include <vector>
+
 #include <algorithm>
 #include <QColorDialog>
 #include <QHBoxLayout>
@@ -73,7 +76,12 @@ LayerExplorer::LayerExplorer(SceneDocument* doc, QWidget* parent) : QWidget(pare
   tree_->setHeaderLabels({tr("Name"), tr("Hidden"), tr("Frozen"), tr("Render"), tr("Color")});
   tree_->header()->setStretchLastSection(false);
   tree_->header()->setSectionResizeMode(kName, QHeaderView::Stretch);
-  for (int c = kHidden; c < kColumns; ++c) tree_->header()->setSectionResizeMode(c, QHeaderView::ResizeToContents);
+  // Fixed widths: sizing to contents measures every row (slow with thousands of objects).
+  for (int c = kHidden; c < kColumns; ++c) {
+    tree_->header()->setSectionResizeMode(c, QHeaderView::Interactive);
+    tree_->header()->resizeSection(c, 46);
+  }
+  tree_->setUniformRowHeights(true);
   tree_->setSelectionMode(QAbstractItemView::ExtendedSelection);
   tree_->setEditTriggers(QAbstractItemView::EditKeyPressed | QAbstractItemView::DoubleClicked);
   tree_->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -136,6 +144,11 @@ LayerExplorer::LayerExplorer(SceneDocument* doc, QWidget* parent) : QWidget(pare
   rebuild();
 }
 
+void LayerExplorer::showEvent(QShowEvent* e) {
+  QWidget::showEvent(e);
+  if (staleWhileHidden_) rebuild();
+}
+
 uint32_t LayerExplorer::currentLayerOfItem(QTreeWidgetItem* it) const {
   while (it && it->parent()) it = it->parent();
   return it ? it->data(kName, kLayerRole).toUInt() : 0;
@@ -143,12 +156,21 @@ uint32_t LayerExplorer::currentLayerOfItem(QTreeWidgetItem* it) const {
 
 void LayerExplorer::rebuild() {
   rebuildPending_ = false;
+  if (!isVisible()) {
+    // Rebuilt when shown (a hidden or tabbed-away panel costs nothing on big scenes).
+    staleWhileHidden_ = true;
+    return;
+  }
+  staleWhileHidden_ = false;
   syncing_ = true;
   QSet<uint32_t> collapsed;
   for (int i = 0; i < tree_->topLevelItemCount(); ++i)
     if (!tree_->topLevelItem(i)->isExpanded()) collapsed.insert(tree_->topLevelItem(i)->data(kName, kLayerRole).toUInt());
   tree_->clear();
   const Scene& s = doc_->scene();
+  static const QIcon eyeOpen = icons::eye(true), eyeClosed = icons::eye(false);
+  std::unordered_map<uint32_t, std::vector<const Node*>> byLayer;
+  for (const auto& n : s.nodes) byLayer[n->layerId].push_back(n.get());
   for (const Layer& l : s.layers) {
     auto* item = new QTreeWidgetItem(tree_);
     bool current = l.id == s.currentLayerId;
@@ -159,17 +181,16 @@ void LayerExplorer::rebuild() {
     QFont f = item->font(kName);
     f.setBold(current);
     item->setFont(kName, f);
-    item->setIcon(kHidden, icons::eye(!l.hidden));
+    item->setIcon(kHidden, l.hidden ? eyeClosed : eyeOpen);
     item->setText(kFrozen, l.frozen ? QString::fromUtf8("❄") : QString());
     item->setText(kRender, l.renderable ? QString::fromUtf8("✓") : QString());
     item->setIcon(kColor, swatch(l.color));
-    for (const auto& n : s.nodes) {
-      if (n->layerId != l.id) continue;
+    for (const Node* n : byLayer[l.id]) {
       auto* child = new QTreeWidgetItem(item);
       child->setText(kName, QString::fromStdString(n->name));
       child->setData(kName, kNodeRole, n->id);
       child->setFlags((child->flags() | Qt::ItemIsDragEnabled) & ~Qt::ItemIsDropEnabled & ~Qt::ItemIsEditable);
-      child->setIcon(kHidden, icons::eye(!n->hidden));
+      child->setIcon(kHidden, n->hidden ? eyeClosed : eyeOpen);
       if (n->frozen) child->setText(kFrozen, QString::fromUtf8("❄"));
       if (doc_->isSelected(n->id)) child->setForeground(kName, QColor(245, 197, 24));
     }

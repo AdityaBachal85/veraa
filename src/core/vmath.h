@@ -247,4 +247,26 @@ struct Aabb {
   bool intersect(const Ray& r, float tMin, float tMax, float* tHit = nullptr) const;
 };
 
+// The six clip planes of a view-projection matrix (row-major, column vectors), for culling.
+struct Frustum {
+  float plane[6][4];  // a*x + b*y + c*z + d >= 0 inside
+  static Frustum fromViewProj(const Mat4& vp) {
+    Frustum f;
+    for (int i = 0; i < 3; ++i)
+      for (int k = 0; k < 4; ++k) {
+        f.plane[i * 2][k] = vp.m[3][k] + vp.m[i][k];
+        f.plane[i * 2 + 1][k] = vp.m[3][k] - vp.m[i][k];
+      }
+    return f;
+  }
+  // False when the box is certainly outside (may be true for some boxes just outside corners).
+  bool intersects(const Aabb& b) const {
+    for (const auto& p : plane) {
+      float x = p[0] >= 0 ? b.hi.x : b.lo.x, y = p[1] >= 0 ? b.hi.y : b.lo.y, z = p[2] >= 0 ? b.hi.z : b.lo.z;
+      if (p[0] * x + p[1] * y + p[2] * z + p[3] < 0) return false;
+    }
+    return true;
+  }
+};
+
 }  // namespace veraa

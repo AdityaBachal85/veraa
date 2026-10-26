@@ -128,8 +128,8 @@ void testPolyModeling(MainWindow& w) {
   box = doc->scene().findNode(id);
   check(polyOf(box)->sel.level == PolyFace, "hotkey 4 switches to Polygon level");
   check(activePolyTool(st) != nullptr, "sub-object tool active");
-  int top = faceToward(polyOf(box)->mesh, Vec3(0, 0, 1));
-  click(vp, projectPoint(vp, box->objectWorldMatrix().transformPoint(faceCenter(polyOf(box)->mesh, top))));
+  int top = faceToward(polyOf(box)->mesh(), Vec3(0, 0, 1));
+  click(vp, projectPoint(vp, box->objectWorldMatrix().transformPoint(faceCenter(polyOf(box)->mesh(), top))));
   box = doc->scene().findNode(id);
   check(polyOf(box)->sel.faces.size() == 1 && polyOf(box)->sel.faces[0] == top, "clicking selects the top polygon");
   check(doc->selection().size() == 1 && doc->selection()[0] == id, "object stays selected in sub-object mode");
@@ -145,12 +145,12 @@ void testPolyModeling(MainWindow& w) {
   if (height) height->setValue(30.0);
   pump(30);
   box = doc->scene().findNode(id);
-  check(polyOf(box)->mesh.faces.size() == 10, "caddy previews the extrusion");
+  check(polyOf(box)->mesh().faces.size() == 10, "caddy previews the extrusion");
   shot(w, "poly_02_extrude_caddy");
   if (auto* ok = widget<QPushButton>("caddy_ok")) ok->click();
   pump(50);
   box = doc->scene().findNode(id);
-  const PolyMesh& m1 = polyOf(box)->mesh;
+  const PolyMesh& m1 = polyOf(box)->mesh();
   check(m1.faces.size() == 10, "extrude adds four side polygons");
   check(std::fabs(m1.bounds().hi.z - 130.0f) < 1e-3f, "extrude height 30");
   check(isClosedManifold(m1), "extruded mesh is closed");
@@ -160,7 +160,7 @@ void testPolyModeling(MainWindow& w) {
   if (auto* a = actionNamed(w, "poly.level2")) a->trigger();
   pump(30);
   box = doc->scene().findNode(id);
-  const PolyMesh& m2 = polyOf(box)->mesh;
+  const PolyMesh& m2 = polyOf(box)->mesh();
   int cap = faceToward(m2, Vec3(0, 0, 1));
   int ea = m2.faces[cap].v[0], eb = m2.faces[cap].v[1];
   Vec3 mid = (m2.positions[ea] + m2.positions[eb]) * 0.5f;
@@ -175,16 +175,16 @@ void testPolyModeling(MainWindow& w) {
   if (auto* ok = widget<QPushButton>("caddy_ok")) ok->click();
   pump(50);
   box = doc->scene().findNode(id);
-  check(polyOf(box)->mesh.faces.size() == 11, "chamfer adds a polygon");
-  check(isClosedManifold(polyOf(box)->mesh), "chamfered mesh is closed");
-  double chamfered = meshVolume(polyOf(box)->mesh);
+  check(polyOf(box)->mesh().faces.size() == 11, "chamfer adds a polygon");
+  check(isClosedManifold(polyOf(box)->mesh()), "chamfered mesh is closed");
+  double chamfered = meshVolume(polyOf(box)->mesh());
   check(chamfered < 1.3e6 - 1.0, "chamfer removes volume");
 
   // 5. Undo the chamfer.
   doc->undoStack()->setIndex(undoAfterExtrude);
   pump(50);
   box = doc->scene().findNode(id);
-  check(polyOf(box) && polyOf(box)->mesh.faces.size() == 10, "undo restores the extruded mesh");
+  check(polyOf(box) && polyOf(box)->mesh().faces.size() == 10, "undo restores the extruded mesh");
   check(polyOf(box) && polyOf(box)->sel.level == PolyEdge, "sub-object level survives undo");
   check(activePolyTool(st) != nullptr, "sub-object tool is back after undo");
 
@@ -212,7 +212,7 @@ void testPolyModeling(MainWindow& w) {
   QPointF zTarget = zHandle + QPointF(0, -20.0f / wpp);
   drag(vp, zHandle, zTarget);
   box = doc->scene().findNode(id);
-  check(std::fabs(polyOf(box)->mesh.bounds().hi.z - 150.0f) < 1.0f, "gizmo moves the selected vertices up by 20");
+  check(std::fabs(polyOf(box)->mesh().bounds().hi.z - 150.0f) < 1.0f, "gizmo moves the selected vertices up by 20");
   shot(w, "poly_04_vertices_moved");
 
   // 7. Delete at polygon level removes polygons, not the object.
@@ -220,21 +220,21 @@ void testPolyModeling(MainWindow& w) {
   pump(30);
   box = doc->scene().findNode(id);
   PolySelection s = polyOf(box)->sel;
-  s.faces = {faceToward(polyOf(box)->mesh, Vec3(0, 0, 1))};
+  s.faces = {faceToward(polyOf(box)->mesh(), Vec3(0, 0, 1))};
   PolyTarget(doc, st, id, -1).setSelection(s, "Select");
   QAction* del = actionWithText(w, QObject::tr("&Delete"));
   if (del) del->trigger();
   pump(30);
   box = doc->scene().findNode(id);
-  check(box != nullptr && polyOf(box)->mesh.faces.size() == 9, "Delete removes the selected polygon only");
+  check(box != nullptr && polyOf(box)->mesh().faces.size() == 9, "Delete removes the selected polygon only");
   // Border level + Cap closes it again.
   if (auto* l3 = actionNamed(w, "poly.level3")) l3->trigger();
   pump(30);
   box = doc->scene().findNode(id);
-  auto loops = openBorderLoops(polyOf(box)->mesh);
+  auto loops = openBorderLoops(polyOf(box)->mesh());
   check(loops.size() == 1, "an open border after deleting");
   if (!loops.empty()) {
-    Vec3 bm = (polyOf(box)->mesh.positions[loops[0][0]] + polyOf(box)->mesh.positions[loops[0][1]]) * 0.5f;
+    Vec3 bm = (polyOf(box)->mesh().positions[loops[0][0]] + polyOf(box)->mesh().positions[loops[0][1]]) * 0.5f;
     click(vp, projectPoint(vp, box->objectWorldMatrix().transformPoint(bm)));
   }
   box = doc->scene().findNode(id);
@@ -242,7 +242,7 @@ void testPolyModeling(MainWindow& w) {
   if (auto* cap2 = widget<QPushButton>("poly_capBorders")) cap2->click();
   pump(30);
   box = doc->scene().findNode(id);
-  check(isClosedManifold(polyOf(box)->mesh), "Cap closes the border");
+  check(isClosedManifold(polyOf(box)->mesh()), "Cap closes the border");
 
   // 8. Exit sub-object mode with hotkey 6.
   if (auto* l0 = actionNamed(w, "poly.level0")) l0->trigger();

@@ -1,6 +1,12 @@
 #include "obj_import.h"
 
+#include <algorithm>
+#include <atomic>
 #include <cctype>
+#include <charconv>
+#include <climits>
+#include <cstdint>
+#include <cstring>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -8,6 +14,7 @@
 #include <sstream>
 #include <unordered_map>
 
+#include "parallel.h"
 #include "scene.h"
 
 namespace veraa {
@@ -97,14 +104,176 @@ std::map<std::string, MtlInfo> parseMtl(const fs::path& path, std::vector<std::s
   return mats;
 }
 
-struct Group {
-  std::string name, material;
-  PolyMesh mesh;
-  std::unordered_map<int, int> vRemap, tRemap;
-  bool hasExplicitSmoothing = false;
+// ---- Parsing (parallel over chunks of whole lines) ----
+
+// A state change between faces: object/group name, material, smoothing group or material library.
+struct ObjEvent {
+  enum Kind : uint8_t { Name, Material, Smooth, MtlLib } kind;
+  size_t face;       // index (in the chunk) of the first face it applies to
+  std::string text;  // Name / Material / MtlLib
+  uint32_t smooth = 0;
 };
 
-int fixIndex(int idx, size_t count) { return idx < 0 ? static_cast<int>(count) + idx : idx - 1; }
+struct ObjChunk {
+  std::vector<Vec3> pos, nrm;
+  std::vector<Vec2> tex;
+  // Faces: corners [faceStart[f], faceStart[f + 1]) of vi/ti/ni (raw file indices, 0 = absent).
+  std::vector<uint32_t> faceStart{0};
+  std::vector<int> vi, ti, ni;
+  // Counts of v/vt/vn read in this chunk before each face (needed for relative indices).
+  std::vector<uint32_t> basePos, baseTex, baseNrm;
+  bool relative = false;
+  std::vector<ObjEvent> events;
+  const char* errorAt = nullptr;  // first malformed face
+  bool badIndex = false;          // an index points outside the file's vertices
+};
+
+inline bool isSpace(char c) { return c == ' ' || c == '\t' || c == '\r'; }
+
+inline const char* skipSpace(const char* p, const char* e) {
+  while (p < e && isSpace(*p)) ++p;
+  return p;
+}
+
+// Parses a number at p (leading '+' allowed); returns the end, or p on failure.
+template <typename T>
+inline const char* parseNumber(const char* p, const char* e, T& out) {
+  const char* s = p < e && *p == '+' ? p + 1 : p;
+  auto r = std::from_chars(s, e, out);
+  return r.ec == std::errc() ? r.ptr : p;
+}
+
+std::string restOfLine(const char* p, const char* e) {
+  p = skipSpace(p, e);
+  while (e > p && isSpace(e[-1])) --e;
+  return std::string(p, e);
+}
+
+void parseChunk(const char* p, const char* end, ObjChunk& c) {
+  while (p < end) {
+    const char* eol = static_cast<const char*>(std::memchr(p, '\n', static_cast<size_t>(end - p)));
+    if (!eol) eol = end;
+    const char* line = p;
+    const char* q = skipSpace(p, eol);
+    p = eol + 1;
+    if (q >= eol || *q == '#') continue;
+    const char* k = q;
+    while (q < eol && !isSpace(*q)) ++q;
+    size_t klen = static_cast<size_t>(q - k);
+    if (klen == 1 && k[0] == 'v') {
+      Vec3 v;
+      q = parseNumber(skipSpace(q, eol), eol, v.x);
+      q = parseNumber(skipSpace(q, eol), eol, v.y);
+      parseNumber(skipSpace(q, eol), eol, v.z);
+      c.pos.push_back(v);
+    } else if (klen == 1 && k[0] == 'f') {
+      size_t first = c.vi.size();
+      bool bad = false;
+      for (;;) {
+        q = skipSpace(q, eol);
+        if (q >= eol) break;
+        int v = 0, t = 0, n = 0;
+        const char* r = parseNumber(q, eol, v);
+        if (r == q || v == 0) {
+          bad = true;
+          break;
+        }
+        q = r;
+        if (q < eol && *q == '/') {
+          ++q;
+          if (q < eol && *q != '/') q = parseNumber(q, eol, t);
+          if (q < eol && *q == '/') q = parseNumber(q + 1, eol, n);
+        }
+        while (q < eol && !isSpace(*q)) ++q;  // ignore anything else glued to the token
+        c.relative |= v < 0 || t < 0 || n < 0;
+        c.vi.push_back(v);
+        c.ti.push_back(t);
+        c.ni.push_back(n);
+      }
+      if (bad && !c.errorAt) c.errorAt = line;
+      if (bad || c.vi.size() - first < 3) {
+        c.vi.resize(first);
+        c.ti.resize(first);
+        c.ni.resize(first);
+        continue;
+      }
+      c.faceStart.push_back(static_cast<uint32_t>(c.vi.size()));
+      c.basePos.push_back(static_cast<uint32_t>(c.pos.size()));
+      c.baseTex.push_back(static_cast<uint32_t>(c.tex.size()));
+      c.baseNrm.push_back(static_cast<uint32_t>(c.nrm.size()));
+    } else if (klen == 2 && k[0] == 'v' && k[1] == 't') {
+      Vec2 t;
+      q = parseNumber(skipSpace(q, eol), eol, t.x);
+      parseNumber(skipSpace(q, eol), eol, t.y);
+      c.tex.push_back(t);
+    } else if (klen == 2 && k[0] == 'v' && k[1] == 'n') {
+      Vec3 n;
+      q = parseNumber(skipSpace(q, eol), eol, n.x);
+      q = parseNumber(skipSpace(q, eol), eol, n.y);
+      parseNumber(skipSpace(q, eol), eol, n.z);
+      c.nrm.push_back(n);
+    } else if (klen == 1 && (k[0] == 'o' || k[0] == 'g')) {
+      c.events.push_back({ObjEvent::Name, c.faceStart.size() - 1, restOfLine(q, eol)});
+    } else if (klen == 6 && std::memcmp(k, "usemtl", 6) == 0) {
+      c.events.push_back({ObjEvent::Material, c.faceStart.size() - 1, restOfLine(q, eol)});
+    } else if (klen == 6 && std::memcmp(k, "mtllib", 6) == 0) {
+      c.events.push_back({ObjEvent::MtlLib, c.faceStart.size() - 1, restOfLine(q, eol)});
+    } else if (klen == 1 && k[0] == 's') {
+      std::string v = restOfLine(q, eol);
+      v = v.substr(0, v.find_first_of(" \t"));
+      ObjEvent ev{ObjEvent::Smooth, c.faceStart.size() - 1, std::string()};
+      if (!(v == "off" || v == "0" || v.empty())) {
+        long g = std::strtol(v.c_str(), nullptr, 10);
+        ev.smooth = g > 0 ? (1u << ((g - 1) % 32)) : 1u;
+      }
+      c.events.push_back(std::move(ev));
+    }
+  }
+}
+
+// A run of consecutive faces of one chunk that go to the same group with the same smoothing.
+struct FaceRun {
+  uint32_t chunk;
+  uint32_t begin, end;  // faces in the chunk
+  uint32_t smooth;
+  bool fromNormals;  // no "s" statement seen yet: decide smoothing from the file's normals
+};
+
+struct ObjGroup {
+  std::string name, material;
+  std::vector<FaceRun> runs;
+  PolyMesh mesh;
+  Vec3 pivot;
+};
+
+// Maps file-wide indices to a group's own numbering: a dense table over the used index range
+// when it is compact (the usual case: objects use a contiguous block of vertices), else a hash.
+struct IndexRemap {
+  int lo = 0;
+  bool dense = true;
+  std::vector<int> table;
+  std::unordered_map<int, int> map;
+  void init(int l, int h, size_t corners) {
+    lo = l;
+    size_t range = h >= l ? static_cast<size_t>(h - l) + 1 : 0;
+    dense = range <= corners * 4 + 4096;
+    if (dense) table.assign(range, -1);
+    else map.reserve(corners);
+  }
+  template <typename Add>
+  int get(int idx, Add add) {
+    if (dense) {
+      int& slot = table[static_cast<size_t>(idx - lo)];
+      if (slot < 0) slot = add(idx);
+      return slot;
+    }
+    auto it = map.find(idx);
+    if (it != map.end()) return it->second;
+    int v = add(idx);
+    map.emplace(idx, v);
+    return v;
+  }
+};
 
 }  // namespace
 
@@ -112,127 +281,181 @@ bool importObj(Scene& scene, const std::string& path, const ObjImportOptions& op
                std::string* error) {
   ObjImportResult local;
   ObjImportResult& res = result ? *result : local;
-  std::ifstream f(fs::u8path(path));
-  if (!f) {
-    if (error) *error = "Cannot open " + path;
+  ImportProgress* progress = opt.progress;
+  auto cancelled = [&] {
+    if (error) *error = "Import cancelled";
     return false;
+  };
+  auto isCancelled = [&] { return progress && progress->cancelled(); };
+  // Read the whole file; parsing then runs on memory.
+  std::string data;
+  {
+    std::ifstream f(fs::u8path(path), std::ios::binary);
+    if (!f) {
+      if (error) *error = "Cannot open " + path;
+      return false;
+    }
+    f.seekg(0, std::ios::end);
+    std::streamoff size = f.tellg();
+    f.seekg(0);
+    if (size > 0) {
+      data.resize(static_cast<size_t>(size));
+      const size_t step = size_t(64) << 20;
+      for (size_t at = 0; at < data.size() && f; at += step) {
+        f.read(&data[at], static_cast<std::streamsize>(std::min(step, data.size() - at)));
+        if (reportProgress(progress, 0.0, 0.1, double(at) / double(data.size()))) return cancelled();
+      }
+      if (!f) {
+        if (error) *error = "Cannot read " + path;
+        return false;
+      }
+    }
   }
   fs::path dir = fs::u8path(path).parent_path();
 
-  std::vector<Vec3> pos, nrm;
-  std::vector<Vec2> tex;
-  std::vector<Group> groups;
+  // Split into chunks at line ends and parse them in parallel.
+  const char* base = data.data();
+  const char* end = base + data.size();
+  size_t want = std::max<size_t>(1, std::min<size_t>(size_t(parallelThreads()) * 8, data.size() >> 20));
+  std::vector<const char*> cuts{base};
+  for (size_t i = 1; i < want; ++i) {
+    const char* p = base + data.size() / want * i;
+    if (p <= cuts.back()) continue;
+    const char* nl = static_cast<const char*>(std::memchr(p, '\n', static_cast<size_t>(end - p)));
+    if (!nl) break;
+    cuts.push_back(nl + 1);
+  }
+  cuts.push_back(end);
+  const size_t chunkCount = cuts.size() - 1;
+  std::vector<ObjChunk> chunks(chunkCount);
+  std::atomic<size_t> parsed{0};
+  parallelFor(chunkCount, [&](size_t i) {
+    if (isCancelled()) return;
+    parseChunk(cuts[i], cuts[i + 1], chunks[i]);
+    reportProgress(progress, 0.1, 0.45, double(++parsed) / double(chunkCount));
+  });
+  if (isCancelled()) return cancelled();
+  for (const ObjChunk& c : chunks)
+    if (c.errorAt) {
+      size_t lineNo = 1 + static_cast<size_t>(std::count(base, c.errorAt, '\n'));
+      if (error) *error = "Bad vertex index on line " + std::to_string(lineNo);
+      return false;
+    }
+  data = std::string();
+
+  // File-wide vertex arrays (chunk prefix offsets), and indices resolved to 0-based file-wide
+  // numbers (-1 = absent or out of range for uv/normal).
+  std::vector<size_t> posBase(chunkCount + 1, 0), texBase(chunkCount + 1, 0), nrmBase(chunkCount + 1, 0);
+  for (size_t i = 0; i < chunkCount; ++i) {
+    posBase[i + 1] = posBase[i] + chunks[i].pos.size();
+    texBase[i + 1] = texBase[i] + chunks[i].tex.size();
+    nrmBase[i + 1] = nrmBase[i] + chunks[i].nrm.size();
+  }
+  if (posBase[chunkCount] > 0x7fffffffu || texBase[chunkCount] > 0x7fffffffu || nrmBase[chunkCount] > 0x7fffffffu) {
+    if (error) *error = "Too many vertices in " + path;
+    return false;
+  }
+  std::vector<Vec3> pos(posBase[chunkCount]), nrm(nrmBase[chunkCount]);
+  std::vector<Vec2> tex(texBase[chunkCount]);
+  parallelFor(chunkCount, [&](size_t i) {
+    ObjChunk& c = chunks[i];
+    std::copy(c.pos.begin(), c.pos.end(), pos.begin() + static_cast<std::ptrdiff_t>(posBase[i]));
+    std::copy(c.tex.begin(), c.tex.end(), tex.begin() + static_cast<std::ptrdiff_t>(texBase[i]));
+    std::copy(c.nrm.begin(), c.nrm.end(), nrm.begin() + static_cast<std::ptrdiff_t>(nrmBase[i]));
+    c.pos = {};
+    c.tex = {};
+    c.nrm = {};
+    const long long np = static_cast<long long>(pos.size()), nt = static_cast<long long>(tex.size()),
+                    nn = static_cast<long long>(nrm.size());
+    size_t nf = c.faceStart.size() - 1;
+    for (size_t f = 0; f < nf; ++f) {
+      long long bp = static_cast<long long>(posBase[i] + c.basePos[f]);
+      long long bt = static_cast<long long>(texBase[i] + c.baseTex[f]);
+      long long bn = static_cast<long long>(nrmBase[i] + c.baseNrm[f]);
+      for (uint32_t k = c.faceStart[f]; k < c.faceStart[f + 1]; ++k) {
+        long long v = c.vi[k];
+        v = v < 0 ? bp + v : v - 1;
+        if (v < 0 || v >= np) {
+          c.badIndex = true;
+          v = 0;
+        }
+        c.vi[k] = static_cast<int>(v);
+        long long t = c.ti[k];
+        t = t == 0 ? -1 : (t < 0 ? bt + t : t - 1);
+        c.ti[k] = t >= 0 && t < nt ? static_cast<int>(t) : -1;
+        long long n = c.ni[k];
+        n = n == 0 ? -1 : (n < 0 ? bn + n : n - 1);
+        c.ni[k] = n >= 0 && n < nn ? static_cast<int>(n) : -1;
+      }
+    }
+    c.basePos = {};
+    c.baseTex = {};
+    c.baseNrm = {};
+  });
+  for (const ObjChunk& c : chunks)
+    if (c.badIndex) {
+      if (error) *error = "Bad vertex index in " + path;
+      return false;
+    }
+
+  // Walk the state changes in file order: assign face runs to (name, material) groups.
+  std::vector<ObjGroup> groups;
   std::map<std::pair<std::string, std::string>, size_t> groupIndex;
-  std::map<std::string, MtlInfo> mtl;
+  std::vector<std::string> mtlLibs;
   std::string curName = fs::u8path(path).stem().u8string(), curMat;
   uint32_t curSmooth = 0;
   bool sawSmoothing = false;
-
-  auto groupFor = [&]() -> Group& {
-    auto key = std::make_pair(curName, curMat);
-    auto it = groupIndex.find(key);
-    if (it != groupIndex.end()) return groups[it->second];
-    groupIndex[key] = groups.size();
-    groups.push_back(Group{curName, curMat, {}, {}, {}, false});
-    return groups.back();
-  };
-
-  std::string line;
-  size_t lineNo = 0;
-  while (std::getline(f, line)) {
-    ++lineNo;
-    if (line.empty() || line[0] == '#') continue;
-    std::istringstream in(line);
-    std::string key;
-    in >> key;
-    if (key == "v") {
-      Vec3 p;
-      in >> p.x >> p.y >> p.z;
-      pos.push_back(p);
-    } else if (key == "vt") {
-      Vec2 t;
-      in >> t.x >> t.y;
-      tex.push_back(t);
-    } else if (key == "vn") {
-      Vec3 n;
-      in >> n.x >> n.y >> n.z;
-      nrm.push_back(n);
-    } else if (key == "o" || key == "g") {
-      std::string name = trim(line.substr(key.size()));
-      if (!name.empty() && name != "default") curName = name;
-    } else if (key == "usemtl") {
-      curMat = trim(line.substr(6));
-    } else if (key == "mtllib" && opt.importMaterials) {
-      std::string lib = trim(line.substr(6));
-      auto parsed = parseMtl(dir / fs::u8path(lib), res.warnings);
-      mtl.insert(parsed.begin(), parsed.end());
-    } else if (key == "s") {
-      std::string v;
-      in >> v;
-      sawSmoothing = true;
-      if (v == "off" || v == "0") curSmooth = 0;
-      else {
-        long g = std::strtol(v.c_str(), nullptr, 10);
-        curSmooth = g > 0 ? (1u << ((g - 1) % 32)) : 1u;
+  size_t curGroup = SIZE_MAX;
+  for (size_t i = 0; i < chunkCount; ++i) {
+    const ObjChunk& c = chunks[i];
+    size_t at = 0;
+    auto emit = [&](size_t upTo) {
+      if (upTo <= at) return;
+      if (curGroup == SIZE_MAX) {
+        auto it = groupIndex.find(std::make_pair(curName, curMat));
+        if (it == groupIndex.end()) {
+          it = groupIndex.emplace(std::make_pair(curName, curMat), groups.size()).first;
+          groups.push_back(ObjGroup{curName, curMat, {}, {}, {}});
+        }
+        curGroup = it->second;
       }
-    } else if (key == "f") {
-      Group& g = groupFor();
-      PolyMesh::Face face;
-      std::vector<int> normalIdx;
-      bool allUv = true;
-      std::string tok;
-      while (in >> tok) {
-        int vi = 0, ti = 0, ni = 0;
-        int slash1 = static_cast<int>(tok.find('/'));
-        if (slash1 < 0) {
-          vi = std::atoi(tok.c_str());
-        } else {
-          vi = std::atoi(tok.substr(0, slash1).c_str());
-          int slash2 = static_cast<int>(tok.find('/', slash1 + 1));
-          std::string ts = slash2 < 0 ? tok.substr(slash1 + 1) : tok.substr(slash1 + 1, slash2 - slash1 - 1);
-          if (!ts.empty()) ti = std::atoi(ts.c_str());
-          if (slash2 >= 0 && slash2 + 1 < static_cast<int>(tok.size())) ni = std::atoi(tok.substr(slash2 + 1).c_str());
-        }
-        int gv = fixIndex(vi, pos.size());
-        if (vi == 0 || gv < 0 || gv >= static_cast<int>(pos.size())) {
-          if (error) *error = "Bad vertex index on line " + std::to_string(lineNo);
-          return false;
-        }
-        auto vit = g.vRemap.find(gv);
-        int lv = vit != g.vRemap.end() ? vit->second : (g.vRemap[gv] = g.mesh.addVertex(pos[gv]));
-        face.v.push_back(lv);
-        int gt = ti ? fixIndex(ti, tex.size()) : -1;
-        if (gt >= 0 && gt < static_cast<int>(tex.size())) {
-          auto tit = g.tRemap.find(gt);
-          face.uv.push_back(tit != g.tRemap.end() ? tit->second : (g.tRemap[gt] = g.mesh.addUv(tex[gt])));
-        } else {
-          allUv = false;
-        }
-        int gn = ni ? fixIndex(ni, nrm.size()) : -1;
-        normalIdx.push_back(gn >= 0 && gn < static_cast<int>(nrm.size()) ? gn : -1);
+      groups[curGroup].runs.push_back(
+          FaceRun{static_cast<uint32_t>(i), static_cast<uint32_t>(at), static_cast<uint32_t>(upTo), curSmooth, !sawSmoothing});
+      at = upTo;
+    };
+    for (const ObjEvent& ev : c.events) {
+      emit(ev.face);
+      switch (ev.kind) {
+        case ObjEvent::Name:
+          if (!ev.text.empty() && ev.text != "default" && ev.text != curName) {
+            curName = ev.text;
+            curGroup = SIZE_MAX;
+          }
+          break;
+        case ObjEvent::Material:
+          if (ev.text != curMat) {
+            curMat = ev.text;
+            curGroup = SIZE_MAX;
+          }
+          break;
+        case ObjEvent::Smooth:
+          curSmooth = ev.smooth;
+          sawSmoothing = true;
+          break;
+        case ObjEvent::MtlLib: mtlLibs.push_back(ev.text); break;
       }
-      if (face.v.size() < 3) continue;
-      if (!allUv) face.uv.clear();
-      face.smoothGroups = curSmooth;
-      if (!sawSmoothing) {
-        // Decide from the file's normals: a face whose corner normals all match its own
-        // normal is flat; otherwise it belongs to a smooth surface.
-        bool curved = false;
-        Vec3 fn = normalize(g.mesh.faceNormal(face));
-        for (int n : normalIdx) {
-          if (n < 0) continue;
-          if (dot(normalize(nrm[n]), fn) < 0.999f) { curved = true; break; }
-        }
-        bool anyNormals = std::any_of(normalIdx.begin(), normalIdx.end(), [](int n) { return n >= 0; });
-        face.smoothGroups = anyNormals ? (curved ? 1u : 0u) : 1u;
-      }
-      g.mesh.faces.push_back(std::move(face));
     }
+    emit(c.faceStart.size() - 1);
   }
 
   // Materials.
   std::map<std::string, uint32_t> matIds;
   if (opt.importMaterials) {
+    std::map<std::string, MtlInfo> mtl;
+    for (const auto& lib : mtlLibs) {
+      auto parsed = parseMtl(dir / fs::u8path(lib), res.warnings);
+      mtl.insert(parsed.begin(), parsed.end());
+    }
     for (const auto& g : groups) {
       if (g.material.empty() || matIds.count(g.material)) continue;
       Material* m = scene.createMaterial(g.material);
@@ -263,33 +486,102 @@ bool importObj(Scene& scene, const std::string& path, const ObjImportOptions& op
     }
   }
 
-  // Nodes.
+  // Build each group's mesh in parallel: own vertex numbering, smoothing, axis/scale and pivot.
   Mat4 axis = opt.yUp ? Mat4::rotateX(kPi * 0.5f) : Mat4::identity();
   Mat4 xf = axis * Mat4::scale(Vec3(opt.scale));
+  std::atomic<size_t> built{0};
+  parallelFor(groups.size(), [&](size_t gi) {
+    if (isCancelled()) return;
+    ObjGroup& g = groups[gi];
+    PolyMesh& mesh = g.mesh;
+    int vlo = INT_MAX, vhi = -1, tlo = INT_MAX, thi = -1;
+    size_t corners = 0, faces = 0;
+    for (const FaceRun& r : g.runs) {
+      const ObjChunk& c = chunks[r.chunk];
+      faces += r.end - r.begin;
+      for (uint32_t k = c.faceStart[r.begin]; k < c.faceStart[r.end]; ++k) {
+        vlo = std::min(vlo, c.vi[k]);
+        vhi = std::max(vhi, c.vi[k]);
+        if (c.ti[k] >= 0) {
+          tlo = std::min(tlo, c.ti[k]);
+          thi = std::max(thi, c.ti[k]);
+        }
+      }
+      corners += c.faceStart[r.end] - c.faceStart[r.begin];
+    }
+    if (faces == 0) return;
+    IndexRemap vmap, tmap;
+    vmap.init(vlo, vhi, corners);
+    tmap.init(thi >= 0 ? tlo : 0, thi, corners);
+    mesh.faces.reserve(faces);
+    mesh.positions.reserve(std::min<size_t>(corners, static_cast<size_t>(vhi - vlo) + 1));
+    auto addPos = [&](int idx) { return mesh.addVertex(pos[static_cast<size_t>(idx)]); };
+    auto addTex = [&](int idx) { return mesh.addUv(tex[static_cast<size_t>(idx)]); };
+    for (const FaceRun& r : g.runs) {
+      const ObjChunk& c = chunks[r.chunk];
+      for (uint32_t f = r.begin; f < r.end; ++f) {
+        uint32_t k0 = c.faceStart[f], k1 = c.faceStart[f + 1];
+        PolyMesh::Face face;
+        face.v.resize(k1 - k0);
+        bool allUv = true;
+        for (uint32_t k = k0; k < k1; ++k) {
+          face.v[k - k0] = vmap.get(c.vi[k], addPos);
+          allUv &= c.ti[k] >= 0;
+        }
+        if (allUv) {
+          face.uv.resize(k1 - k0);
+          for (uint32_t k = k0; k < k1; ++k) face.uv[k - k0] = tmap.get(c.ti[k], addTex);
+        }
+        face.smoothGroups = r.smooth;
+        if (r.fromNormals) {
+          // Decide from the file's normals: a face whose corner normals all match its own
+          // normal is flat; otherwise it belongs to a smooth surface.
+          bool curved = false, anyNormals = false;
+          Vec3 fn = normalize(mesh.faceNormal(face));
+          for (uint32_t k = k0; k < k1; ++k) {
+            int n = c.ni[k];
+            if (n < 0) continue;
+            anyNormals = true;
+            if (dot(normalize(nrm[static_cast<size_t>(n)]), fn) < 0.999f) {
+              curved = true;
+              break;
+            }
+          }
+          face.smoothGroups = anyNormals ? (curved ? 1u : 0u) : 1u;
+        }
+        mesh.faces.push_back(std::move(face));
+      }
+    }
+    mesh.transform(xf);
+    Aabb b = mesh.bounds();
+    g.pivot = Vec3(b.center().x, b.center().y, b.lo.z);
+    for (auto& p : mesh.positions) p -= g.pivot;
+    reportProgress(progress, 0.45, 0.95, double(++built) / double(groups.size()));
+  });
+  if (isCancelled()) return cancelled();
+  chunks.clear();
+
+  // Nodes.
+  std::unordered_map<std::string, size_t> nameCount;
+  for (const auto& g : groups) ++nameCount[g.name];
+  scene.beginBulkNames();
   for (auto& g : groups) {
     if (g.mesh.faces.empty()) continue;
-    g.mesh.transform(xf);
-    Aabb b = g.mesh.bounds();
-    Vec3 pivot(b.center().x, b.center().y, b.lo.z);
-    for (auto& p : g.mesh.positions) p -= pivot;
-
     auto node = std::make_unique<Node>();
     std::string name = g.name;
-    if (groups.size() > 1 && !g.material.empty()) {
-      size_t sameName = std::count_if(groups.begin(), groups.end(), [&](const Group& o) { return o.name == g.name; });
-      if (sameName > 1) name += "_" + g.material;
-    }
+    if (groups.size() > 1 && !g.material.empty() && nameCount[g.name] > 1) name += "_" + g.material;
     node->name = name;
     auto obj = std::make_unique<EditablePolyObject>();
     res.triangles += g.mesh.triangleCount();
-    obj->mesh = std::move(g.mesh);
+    obj->setMesh(std::move(g.mesh));
     node->object = std::move(obj);
-    node->transform.position = pivot;
+    node->transform.position = g.pivot;
     node->wireColor = Vec3(0.75f, 0.75f, 0.75f);
     auto mit = matIds.find(g.material);
     if (mit != matIds.end()) node->materialId = mit->second;
     res.nodeIds.push_back(scene.addNode(std::move(node))->id);
   }
+  scene.endBulkNames();
   if (res.nodeIds.empty()) {
     if (error) *error = "No faces found in " + path;
     return false;

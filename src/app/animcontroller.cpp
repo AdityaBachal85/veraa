@@ -34,7 +34,7 @@ AnimController::AnimController(MainWindow& window)
   g_instance = this;
   timer_.setTimerType(Qt::PreciseTimer);
   connect(&timer_, &QTimer::timeout, this, &AnimController::tick);
-  doc_->setCommitHook([this](const json& before) { onCommit(before); });
+  doc_->setCommitHook([this](const SceneSnapshot& before) { onCommit(before); });
   connect(doc_, &SceneDocument::structureChanged, this, [this] {
     Q_EMIT rangeChanged();
     Q_EMIT frameChanged(frame());
@@ -377,8 +377,8 @@ void AnimController::previewAnimation() {
   applyFrame(frame());
 }
 
-void AnimController::onCommit(const json& before) {
-  if (suppress_ > 0 || !before.is_object()) return;
+void AnimController::onCommit(const SceneSnapshot& before) {
+  if (suppress_ > 0) return;
   Animation* anim = animation();
   if (!anim) return;
   Scene& s = scene();
@@ -386,7 +386,7 @@ void AnimController::onCommit(const json& before) {
   // Quick exit: nothing animated and not keying means nothing to do.
   if (!keying && anim->empty()) return;
   Scene old;
-  if (!old.fromJson(before)) return;
+  old.restore(before);
 
   struct Change {
     std::string path;

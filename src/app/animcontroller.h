@@ -118,7 +118,7 @@ class AnimController : public QObject {
 
  private:
   void applyFrame(double f);
-  void onCommit(const json& before);
+  void onCommit(const SceneSnapshot& before);
   void tick();
 
   MainWindow& window_;

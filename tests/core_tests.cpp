@@ -1,5 +1,7 @@
 // Core library tests: primitives, modifiers, scene files and OBJ import.
+#include <cmath>
 #include <cstdio>
+#include <unordered_map>
 #include <filesystem>
 #include <fstream>
 #include <map>
@@ -283,6 +285,121 @@ static void testHierarchyInstancesLayers() {
   CHECK(findModifierType("Bend") && findModifierType("Bend")->category == "Parametric Deformers");
 }
 
+
+// Large-scene paths: binary .veraa meshes, picking BVH, parallel OBJ parsing, scene adoption.
+static float bruteForcePick(const TriMesh& m, const Ray& ray) {
+  float best = -1.0f;
+  for (size_t i = 0; i + 2 < m.indices.size(); i += 3) {
+    const Vec3 &p0 = m.positions[m.indices[i]], &p1 = m.positions[m.indices[i + 1]], &p2 = m.positions[m.indices[i + 2]];
+    Vec3 e1 = p1 - p0, e2 = p2 - p0, pv = cross(ray.d, e2);
+    float det = dot(e1, pv);
+    if (std::fabs(det) < 1e-12f) continue;
+    Vec3 tv = ray.o - p0;
+    float u = dot(tv, pv) / det;
+    if (u < 0 || u > 1) continue;
+    Vec3 qv = cross(tv, e1);
+    float v = dot(ray.d, qv) / det;
+    if (v < 0 || u + v > 1) continue;
+    float t = dot(e2, qv) / det;
+    if (t > 1e-5f && (best < 0 || t < best)) best = t;
+  }
+  return best;
+}
+
+static PolyMesh wavyGrid(int k) {
+  PolyMesh g;
+  for (int y = 0; y <= k; ++y)
+    for (int x = 0; x <= k; ++x) g.addVertex(Vec3(float(x), float(y), std::sin(x * 0.3f) * std::cos(y * 0.2f) * 3.0f));
+  for (int y = 0; y < k; ++y)
+    for (int x = 0; x < k; ++x) {
+      int a = y * (k + 1) + x;
+      g.addFace({a, a + 1, a + k + 2, a + k + 1}, {}, (x + y) % 3 == 0 ? 0u : 1u, (x * 7 + y) % 3);
+    }
+  return g;
+}
+
+static void testLargeScenePaths() {
+  // Triangulation keeps every face (n - 2 triangles) and unique edges.
+  PolyMesh grid = wavyGrid(64);
+  TriMesh tri = triangulate(grid);
+  CHECK(tri.triangleCount() == 64u * 64u * 2u);
+  CHECK(tri.wireIndices.size() / 2 == size_t(2 * 64 * 65));
+  CHECK(tri.triMatIds.size() == tri.triangleCount());
+  // Picking through the BVH matches a brute-force test.
+  uint32_t seed = 12345;
+  auto rnd = [&] {
+    seed = seed * 1664525u + 1013904223u;
+    return (seed >> 8) / float(1 << 24);
+  };
+  int mismatches = 0, hits = 0;
+  for (int i = 0; i < 300; ++i) {
+    Ray r{Vec3(rnd() * 70 - 3, rnd() * 70 - 3, 20.0f), normalize(Vec3(rnd() - 0.5f, rnd() - 0.5f, -1.0f))};
+    float a = intersectTriMesh(tri, r), b = bruteForcePick(tri, r);
+    if (b > 0) ++hits;
+    if ((a > 0) != (b > 0) || (b > 0 && std::fabs(a - b) > 1e-3f)) ++mismatches;
+  }
+  CHECK(tri.bvh != nullptr);
+  CHECK(hits > 100);
+  CHECK(mismatches == 0);
+
+  // Binary mesh encoding round trip, and rejection of damaged data.
+  grid.uvs = {Vec2(0, 0), Vec2(1, 0), Vec2(1, 1), Vec2(0, 1)};
+  grid.faces[5].uv = {0, 1, 2, 3};
+  std::string blob;
+  encodePolyMesh(grid, blob);
+  PolyMesh back;
+  CHECK(decodePolyMesh(blob.data(), blob.size(), back));
+  CHECK(back.positions.size() == grid.positions.size() && back.faces.size() == grid.faces.size());
+  CHECK(back.faces[5].uv == grid.faces[5].uv && back.faces[6].uv.empty());
+  CHECK(back.faces[7].matId == grid.faces[7].matId && back.faces[9].smoothGroups == grid.faces[9].smoothGroups);
+  CHECK(!decodePolyMesh(blob.data(), blob.size() / 2, back));
+
+  // Binary .veraa round trip keeps the meshes.
+  Scene scene;
+  for (int i = 0; i < 3; ++i) {
+    auto node = std::make_unique<Node>();
+    auto obj = std::make_unique<EditablePolyObject>();
+    obj->setMesh(wavyGrid(8 + i));
+    node->object = std::move(obj);
+    node->name = "Grid";
+    scene.addNode(std::move(node));
+  }
+  auto path = (std::filesystem::temp_directory_path() / "veraa_bin_test.veraa").u8string();
+  std::string err;
+  CHECK(scene.save(path, &err));
+  Scene loaded;
+  CHECK(loaded.load(path, &err));
+  CHECK(loaded.nodes.size() == 3);
+  CHECK(loaded.nodes.size() == 3 && loaded.nodes[2]->mesh().faces.size() == 100u);
+  CHECK(loaded.toJson() == scene.toJson());
+  std::filesystem::remove(path);
+
+  // OBJ: groups, negative indices, n-gons; adopt() moves the result into another scene.
+  auto dir = std::filesystem::temp_directory_path() / "veraa_obj_big";
+  std::filesystem::create_directories(dir);
+  {
+    std::ofstream obj(dir / "parts.obj");
+    obj << "o A\nv 0 0 0\nv 1 0 0\nv 1 1 0\nv 0 1 0\nf -4 -3 -2 -1\n"
+           "o B\nv 2 0 0\nv 3 0 0\nv 3 1 0\ns 1\nf 5 6 7\ng B\nv 2 2 0\nf 5 7 8\n";
+  }
+  Scene temp;
+  ObjImportResult res;
+  CHECK(importObj(temp, (dir / "parts.obj").u8string(), ObjImportOptions{}, &res, &err));
+  CHECK(res.nodeIds.size() == 2 && res.triangles == 4);
+  CHECK(temp.prepareMeshes());
+  Scene dst;
+  dst.createNode("Box");
+  std::unordered_map<uint32_t, uint32_t> idMap;
+  std::vector<uint32_t> ids = dst.adopt(temp, &idMap);
+  CHECK(ids.size() == 2 && temp.nodes.empty() && dst.nodes.size() == 3);
+  Node* a = dst.findNodeByName("A");
+  Node* bnode = dst.findNodeByName("B");
+  CHECK(a && a->mesh().faces.size() == 1 && a->mesh().faces[0].v.size() == 4);
+  CHECK(bnode && bnode->triMesh().triangleCount() == 2);
+  CHECK(a && idMap.size() == 2 && dst.findNode(ids[0]) == a);
+  std::filesystem::remove_all(dir);
+}
+
 int main() {
   testHierarchyInstancesLayers();
   testPrimitives();
@@ -290,6 +407,7 @@ int main() {
   testSceneRoundTrip();
   testEuler();
   testObjImport();
+  testLargeScenePaths();
   if (g_failures) {
     std::printf("%d check(s) failed\n", g_failures);
     return 1;

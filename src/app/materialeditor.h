@@ -2,6 +2,7 @@
 #pragma once
 
 #include <QDialog>
+#include <QSet>
 #include <QHash>
 #include <QImage>
 #include <QTimer>
@@ -72,6 +73,8 @@ class MaterialEditor : public QDialog {
   void showCurrent();
   void refreshUsage();
   void requestPreview(uint32_t id);
+  void requestVisiblePreviews();
+  void showEvent(QShowEvent* e) override;
   void updateLevelPreview();
   void applyPreset(int index);
   Material* current() const;
@@ -92,6 +95,7 @@ class MaterialEditor : public QDialog {
   QHash<uint32_t, QImage> images_;
   QTimer previewTimer_;
   QList<uint32_t> pendingPreviews_;
+  QSet<uint32_t> requested_;  // slots whose swatch was rendered or queued
 };
 
 }  // namespace veraa
