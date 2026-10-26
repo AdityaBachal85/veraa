@@ -15,6 +15,7 @@ add_library(veraa_core STATIC
   vmath.cpp
   params.cpp
   mesh.cpp
+  parallel.cpp
   object.cpp
   primitives.cpp
   modifier.cpp
@@ -65,7 +66,7 @@ target_include_directories(veraa_core
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${PROJECT_SOURCE_DIR}/third_party
 )
-target_link_libraries(veraa_core PUBLIC veraa_clipper2)
+target_link_libraries(veraa_core PUBLIC veraa_clipper2 Threads::Threads)
 # Lets the font search find the bundled fonts when running from the build tree.
 target_compile_definitions(veraa_core PRIVATE VERAA_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 
